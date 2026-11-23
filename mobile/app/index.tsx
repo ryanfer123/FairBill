@@ -2,9 +2,9 @@ import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ConnectionStatus } from '../src/connection';
 import { configureEndpoint, createCase, endpoint, lastCase, rememberCase } from '../src/api';
-import { Badge, Button, IconButton, Mark, Message, Sheet, color, ui } from '../src/ui';
+import { Badge, Button, Card, Divider, IconButton, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 export default function Home() {
   const [latest, setLatest] = useState<string | null>(null);
@@ -14,6 +14,7 @@ export default function Home() {
   const [address, setAddress] = useState('');
   const [settingsError, setSettingsError] = useState('');
   const [checking, setChecking] = useState(false);
+  const [connectionRevision, setConnectionRevision] = useState(0);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -38,9 +39,11 @@ export default function Home() {
   }
 
   async function openSettings() {
-    setAddress(await endpoint());
-    setSettingsError('');
-    setSettings(true);
+    try {
+      setAddress(await endpoint());
+      setSettingsError('');
+      setSettings(true);
+    } catch (cause) { setError((cause as Error).message); }
   }
 
   async function connect() {
@@ -49,6 +52,7 @@ export default function Home() {
     try {
       await configureEndpoint(address);
       setSettings(false);
+      setConnectionRevision((value) => value + 1);
       setError('');
     } catch (cause) {
       setSettingsError((cause as Error).message);
@@ -58,7 +62,7 @@ export default function Home() {
   }
 
   return (
-    <SafeAreaView style={ui.safe} edges={['top', 'bottom']}>
+    <Screen>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.between}>
           <View style={ui.row}>
@@ -67,34 +71,27 @@ export default function Home() {
           </View>
           <IconButton label="Connection settings" icon="settings" onPress={() => void openSettings()} />
         </View>
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>HOSPITAL BILL REVIEW</Text>
-          <Text style={styles.heroTitle}>Understand what you were billed.</Text>
-          <Text style={styles.heroBody}>Check hospital charges against records and insurance paperwork. See the evidence behind every question.</Text>
-          <View style={styles.heroRule} />
-          <View style={[ui.between, { alignItems: 'flex-end' }]}>
-            <View style={ui.grow}>
-              <Text style={styles.previewLabel}>Sample hospital invoice</Text>
-              <Text style={styles.samplePrice}>₹1,56,800</Text>
-            </View>
-            <View style={styles.pill}>
-              <Feather name="layers" size={16} color={color.lime} />
-              <Text style={styles.pillText}>4 documents</Text>
-            </View>
-          </View>
-          <Button label="Open sample case" icon="arrow-up-right" tone="light"
+        <ConnectionStatus refresh={connectionRevision} />
+        {error ? <Message text={error} onClose={() => setError('')} /> : null}
+        <Card>
+          <Text style={ui.kicker}>HOSPITAL BILL REVIEW</Text>
+          <Text accessibilityRole="header" style={ui.title}>Understand what you were billed.</Text>
+          <Text style={ui.body}>Review charges, insurance deductions, and the records behind them.</Text>
+          <Divider />
+          <Text style={ui.label}>Sample investigation</Text>
+          <Text style={ui.small}>See how a second lab order changes the bill review.</Text>
+          <Button label="Open sample case" icon="arrow-up-right"
             onPress={() => void start(true)} busy={busy} />
-        </View>
-        {error && <Message text={error} onClose={() => setError('')} />}
+        </Card>
         {latest && <Button label="Resume last case" icon="arrow-right" tone="ghost" onPress={() => open(latest)} disabled={busy} />}
-        <View style={ui.card}>
+        <Card>
           <View style={ui.between}>
-            <Text style={ui.heading}>Start with a document</Text>
+            <SectionHeader>Start with a document</SectionHeader>
             <Feather name="maximize" size={22} color={color.forest} />
           </View>
           <Text style={ui.body}>Scan an invoice, import a PDF, or paste the text.</Text>
           <Button label="Create a case" icon="plus" tone="ghost" onPress={() => void start(false)} disabled={busy} />
-        </View>
+        </Card>
         <View style={styles.footer}>
           <Badge tone="neutral">Synthetic demo</Badge>
           <Text style={ui.small}>Team Honey Potato · AgenticX</Text>
@@ -111,21 +108,11 @@ export default function Home() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Sheet>}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: color.ink },
-  hero: { gap: 16, padding: 22, borderRadius: 26, backgroundColor: color.forest },
-  heroLabel: { color: color.mint, fontSize: 11, letterSpacing: 1.65, fontWeight: '800' },
-  heroTitle: { color: '#F7F9EF', fontSize: 42, letterSpacing: -2, lineHeight: 45, fontWeight: '800' },
-  heroBody: { color: '#D1E2D3', fontSize: 15, lineHeight: 23, maxWidth: 430 },
-  heroRule: { height: 1, backgroundColor: '#426153' },
-  previewLabel: { color: '#C2D9CA', fontSize: 13 },
-  samplePrice: { color: color.lime, fontSize: 30, letterSpacing: -0.8, fontWeight: '800' },
-  pill: { flexDirection: 'row', gap: 6, alignItems: 'center', borderWidth: 1, borderColor: '#557468',
-    borderRadius: 20, paddingVertical: 7, paddingHorizontal: 9 },
-  pillText: { color: '#E2F1E4', fontSize: 11, fontWeight: '700' },
   footer: { gap: 6, alignItems: 'flex-start' },
 });
