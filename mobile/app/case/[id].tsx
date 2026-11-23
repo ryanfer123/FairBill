@@ -8,7 +8,7 @@ import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
-import { Badge, Button, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
+import { Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
 type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
   | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
@@ -212,16 +212,21 @@ export default function CaseScreen() {
       </>}
       {tab === 'Documents' && <>
         <Text style={ui.title}>Documents</Text>
-        {data.documents.map((doc) => <Pressable accessibilityRole="button" key={doc.id}
-          onPress={() => { if (!busy) setOverlay({ type: 'review', id: doc.id }); }} style={[ui.card, ui.between]}>
-          <Feather name="file-text" size={22} color={color.forest} />
-          <View style={ui.grow}>
-            <Text style={ui.label}>{doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}</Text>
-            <Text style={ui.small}>{doc.rows.length} rows · {doc.confirmed ? 'Confirmed' : 'Needs review'}</Text>
-          </View>
-          <Feather name="chevron-right" color={color.muted} size={18} />
-        </Pressable>)}
-        {!data.documents.length && <Text style={ui.body}>No documents in this case yet.</Text>}
+        {data.documents.length > 0 ? <Card>
+          {data.documents.map((doc, index) => <View key={doc.id}>
+            {index > 0 && <Divider />}
+            <Pressable accessibilityRole="button" accessibilityLabel={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}
+              accessibilityState={{ disabled: !!busy }} disabled={!!busy}
+              onPress={() => setOverlay({ type: 'review', id: doc.id })} style={[ui.between, styles.documentRow]}>
+              <Feather name="file-text" size={20} color={color.forest} />
+              <View style={ui.grow}>
+                <Text style={ui.label}>{doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}</Text>
+                <Text style={ui.small}>{doc.rows.length} rows · {doc.confirmed ? 'Confirmed' : 'Needs review'}</Text>
+              </View>
+              <Feather name="chevron-right" color={color.muted} size={18} />
+            </Pressable>
+          </View>)}
+        </Card> : <EmptyState>No documents in this case yet.</EmptyState>}
         <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />
       </>}
       {tab === 'Timeline' && <>
@@ -303,6 +308,7 @@ export default function CaseScreen() {
 
 const styles = StyleSheet.create({
   toolbar: { paddingHorizontal: 20, paddingVertical: 9 },
+  documentRow: { minHeight: 54, paddingVertical: 8 },
   tabs: { flexDirection: 'row', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: color.line, gap: 8 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderBottomWidth: 3, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: color.forest },
