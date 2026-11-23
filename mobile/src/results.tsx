@@ -166,31 +166,65 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
   </Sheet>;
 }
 
+export function RevisionComparison({ data, item }: { data: Case; item: History }) {
+  const previous = data.history[data.history.indexOf(item) - 1];
+  const oldFindings = new Map(previous?.findings.map((finding) => [finding.id, finding]));
+  const changed = item.findings.filter((finding) => {
+    const before = oldFindings.get(finding.id);
+    return before?.status !== finding.status || before.amount !== finding.amount;
+  });
+  const priorSources = new Set(previous?.findings.flatMap((finding) => finding.evidence.map((source) => source.document_id)));
+  const addedSources = previous ? [...new Map(item.findings.flatMap((finding) => finding.evidence)
+    .filter((source) => !priorSources.has(source.document_id))
+    .map((source) => [source.document_id, source])).values()] : [];
+  const addedDocs = data.timeline.some((event) => previous && event.revision > previous.revision
+    && event.revision <= item.revision && event.title === 'Document added');
+
+  return <View style={ui.stack}>
+    <Text style={ui.small}>Conditional invoice</Text>
+    <View style={styles.comparison}>
+      {previous && <><Text style={ui.money}>{money(previous.scenario.conditional)}</Text>
+        <Feather name="arrow-right" size={15} color={color.muted} /></>}
+      <Text style={[ui.money, styles.value]}>{money(item.scenario.conditional)}</Text>
+    </View>
+    {addedSources.map((source) => <Text key={source.document_id} style={ui.small}>
+      Evidence linked · {source.document_id === 'second-order' ? 'Second lab order' : KINDS[source.document_kind]}
+    </Text>)}
+    {addedDocs && !addedSources.length && <Text style={ui.small}>Document added since the previous investigation.</Text>}
+    {previous && changed.map((finding) => <Text key={finding.id} style={ui.small}>
+      {finding.status === 'withdrawn' ? 'Withdrawn' : finding.status === 'linked' ? 'Clause linked' : 'Updated'} · {finding.title}
+    </Text>)}
+  </View>;
+}
+
 export function Timeline({ data, onRevision }: { data: Case; onRevision: (revision: History) => void }) {
   return <>
-    {data.history.length > 0 && <>
-      <Text style={ui.heading}>Case revisions</Text>
-      {[...data.history].reverse().map((item) => <Pressable key={item.revision} accessibilityRole="button"
-        onPress={() => onRevision(item)} style={[ui.card, ui.between]}>
-        <View style={ui.grow}>
-          <Text style={ui.label}>Revision {item.revision}</Text>
-          <Text style={ui.small}>Conditional invoice · {money(item.scenario.conditional)}</Text>
-        </View>
-        <Feather name="arrow-up-right" color={color.ink} size={18} />
-      </Pressable>)}
-    </>}
-    <Text style={ui.heading}>Activity</Text>
-    {[...data.timeline].reverse().map((item) => <View key={item.id} style={ui.card}>
-      <Text style={ui.kicker}>{item.role.toUpperCase()} · REVISION {item.revision}</Text>
-      <Text style={ui.label}>{item.title}</Text>
-      <Text style={ui.small}>{item.detail}</Text>
-    </View>)}
+    <SectionHeader>Case revisions</SectionHeader>
+    {!data.history.length && <EmptyState>Run an investigation to record the first revision.</EmptyState>}
+    {[...data.history].reverse().map((item) => <Pressable key={item.revision} accessibilityRole="button"
+      onPress={() => onRevision(item)} style={ui.card}>
+      <View style={ui.between}>
+        <Text style={ui.label}>Revision {item.revision}</Text>
+        <Feather name="arrow-up-right" color={color.ink} size={17} />
+      </View>
+      <RevisionComparison data={data} item={item} />
+    </Pressable>)}
+    <SectionHeader>Activity</SectionHeader>
+    <Card>
+      {[...data.timeline].reverse().map((item, index) => <View key={item.id} style={ui.stack}>
+        {index > 0 && <Divider />}
+        <Text style={ui.kicker}>{item.role.toUpperCase()} · REVISION {item.revision}</Text>
+        <Text style={ui.label}>{item.title}</Text>
+        <Text style={ui.small}>{item.detail}</Text>
+      </View>)}
+    </Card>
   </>;
 }
 
 const styles = StyleSheet.create({
   headline: { color: color.forest, fontSize: 38 },
   value: { fontSize: 17, maxWidth: '56%', flexShrink: 1 },
+  comparison: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   findingHeading: { minHeight: 44 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6,

@@ -5,12 +5,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ConnectionStatus } from '../../src/connection';
-import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, money, postCase, request } from '../../src/api';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
-import { Evidence, type EvidenceView, FindingCard, ScenarioCard, Timeline } from '../../src/results';
+import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
 import { Badge, Button, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
-type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView }
+type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
   | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
 type Tab = 'Review' | 'Documents' | 'Timeline';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -243,12 +243,15 @@ export default function CaseScreen() {
         await update('discard', `/documents/${reviewing.id}/discard`, { revision });
         setOverlay(undefined);
       }} />}
-    {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onClose={close} />}
+    {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onClose={() => {
+      if (overlay.returnTo) setOverlay({ type: 'revision', revision: overlay.returnTo });
+      else close();
+    }} />}
     {overlay?.type === 'revision' && <Sheet title={`Revision ${overlay.revision.revision}`} onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
-        <Text style={ui.heading}>Conditional invoice · {money(overlay.revision.scenario.conditional)}</Text>
+        <RevisionComparison data={data} item={overlay.revision} />
         {overlay.revision.findings.map((finding) => <FindingCard key={finding.id} finding={finding}
-          onPress={openEvidence} />)}
+          onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
     {action && <Sheet title={action === 'letter' ? 'Clarification letter' : 'Three-way call plan'} onClose={close}>
