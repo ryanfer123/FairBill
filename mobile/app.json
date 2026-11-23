@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "FairBill",
+    "slug": "fairbill",
+    "version": "0.1.0",
+    "scheme": "fairbill",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "dev.honeypotato.fairbill",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "dev.honeypotato.fairbill",
+      "supportsTablet": true
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "buildArchs": [
+              "arm64-v8a",
+              "x86_64"
+            ]
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "FairBill uses the camera to scan synthetic demo documents.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "./plugins/with-android-ndk",
+        {
+          "version": "27.2.12479018"
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png"
+  }
+}

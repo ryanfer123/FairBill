@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.hypothesis/
+*.pyc
+.local/
+.env
+.env.*
+!.env.example
+node_modules/
+.expo/
+.gradle-workspace/
+mobile/android/
+mobile/ios/
+*.jks
+artifacts/*.apk
+.DS_Store
