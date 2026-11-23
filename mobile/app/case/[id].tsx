@@ -17,14 +17,14 @@ type Tab = 'Review' | 'Documents' | 'Timeline';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export default function CaseScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; capture?: string }>();
   const id = typeof params.id === 'string' && caseID.test(params.id) ? params.id : '';
   const [data, setData] = useState<Case>();
   const [busy, setBusy] = useState('');
   const working = useRef(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
-  const [overlay, setOverlay] = useState<Overlay>();
+  const [overlay, setOverlay] = useState<Overlay | undefined>(() => params.capture === '1' ? { type: 'intake' } : undefined);
 
   const refresh = useCallback(async () => {
     setError('');
