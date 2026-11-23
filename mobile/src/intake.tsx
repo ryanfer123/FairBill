@@ -2,9 +2,9 @@ import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Document, Kind, KINDS, money, Row, RowType } from './api';
-import { Badge, Button, IconButton, Message, Sheet, color, ui } from './ui';
+import { Badge, Button, Divider, EmptyState, IconButton, LoadingState, Message, Sheet, color, ui } from './ui';
 
 type Asset = { uri: string; name: string; type: string };
 
@@ -65,9 +65,9 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
         <View style={ui.card}>
           <Text style={ui.label}>Document type</Text>
           {(Object.keys(KINDS) as Kind[]).map((value) => (
-            <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: value === kind }}
+            <Pressable key={value} accessibilityRole="radio" accessibilityLabel={KINDS[value]} accessibilityState={{ checked: value === kind, disabled }}
               disabled={disabled} onPress={() => setKind(value)}
-              style={[ui.row, { minHeight: 40, paddingHorizontal: 4 }]}>
+              style={[ui.row, { minHeight: 44, paddingHorizontal: 4 }]}>
               <Feather name={value === kind ? 'check-circle' : 'circle'} size={18} color={color.forest} />
               <Text style={ui.label}>{KINDS[value]}</Text>
             </Pressable>
@@ -85,7 +85,8 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
             multiline maxLength={20000} editable={!disabled} />
           <Button label="Review pasted text" icon="arrow-right" tone="ghost" disabled={disabled || !body.trim()} onPress={() => void paste()} />
         </View>
-        {error && <Message text={error} />}
+        {busy && <LoadingState label="Reading document…" />}
+        {error ? <Message text={error} /> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   </Sheet>;
@@ -105,7 +106,7 @@ type EditFields = { description: string; page: string; line: string; code: strin
   reference: string; units: string; amount: string; unit_price: string };
 
 function inputAmount(amount: number | null) {
-  return amount === null ? '' : (amount / 100).toFixed(2);
+  return amount === null ? '' : money(amount).replace(/[₹,]/g, '');
 }
 
 function parseAmount(value: string) {
@@ -189,18 +190,25 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
     try { await onDiscard(); } catch (cause) { setError((cause as Error).message); }
   }
 
+  const changed = JSON.stringify(rows) !== JSON.stringify(doc.rows);
+  const editingExisting = rows.some((row) => row.id === editing?.id);
+
+  function cancelEdit() {
+    setEditing(null);
+    setError('');
+  }
+
   function close() {
     if (busy) return;
-    if (editing) {
-      setEditing(null);
-      setError('');
+    if (changed || (editing && JSON.stringify(fields) !== JSON.stringify(editable(editing)))) {
+      Alert.alert('Leave without saving?', 'Your unconfirmed changes will be discarded.', [
+        { text: 'Keep reviewing', style: 'cancel' }, { text: 'Discard changes', style: 'destructive', onPress: onClose },
+      ]);
     } else onClose();
   }
 
-  return <Sheet title={editing ? `Edit ${ROW_LABEL[editing.type].toLowerCase()}` : KINDS[doc.kind]} onClose={close}>
-    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView key={editing?.id ?? 'review'} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        {editing && fields ? <>
+  const editor = editing && fields ? <View style={ui.stack}>
+    <Divider />
           {([
             ['description', 'Description', 'default'], ['page', 'Source page', 'number-pad'],
             ['line', 'Source line', 'number-pad'],
@@ -219,12 +227,18 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
                 onChangeText={(value) => setFields((current) => current && { ...current, [key]: value })} />
             </View>
           ))}
-          {error && <Message text={error} />}
+          {error ? <Message text={error} /> : null}
           <Button label="Save row" icon="check" onPress={saveRow} />
-          {rows.some((row) => row.id === editing.id) && <Button label="Remove row" icon="trash-2" tone="ghost"
+          {rows.some((row) => row.id === editing.id) && <Button label="Remove row" icon="trash-2" tone="destructive"
             onPress={() => { setRows((current) => current.filter((row) => row.id !== editing.id)); setEditing(null); setError(''); }} />}
-        </> : <>
-          <Text style={ui.body}>Check the rows against the extracted text. Fix any errors before running the investigation.</Text>
+    <Button label="Cancel row edit" tone="ghost" onPress={cancelEdit} />
+  </View> : null;
+
+  return <Sheet title={KINDS[doc.kind]} onClose={close}>
+    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+          <Text style={ui.body}>Compare each row with the document and correct any misreads.</Text>
+          <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved changes' : doc.confirmed ? 'Confirmed' : 'Awaiting confirmation'}</Badge>
           <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost" onPress={() => setSource(!source)} />
           {source && doc.pages.map((page, index) => <View key={index} style={ui.card}>
             <Text style={ui.kicker}>PAGE {index + 1}</Text>
@@ -234,34 +248,42 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
             <Text style={ui.label}>Needs review</Text>
             <Text style={ui.small}>{doc.notes.slice(0, 6).join(' ')}</Text>
           </View>}
-          {rows.map((row) => <View key={row.id} style={ui.card}>
+          {!rows.length && !editing && <EmptyState>No rows were extracted. Add a row using the source text.</EmptyState>}
+          {rows.length > 0 && <View style={ui.card}>
+          <Text style={ui.kicker}>DOCUMENT ROWS</Text>
+          {rows.map((row) => <View key={row.id} style={ui.stack}>
+            <Divider />
             <View style={ui.between}>
               <View style={ui.grow}>
                 <Text style={ui.kicker}>{ROW_LABEL[row.type].toUpperCase()} · PAGE {row.page} · LINE {row.line}</Text>
                 <Text style={ui.label}>{row.description}</Text>
               </View>
-              <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />
+              {row.amount !== null && <Text style={ui.money}>{money(row.amount)}</Text>}
+              {!editing && !busy && <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />}
             </View>
-            {(row.amount !== null || row.units !== null) && <Text style={ui.small}>
-              {[row.amount !== null ? money(row.amount) : '', row.units !== null ? `${row.units} units` : ''].filter(Boolean).join(' · ')}
-            </Text>}
-            {row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: row.received === false }}
+            {row.units !== null && <Text style={ui.small}>{row.units} units</Text>}
+            {doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `)) &&
+              <Text style={ui.small}>Extraction needs review</Text>}
+            {row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service" disabled={!!editing || busy}
+              accessibilityState={{ checked: row.received === false, disabled: !!editing || busy }}
               onPress={() => setRows((current) => current.map((item) => item.id === row.id
                 ? { ...item, received: item.received === false ? null : false } : item))}
-              style={[ui.row, { minHeight: 38 }]}>
+              style={[ui.row, { minHeight: 44 }]}>
               <Feather name={row.received === false ? 'check-square' : 'square'} size={17} color={color.ink} />
               <Text style={ui.small}>I did not receive this service</Text>
             </Pressable>}
             {!!row.reference && <Badge>{row.reference}</Badge>}
+            {editing?.id === row.id && editor}
           </View>)}
+          </View>}
+          {editing && !editingExisting && <View style={ui.card}>{editor}</View>}
           {ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
-            tone="ghost" disabled={busy} onPress={() => add(type)} />)}
-          {error && <Message text={error} />}
+            tone="ghost" disabled={busy || !!editing} onPress={() => add(type)} />)}
+          {error && !editing ? <Message text={error} /> : null}
           <Button label={`Confirm ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`} icon="check"
-            disabled={!rows.length} busy={busy} onPress={() => void confirm()} />
-          {!doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="ghost"
-            disabled={busy} onPress={() => void discard()} />}
-        </>}
+            disabled={!rows.length || !!editing} busy={busy} onPress={() => void confirm()} />
+          {!doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="destructive"
+            disabled={busy || !!editing} onPress={() => void discard()} />}
       </ScrollView>
     </KeyboardAvoidingView>
   </Sheet>;
