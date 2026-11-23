@@ -268,13 +268,24 @@ export default function CaseScreen() {
       onSimulate={(step) => void simulate(step)} />}
     {overlay?.type === 'packet' && <Sheet title="Redacted packet" onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
-        <Text style={ui.body}>This PDF includes amounts, finding summaries, source locations and revision history.</Text>
-        {error && <Message text={error} />}
-        <View style={ui.card}>
-          <Text style={ui.heading}>{overlay.lines[0]}</Text>
-          <Text selectable style={ui.small}>{overlay.lines.slice(1).join('\n')}</Text>
-        </View>
-        <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy} onPress={() => void share()} />
+        <Card>
+          <View style={ui.row}>
+            <Feather name="shield" size={20} color={color.forest} />
+            <SectionHeader>Redactions</SectionHeader>
+          </View>
+          <Text style={ui.body}>Uploaded source text and patient-entered excerpts are excluded. The packet retains source locations, findings, amounts, and revision history.</Text>
+        </Card>
+        {error ? <Message text={error} /> : null}
+        {overlay.lines.length ? <Card>
+          <SectionHeader>{overlay.lines[0]}</SectionHeader>
+          {overlay.lines.slice(1).join('\n').split(/\n{2,}/).filter((section) => section.trim()).map((section, index) =>
+            <View key={index} style={ui.stack}>
+              <Divider />
+              <Text selectable style={ui.body}>{section}</Text>
+            </View>
+          )}
+        </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
+        <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy || !overlay.lines.length} onPress={() => void share()} />
       </ScrollView>
     </Sheet>}
   </Screen>;
