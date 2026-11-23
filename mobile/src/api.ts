@@ -28,6 +28,7 @@ export interface Document {
   notes: string[];
   sha256: string;
   confirmed: boolean;
+  edited_rows?: string[];
 }
 
 export interface Source {

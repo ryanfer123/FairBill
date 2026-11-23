@@ -2,95 +2,166 @@ import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Case, Finding, History, KINDS, Source, money } from './api';
-import { Badge, Button, Sheet, color, ui } from './ui';
+import { Badge, Button, Card, Divider, EmptyState, SectionHeader, Sheet, color, ui } from './ui';
 
 const RELATION: Record<Source['relation'], string> = {
   supports: 'Supports the question', contradicts: 'Challenges the question',
   context: 'Related evidence', patient_report: 'Patient report',
 };
 
-export function ScenarioCard({ data, stale }: { data: Case; stale: boolean }) {
-  const scenario = data.scenario;
-  if (!scenario) return null;
-  const previous = data.history.at(-2);
-  return <View style={styles.hero}>
-    <View style={ui.between}>
-      <Text style={[styles.heroKicker, ui.grow]}>CONDITIONAL INVOICE</Text>
-      {stale && <Badge tone="amber">Previous revision</Badge>}
-      {!stale && <Badge>{data.agent_mode === 'Gemini' ? 'Gemini planner' : 'Offline planner'}</Badge>}
-    </View>
-    <Text style={styles.heroAmount}>{money(scenario.conditional)}</Text>
-    <Text style={styles.heroBody}>{scenario.reconciled
-      ? 'If the active billing adjustments are supported.'
-      : 'The invoice and its itemised lines need reconciliation.'}</Text>
-    {!!previous && previous.scenario.conditional !== scenario.conditional && <View style={styles.revision}>
-      <Feather name="repeat" size={15} color={color.lime} />
-      <Text style={[styles.heroBody, ui.grow]}>Revised from {money(previous.scenario.conditional)}</Text>
-    </View>}
-    <View style={styles.heroDivider} />
-    <View style={ui.between}>
-      <Text style={[styles.heroBody, ui.grow]}>Original invoice</Text>
-      <Text style={styles.heroValue}>{money(scenario.billed)}</Text>
-    </View>
-    <View style={ui.between}>
-      <Text style={[styles.heroBody, ui.grow]}>Conditional adjustments</Text>
-      <Text style={styles.heroValue}>{money(scenario.adjustments)}</Text>
-    </View>
+const RULES: Record<string, string> = {
+  duplicates: 'Repeated charges and distinct service orders',
+  quantities: 'Billed and documented quantities',
+  settlement: 'Settlement deductions and cited policy clauses',
+  patient_report: 'Patient-reported service receipt',
+};
+
+export interface EvidenceView {
+  title: string;
+  rule?: string;
+  explanation: string;
+  amount: number | null;
+  evidence: Source[];
+  status?: Finding['status'];
+  selected?: number;
+}
+
+function sourceKey(source: Source) {
+  return `${source.document_id}:${source.row_id}:${source.page}:${source.line}`;
+}
+
+function unique(sources: Source[]) {
+  return [...new Map(sources.map((source) => [sourceKey(source), source])).values()];
+}
+
+function sourceLabel(source: Source) {
+  return source.document_kind === 'policy'
+    ? `Policy clause · p.${source.page}`
+    : `${KINDS[source.document_kind]} · p.${source.page}`;
+}
+
+function SourceChips({ evidence, onPress }: { evidence: Source[]; onPress: (index: number) => void }) {
+  return <View style={styles.chips}>
+    {evidence.map((source, index) => <Pressable key={sourceKey(source)} accessibilityRole="button"
+      accessibilityLabel={`View ${KINDS[source.document_kind]}, page ${source.page}, line ${source.line}`}
+      onPress={() => onPress(index)} style={styles.chip}>
+      <Feather name="file-text" size={14} color={color.forest} />
+      <Text style={[ui.small, styles.chipLabel]}>{sourceLabel(source)}</Text>
+    </Pressable>)}
   </View>;
 }
 
-export function FindingCard({ finding, onPress }: { finding: Finding; onPress: () => void }) {
-  const withdrawn = finding.status === 'withdrawn';
-  return <Pressable onPress={onPress} accessibilityRole="button"
-    accessibilityLabel={`${finding.title}, ${withdrawn ? 'withdrawn' : finding.amount === null ? finding.status : money(finding.amount)}. View evidence`}
-    style={({ pressed }) => [ui.card, pressed && { opacity: 0.78 }]}>
-    <View style={ui.between}>
-      <Badge tone={withdrawn ? 'neutral' : finding.check === 'settlement' ? 'amber' : 'green'}>
-        {withdrawn ? 'Withdrawn' : finding.status === 'linked' ? 'Clause linked' : 'Review'}
-      </Badge>
-      <Text style={styles.findingAmount}>{finding.amount === null ? '' : money(finding.amount)}</Text>
-    </View>
-    <View style={ui.between}>
-      <Text style={[ui.label, ui.grow]}>{finding.title}</Text>
-      <Feather name="arrow-up-right" size={18} color={color.forest} />
-    </View>
-    <Text style={ui.small}>{finding.explanation}</Text>
-    <Text style={ui.kicker}>{finding.evidence.length} {finding.evidence.length === 1 ? 'SOURCE' : 'SOURCES'}</Text>
-  </Pressable>;
+export function AmountWithSource({ entry, onEvidence, headline = false }:
+  { entry: EvidenceView; onEvidence: (entry: EvidenceView) => void; headline?: boolean }) {
+  return <View style={ui.stack}>
+    {headline ? <>
+      <Text accessibilityRole="header" style={ui.label}>{entry.title}</Text>
+      <Text style={[ui.money, styles.headline]}>{money(entry.amount)}</Text>
+    </> : <View style={ui.between}>
+      <Text style={[ui.body, ui.grow]}>{entry.title}</Text>
+      <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>
+    </View>}
+    {entry.amount !== null && entry.evidence.length > 0 && <SourceChips evidence={entry.evidence}
+      onPress={(selected) => onEvidence({ ...entry, selected })} />}
+  </View>;
 }
 
-export function Evidence({ finding, onClose }: { finding: Finding; onClose: () => void }) {
-  const [opened, setOpened] = useState<number | null>(null);
-  return <Sheet title="Linked evidence" onClose={onClose}>
+function invoiceSources(data: Case): Source[] {
+  return data.documents.flatMap((doc) => doc.confirmed && doc.kind === 'invoice'
+    ? doc.rows.filter((row) => row.type === 'invoice_total').map((row) => ({
+      document_id: doc.id, document_kind: doc.kind, sha256: doc.sha256,
+      page: row.page, line: row.line, row_id: row.id,
+      quote: doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1] ?? '',
+      relation: 'context',
+      basis: doc.edited_rows?.includes(row.id) ? 'patient_confirmed' : 'document',
+    })) : []);
+}
+
+export function ScenarioCard({ data, stale, onEvidence }:
+  { data: Case; stale: boolean; onEvidence: (entry: EvidenceView) => void }) {
+  const scenario = data.scenario;
+  if (!scenario) return null;
+  const previous = data.history.at(-2);
+  const invoices = stale ? [] : invoiceSources(data);
+  const adjustments = data.findings.filter((finding) => scenario.included.includes(finding.id));
+  const adjustmentSources = unique(adjustments.flatMap((finding) => finding.evidence));
+  const explanation = scenario.reconciled
+    ? 'This total applies if the listed billing adjustments are supported.'
+    : 'The invoice and its itemised lines need reconciliation.';
+  return <Card>
+    {stale && <Badge tone="amber">Previous revision</Badge>}
+    <AmountWithSource headline onEvidence={onEvidence} entry={{
+      title: 'Conditional invoice', amount: scenario.conditional, explanation,
+      rule: 'Invoice total and supported billing adjustments', evidence: unique([...invoices, ...adjustmentSources]),
+    }} />
+    <Text style={ui.body}>{explanation}</Text>
+    {!!previous && previous.scenario.conditional !== scenario.conditional &&
+      <Text style={ui.small}>Revised from <Text style={ui.money}>{money(previous.scenario.conditional)}</Text></Text>}
+    <Divider />
+    <AmountWithSource onEvidence={onEvidence} entry={{
+      title: 'Original invoice', amount: scenario.billed, explanation: 'Total from the confirmed hospital invoice.', evidence: invoices,
+    }} />
+    <Divider />
+    <AmountWithSource onEvidence={onEvidence} entry={{
+      title: 'Conditional adjustments', amount: scenario.adjustments, explanation: 'Billing questions included in this calculation.',
+      rule: [...new Set(adjustments.map((finding) => RULES[finding.check]).filter(Boolean))].join(' · '),
+      evidence: adjustmentSources,
+    }} />
+  </Card>;
+}
+
+export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (entry: EvidenceView) => void }) {
+  const withdrawn = finding.status === 'withdrawn';
+  const entry: EvidenceView = { ...finding, rule: RULES[finding.check], evidence: unique(finding.evidence) };
+  return <Card>
+    <Badge tone={withdrawn ? 'neutral' : finding.status === 'linked' ? 'green' : 'amber'}>
+      {withdrawn ? 'Withdrawn' : finding.status === 'linked' ? 'Clause linked' : 'Ask billing'}
+    </Badge>
+    <Pressable onPress={() => onPress(entry)} accessibilityRole="button"
+      accessibilityLabel={`${finding.title}, ${withdrawn ? 'withdrawn' : finding.amount === null ? finding.status : money(finding.amount)}. View evidence`}
+      style={[ui.between, styles.findingHeading]}>
+      <Text style={[ui.label, ui.grow]}>{finding.title}</Text>
+      {finding.amount !== null && <Text style={[ui.money, styles.value]}>{money(finding.amount)}</Text>}
+      <Feather name="arrow-up-right" size={17} color={color.forest} />
+    </Pressable>
+    {!!entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
+    <Text style={ui.body}>{finding.explanation}</Text>
+    <SourceChips evidence={entry.evidence} onPress={(selected) => onPress({ ...entry, selected })} />
+  </Card>;
+}
+
+export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () => void }) {
+  const [opened, setOpened] = useState<number | null>(entry.selected ?? null);
+  const order = entry.evidence.map((source, index) => ({ source, index }));
+  const selected = entry.selected;
+  if (selected !== undefined) {
+    const focused = order.splice(selected, 1)[0];
+    if (focused) order.unshift(focused);
+  }
+  return <Sheet title="Linked evidence" onClose={onClose} bottom>
     <ScrollView contentContainerStyle={ui.content}>
-      <View style={ui.card}>
-        <Badge tone={finding.status === 'withdrawn' ? 'neutral' : 'green'}>
-          {finding.status === 'withdrawn' ? 'Finding withdrawn' : 'Evidence review'}
+      <Card>
+        {entry.status === 'withdrawn' && <Badge tone="neutral">Finding withdrawn</Badge>}
+        <SectionHeader>{entry.title}</SectionHeader>
+        {entry.amount !== null && <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>}
+        {entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
+        <Text style={ui.body}>{entry.explanation}</Text>
+      </Card>
+      {order.map(({ source, index }) => <Card key={sourceKey(source)}>
+        <Badge tone={source.relation === 'contradicts' ? 'amber' : source.relation === 'supports' ? 'green' : 'neutral'}>
+          {RELATION[source.relation]}
         </Badge>
-        <Text style={ui.heading}>{finding.title}</Text>
-        <Text style={ui.body}>{finding.explanation}</Text>
-        {finding.amount !== null && <Text style={styles.findingAmount}>{money(finding.amount)}</Text>}
-      </View>
-      {finding.evidence.map((source, index) => (
-        <View key={`${source.document_id}:${source.row_id}:${index}`} style={styles.node}>
-          <View style={styles.nodeRail}>
-            <View style={[styles.nodeDot, source.relation === 'contradicts' && { backgroundColor: color.amber }]} />
-            <View style={styles.nodeLine} />
-          </View>
-          <View style={[ui.card, ui.grow]}>
-            <Badge tone={source.relation === 'contradicts' ? 'amber' : 'green'}>{RELATION[source.relation]}</Badge>
-            <Text style={ui.label}>{KINDS[source.document_kind]} · {source.row_id}</Text>
-            <Text style={ui.small}>Page {source.page} · Line {source.line}
-              {source.basis === 'patient_confirmed' ? ' · Patient-edited row' : ''}</Text>
-            <Button label={opened === index ? 'Hide source line' : 'View source line'} icon="file-text" tone="ghost"
-              onPress={() => setOpened(opened === index ? null : index)} />
-            {opened === index && <>
-              <Text selectable style={ui.small}>{source.quote || 'This row was entered during patient review.'}</Text>
-              <Text selectable style={ui.kicker}>DOCUMENT HASH {source.sha256.slice(0, 12)}</Text>
-            </>}
-          </View>
-        </View>
-      ))}
+        <Text style={ui.label}>{KINDS[source.document_kind]} · {source.row_id}</Text>
+        <Text style={ui.small}>Page {source.page} · Line {source.line}
+          {source.basis === 'patient_confirmed' ? ' · Patient-edited row' : ''}</Text>
+        <Button label={opened === index ? 'Hide source line' : 'View source line'} icon="file-text" tone="ghost"
+          onPress={() => setOpened(opened === index ? null : index)} />
+        {opened === index && <>
+          <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          <Text selectable style={ui.kicker}>DOCUMENT HASH {source.sha256.slice(0, 12)}</Text>
+        </>}
+      </Card>)}
+      {!entry.evidence.length && <EmptyState>No source excerpts are available for this finding.</EmptyState>}
     </ScrollView>
   </Sheet>;
 }
@@ -118,16 +189,11 @@ export function Timeline({ data, onRevision }: { data: Case; onRevision: (revisi
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 24, padding: 18, backgroundColor: color.forest, gap: 9 },
-  heroKicker: { color: color.mint, fontSize: 11, letterSpacing: 1.45, fontWeight: '800' },
-  heroAmount: { color: color.lime, fontSize: 42, letterSpacing: -1.5, fontWeight: '800' },
-  heroBody: { color: '#CDDFD2', fontSize: 13, lineHeight: 19 },
-  heroValue: { color: '#F9FCF1', fontSize: 15, fontWeight: '800' },
-  heroDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#789487', marginVertical: 2 },
-  revision: { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 8, borderRadius: 10, backgroundColor: '#254D3D' },
-  findingAmount: { color: color.forest, fontWeight: '800', fontSize: 18 },
-  node: { flexDirection: 'row', gap: 10 },
-  nodeRail: { alignItems: 'center', width: 14, paddingTop: 15 },
-  nodeDot: { width: 11, height: 11, borderRadius: 9, backgroundColor: color.forest },
-  nodeLine: { flex: 1, width: 2, backgroundColor: color.line },
+  headline: { color: color.forest, fontSize: 38 },
+  value: { fontSize: 17, maxWidth: '56%', flexShrink: 1 },
+  findingHeading: { minHeight: 44 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderRadius: 6, borderColor: color.line },
+  chipLabel: { flexShrink: 1, color: color.forest },
 });

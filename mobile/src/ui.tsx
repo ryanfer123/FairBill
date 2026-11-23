@@ -83,8 +83,8 @@ export function Message({ text, onClose }: { text: string; onClose?: () => void 
   );
 }
 
-export function Sheet({ title, children, onClose }:
-  { title: string; children: ReactNode; onClose: () => void }) {
+export function Sheet({ title, children, onClose, bottom = false }:
+  { title: string; children: ReactNode; onClose: () => void; bottom?: boolean }) {
   const [reduceMotion, setReduceMotion] = useState(true);
   useEffect(() => {
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
@@ -92,14 +92,16 @@ export function Sheet({ title, children, onClose }:
     return () => subscription.remove();
   }, []);
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} visible onRequestClose={onClose}>
-      <SafeAreaView style={ui.safe} edges={['top', 'bottom']}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} visible transparent={bottom} onRequestClose={onClose}>
+      <View style={bottom ? styles.backdrop : ui.grow}>
+      <SafeAreaView style={bottom ? styles.bottomSheet : ui.safe} edges={bottom ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
         <View style={[ui.between, styles.sheetHeader]}>
           <Text style={[ui.heading, ui.grow]}>{title}</Text>
           <IconButton label="Close" icon="x" onPress={onClose} />
         </View>
         {children}
       </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -122,6 +124,8 @@ export const styles = StyleSheet.create({
   dismiss: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   error: { padding: 12, backgroundColor: color.blush, flexDirection: 'row', gap: 8,
     borderRadius: 12, alignItems: 'center' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#19252266' },
+  bottomSheet: { height: '88%', backgroundColor: color.paper, borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card },
   sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomColor: color.line,
     borderBottomWidth: 1, paddingTop: 6 },
 });

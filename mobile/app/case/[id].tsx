@@ -3,14 +3,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Action, ApiError, Case, Finding, History, KINDS, Kind, Row, endpoint, getCase, headers, money, postCase, request } from '../../src/api';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ConnectionStatus } from '../../src/connection';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, money, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
-import { Evidence, FindingCard, ScenarioCard, Timeline } from '../../src/results';
-import { Badge, Button, IconButton, Message, Sheet, color, ui } from '../../src/ui';
+import { Evidence, type EvidenceView, FindingCard, ScenarioCard, Timeline } from '../../src/results';
+import { Badge, Button, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
-type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; finding: Finding }
+type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView }
   | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
 type Tab = 'Review' | 'Documents' | 'Timeline';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -55,13 +55,13 @@ export default function CaseScreen() {
   function report(cause: unknown) { setError((cause as Error).message); }
   function close() { if (!busy) { setError(''); setOverlay(undefined); } }
 
-  if (!data) return <SafeAreaView style={ui.safe}>
+  if (!data) return <Screen>
     <View style={ui.content}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => router.back()} />
       {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void refresh()} /></>
-        : <ActivityIndicator accessibilityLabel="Loading case" color={color.forest} />}
+        : <LoadingState label="Loading case" />}
     </View>
-  </SafeAreaView>;
+  </Screen>;
 
   const revision = data.revision;
   const ready = revision === data.investigated_revision;
@@ -145,8 +145,9 @@ export default function CaseScreen() {
     }
   }
 
+  const openEvidence = (entry: EvidenceView) => setOverlay({ type: 'evidence', entry });
   const addEvidence = () => setOverlay({ type: 'intake' });
-  return <SafeAreaView style={ui.safe} edges={['top', 'bottom']}>
+  return <Screen>
     <View style={[ui.between, styles.toolbar]}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => { if (!busy) router.back(); }} />
       <View style={ui.grow}>
@@ -155,8 +156,9 @@ export default function CaseScreen() {
       </View>
       <IconButton label="Add evidence" icon="plus" onPress={() => { if (!busy) addEvidence(); }} />
     </View>
+    <ConnectionStatus mode={data.agent_mode} />
     <View style={styles.tabs}>
-      {(['Review', 'Documents', 'Timeline'] as Tab[]).map((name) => <Pressable key={name} accessibilityRole="tab"
+      {(['Review', 'Documents', 'Timeline'] as Tab[]).map((name) => <Pressable key={name} accessibilityRole="tab" accessibilityLabel={name}
         accessibilityState={{ selected: tab === name }} onPress={() => setTab(name)}
         style={[styles.tab, name === tab && styles.tabActive]}>
         <Text style={[styles.tabLabel, name === tab && { color: color.ink }]}>{name}</Text>
@@ -169,7 +171,7 @@ export default function CaseScreen() {
           <Text style={[ui.title, ui.grow]}>Case review</Text>
           <Badge tone="neutral">Rev {revision}</Badge>
         </View>
-        <ScenarioCard data={data} stale={!ready} />
+        <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {!ready && <View style={ui.card}>
           <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
           <Text style={ui.body}>{pending ? 'Review the source and confirm the extracted rows.' : hasInvoice
@@ -190,16 +192,16 @@ export default function CaseScreen() {
             <Button label="Add second lab order" icon="plus" tone="ghost" busy={busy === 'sample-order'} disabled={!!busy}
               onPress={() => { void update('sample-order', '/documents/sample-order', { revision }).then(reviewNew).catch(report); }} />
           </View>}
-          <Text style={ui.heading}>Billing questions</Text>
+          <SectionHeader>Billing questions</SectionHeader>
           {data.findings.filter((item) => item.check !== 'settlement').map((finding) => <FindingCard key={finding.id} finding={finding}
-            onPress={() => setOverlay({ type: 'evidence', finding })} />)}
-          {data.findings.every((item) => item.check === 'settlement') && <Text style={ui.body}>No billing questions surfaced from the confirmed rows.</Text>}
-          <Text style={ui.heading}>Insurance review</Text>
+            onPress={openEvidence} />)}
+          {data.findings.every((item) => item.check === 'settlement') && <EmptyState>No billing questions surfaced from the confirmed rows.</EmptyState>}
+          <SectionHeader>Insurance review</SectionHeader>
           {data.findings.filter((item) => item.check === 'settlement').map((finding) => <FindingCard key={finding.id} finding={finding}
-            onPress={() => setOverlay({ type: 'evidence', finding })} />)}
-          {data.findings.every((item) => item.check !== 'settlement') && <Text style={ui.body}>Add a settlement statement to check deductions.</Text>}
+            onPress={openEvidence} />)}
+          {data.findings.every((item) => item.check !== 'settlement') && <EmptyState>Add a settlement statement to check deductions.</EmptyState>}
           <View style={ui.card}>
-            <Text style={ui.heading}>Next steps</Text>
+            <SectionHeader>Next steps</SectionHeader>
             <Button label="Draft clarification letter" icon="mail" disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => void prepare('letter')} />
             <Button label="Review three-way call plan" icon="phone-call" tone="ghost" disabled={!!busy}
               busy={busy === 'draft-call'} onPress={() => void prepare('call')} />
@@ -241,12 +243,12 @@ export default function CaseScreen() {
         await update('discard', `/documents/${reviewing.id}/discard`, { revision });
         setOverlay(undefined);
       }} />}
-    {overlay?.type === 'evidence' && <Evidence finding={overlay.finding} onClose={close} />}
+    {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onClose={close} />}
     {overlay?.type === 'revision' && <Sheet title={`Revision ${overlay.revision.revision}`} onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
         <Text style={ui.heading}>Conditional invoice · {money(overlay.revision.scenario.conditional)}</Text>
         {overlay.revision.findings.map((finding) => <FindingCard key={finding.id} finding={finding}
-          onPress={() => setOverlay({ type: 'evidence', finding })} />)}
+          onPress={openEvidence} />)}
       </ScrollView>
     </Sheet>}
     {action && <Sheet title={action === 'letter' ? 'Clarification letter' : 'Three-way call plan'} onClose={close}>
@@ -293,7 +295,7 @@ export default function CaseScreen() {
         <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy} onPress={() => void share()} />
       </ScrollView>
     </Sheet>}
-  </SafeAreaView>;
+  </Screen>;
 }
 
 const styles = StyleSheet.create({
