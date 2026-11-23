@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
+import { Outreach } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
 import { Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
@@ -259,39 +260,12 @@ export default function CaseScreen() {
           onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
-    {action && <Sheet title={action === 'letter' ? 'Clarification letter' : 'Three-way call plan'} onClose={close}>
-      <ScrollView contentContainerStyle={ui.content}>
-        <Badge tone="amber">Simulated outreach</Badge>
-        {error && <Message text={error} onClose={() => setError('')} />}
-        {draft && <>
-          <View style={ui.card}>
-            <Text style={ui.kicker}>EXACT WORDING · REVISION {draft.revision} · {draft.mode.toUpperCase()}</Text>
-            <Text selectable style={[ui.body, { color: color.ink }]}>{draft.text}</Text>
-          </View>
-          {!approved && <Button label="Approve exact wording" icon="check" busy={busy === 'approve'} disabled={!!busy}
-            onPress={() => { void update('approve', '/approvals', { action, revision, hash: draft.hash }).catch(report); }} />}
-          {approved && !receipt && <Button label={action === 'letter' ? 'Simulate sending letter' : 'Start simulated call'}
-            icon={action === 'letter' ? 'send' : 'phone-call'} busy={busy === 'simulation'} disabled={!!busy}
-            onPress={() => void simulate('start')} />}
-          {receipt && <View style={ui.card}>
-            <Badge>{receipt.state === 'completed' ? 'Simulation complete' : 'Patient and billing connected'}</Badge>
-            {receipt.state === 'awaiting_identity' && <>
-              <Text style={ui.body}>Billing desk: Please verify your identity. The advocate is waiting.</Text>
-              <Button label="I verified my identity" icon="user-check" busy={!!busy} onPress={() => void simulate('identity')} />
-            </>}
-            {receipt.state === 'verified' && <>
-              <Text style={ui.body}>The advocate can now read the approved questions to the billing desk.</Text>
-              <Button label="Continue the call" icon="arrow-right" busy={!!busy} onPress={() => void simulate('finish')} />
-            </>}
-            {receipt.state === 'completed' && <>
-              <Text style={ui.label}>Reference {receipt.id}</Text>
-              <Text style={ui.body}>{action === 'call' ? 'The simulated billing desk acknowledged the requests for a hold, itemised bill and records.'
-                : 'The letter was recorded in the local demo timeline.'}</Text>
-            </>}
-          </View>}
-        </>}
-      </ScrollView>
-    </Sheet>}
+    {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy}
+      error={error} onDismissError={() => setError('')} onClose={close}
+      onApprove={() => {
+        if (draft) void update('approve', '/approvals', { action, revision, hash: draft.hash }).catch(report);
+      }}
+      onSimulate={(step) => void simulate(step)} />}
     {overlay?.type === 'packet' && <Sheet title="Redacted packet" onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
         <Text style={ui.body}>This PDF includes amounts, finding summaries, source locations and revision history.</Text>
