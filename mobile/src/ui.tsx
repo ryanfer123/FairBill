@@ -119,7 +119,7 @@ export const styles = StyleSheet.create({
   buttonText: { fontWeight: '800', fontSize: 15, flexShrink: 1, textAlign: 'center' },
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.control, borderWidth: 1, borderColor: color.line, backgroundColor: color.card },
-  badge: { alignSelf: 'flex-start', borderRadius: 99, paddingVertical: 5, paddingHorizontal: 9 },
+  badge: { maxWidth: '100%', alignSelf: 'flex-start', borderRadius: 99, paddingVertical: 5, paddingHorizontal: 9 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   dismiss: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   error: { padding: 12, backgroundColor: color.blush, flexDirection: 'row', gap: 8,

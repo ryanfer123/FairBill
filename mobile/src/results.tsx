@@ -40,7 +40,14 @@ function sourceLabel(source: Source) {
     : `${KINDS[source.document_kind]} · p.${source.page}`;
 }
 
-function SourceChips({ evidence, onPress }: { evidence: Source[]; onPress: (index: number) => void }) {
+function SourceChips({ evidence, onPress, compact = false }:
+  { evidence: Source[]; onPress: (index?: number) => void; compact?: boolean }) {
+  if (compact && evidence.length > 1) return <View style={styles.chips}>
+    <Pressable accessibilityRole="button" onPress={() => onPress()} style={styles.chip}>
+      <Feather name="file-text" size={14} color={color.forest} />
+      <Text style={[ui.small, styles.chipLabel]}>View {evidence.length} sources</Text>
+    </Pressable>
+  </View>;
   return <View style={styles.chips}>
     {evidence.map((source, index) => <Pressable key={sourceKey(source)} accessibilityRole="button"
       accessibilityLabel={`View ${KINDS[source.document_kind]}, page ${source.page}, line ${source.line}`}
@@ -61,7 +68,7 @@ export function AmountWithSource({ entry, onEvidence, headline = false }:
       <Text style={[ui.body, ui.grow]}>{entry.title}</Text>
       <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>
     </View>}
-    {entry.amount !== null && entry.evidence.length > 0 && <SourceChips evidence={entry.evidence}
+    {entry.amount !== null && entry.evidence.length > 0 && <SourceChips evidence={entry.evidence} compact
       onPress={(selected) => onEvidence({ ...entry, selected })} />}
   </View>;
 }
@@ -167,7 +174,7 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
 }
 
 export function RevisionComparison({ data, item }: { data: Case; item: History }) {
-  const previous = data.history[data.history.indexOf(item) - 1];
+  const previous = data.history[data.history.findIndex((revision) => revision.revision === item.revision) - 1];
   const oldFindings = new Map(previous?.findings.map((finding) => [finding.id, finding]));
   const changed = item.findings.filter((finding) => {
     const before = oldFindings.get(finding.id);

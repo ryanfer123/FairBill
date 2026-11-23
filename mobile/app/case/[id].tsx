@@ -166,7 +166,7 @@ export default function CaseScreen() {
       </Pressable>)}
     </View>
     <ScrollView key={tab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-      {error && !overlay && <Message text={error} onClose={() => setError('')} />}
+      {error && !overlay ? <Message text={error} onClose={() => setError('')} /> : null}
       {tab === 'Review' && <>
         <View style={ui.between}>
           <Text style={[ui.title, ui.grow]}>Case review</Text>
@@ -297,5 +297,5 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: color.line, gap: 8 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderBottomWidth: 3, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: color.forest },
-  tabLabel: { color: color.muted, fontWeight: '800', fontSize: 13 },
+  tabLabel: { color: color.muted, fontWeight: '800', fontSize: 13, textAlign: 'center' },
 });

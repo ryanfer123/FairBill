@@ -191,7 +191,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new Error('Could not reach the FairBill demo. Check the connection in Settings and try again.');
+    throw new Error('FairBill could not reach the laptop API. Start the demo server, check USB forwarding or the local Wi-Fi address in Settings, then retry.');
   } finally {
     clearTimeout(timer);
   }
@@ -215,6 +215,8 @@ export const KINDS: Record<Kind, string> = {
 
 export function money(paise: number | null) {
   if (paise === null) return '—';
-  const fraction = paise % 100;
-  return `₹${Math.floor(paise / 100).toLocaleString('en-IN')}${fraction ? `.${String(fraction).padStart(2, '0')}` : ''}`;
+  const digits = String(Math.abs(paise)).padStart(3, '0');
+  const rupees = Number(digits.slice(0, -2)).toLocaleString('en-IN');
+  const remainder = digits.slice(-2);
+  return `${paise < 0 ? '−' : ''}₹${rupees}${remainder === '00' ? '' : `.${remainder}`}`;
 }
