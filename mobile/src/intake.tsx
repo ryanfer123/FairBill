@@ -2,9 +2,9 @@ import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, Row, RowType } from './api';
-import { Badge, Button, Divider, EmptyState, IconButton, LoadingState, Message, Sheet, color, ui } from './ui';
+import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
 type Asset = { uri: string; name: string; type: string };
 
@@ -61,32 +61,44 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   return <Sheet title="Add evidence" onClose={() => { if (!disabled) onClose(); }}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        <Text style={ui.body}>Use synthetic documents for this demo. Files are read by the local server.</Text>
-        <View style={ui.card}>
-          <Text style={ui.label}>Document type</Text>
+        <View style={ui.stack}>
+          <Text style={ui.title}>Add a document</Text>
+          <Text style={ui.body}>Choose the type first, then scan or import a synthetic document for review.</Text>
+        </View>
+        {error ? <Message text={error} /> : null}
+        <Card>
+          <SectionHeader>Document type</SectionHeader>
           {(Object.keys(KINDS) as Kind[]).map((value) => (
             <Pressable key={value} accessibilityRole="radio" accessibilityLabel={KINDS[value]} accessibilityState={{ checked: value === kind, disabled }}
               disabled={disabled} onPress={() => setKind(value)}
-              style={[ui.row, { minHeight: 44, paddingHorizontal: 4 }]}>
+              style={[ui.row, styles.option, value === kind && styles.selected]}>
               <Feather name={value === kind ? 'check-circle' : 'circle'} size={18} color={color.forest} />
               <Text style={ui.label}>{KINDS[value]}</Text>
             </Pressable>
           ))}
-        </View>
-        <Button label="Take a photo" icon="camera" busy={picking} disabled={busy} onPress={() => void pick('camera')} />
-        <View style={ui.row}>
-          <View style={ui.grow}><Button label="Choose photo" icon="image" tone="ghost" disabled={disabled} onPress={() => void pick('photo')} /></View>
-          <View style={ui.grow}><Button label="Choose file" icon="folder" tone="ghost" disabled={disabled} onPress={() => void pick('file')} /></View>
-        </View>
-        <View style={ui.card}>
-          <Text style={ui.label}>Paste document text</Text>
-          <TextInput value={body} onChangeText={setBody} placeholder="Paste the text here" placeholderTextColor={color.muted}
-            accessibilityLabel="Document text" style={[ui.input, { minHeight: 110, textAlignVertical: 'top' }]}
+        </Card>
+        <Card tone="tonal">
+          <View style={ui.row}>
+            <Feather name="maximize" size={24} color={color.forest} />
+            <View style={ui.grow}>
+              <SectionHeader>Scan or import</SectionHeader>
+              <Text style={ui.small}>Use clear lighting and include the full page.</Text>
+            </View>
+          </View>
+          <Button label="Take a photo" icon="camera" busy={picking} disabled={busy} onPress={() => void pick('camera')} />
+          <View style={ui.row}>
+            <View style={ui.grow}><Button label="Choose photo" icon="image" tone="light" disabled={disabled} onPress={() => void pick('photo')} /></View>
+            <View style={ui.grow}><Button label="Choose file" icon="folder" tone="light" disabled={disabled} onPress={() => void pick('file')} /></View>
+          </View>
+        </Card>
+        <Card>
+          <SectionHeader>Paste document text</SectionHeader>
+          <Input value={body} onChangeText={setBody} label="Document text"
+            accessibilityLabel="Document text" style={{ minHeight: 110 }}
             multiline maxLength={20000} editable={!disabled} />
           <Button label="Review pasted text" icon="arrow-right" tone="ghost" disabled={disabled || !body.trim()} onPress={() => void paste()} />
-        </View>
+        </Card>
         {busy && <LoadingState label="Reading document…" />}
-        {error ? <Message text={error} /> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   </Sheet>;
@@ -221,8 +233,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
               ? [['reference', editing.type === 'clause' || editing.type === 'deduction' ? 'Policy clause ID' : 'Service record ID', 'default']] : []),
           ] as [keyof EditFields, string, 'default' | 'number-pad' | 'decimal-pad'][]).map(([key, label, keyboardType]) => (
             <View key={key} style={{ gap: 5 }}>
-              <Text style={ui.label}>{label}</Text>
-              <TextInput accessibilityLabel={label} value={fields[key]} keyboardType={keyboardType} style={ui.input}
+              <Input label={label} accessibilityLabel={label} value={fields[key]} keyboardType={keyboardType}
                 maxLength={key === 'description' ? 250 : 80}
                 onChangeText={(value) => setFields((current) => current && { ...current, [key]: value })} />
             </View>
@@ -237,6 +248,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
   return <Sheet title={KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+          <Text style={ui.title}>Confirm document lines</Text>
           <Text style={ui.body}>Compare each row with the document and correct any misreads.</Text>
           <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved changes' : doc.confirmed ? 'Confirmed' : 'Awaiting confirmation'}</Badge>
           <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost" onPress={() => setSource(!source)} />
@@ -280,11 +292,18 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
           {ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
             tone="ghost" disabled={busy || !!editing} onPress={() => add(type)} />)}
           {error && !editing ? <Message text={error} /> : null}
-          <Button label={`Confirm ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`} icon="check"
-            disabled={!rows.length || !!editing} busy={busy} onPress={() => void confirm()} />
           {!doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="destructive"
             disabled={busy || !!editing} onPress={() => void discard()} />}
       </ScrollView>
+      {!editing && <ActionBar>
+          <Button label={`Confirm ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`} icon="check"
+            disabled={!rows.length || !!editing} busy={busy} onPress={() => void confirm()} />
+      </ActionBar>}
     </KeyboardAvoidingView>
   </Sheet>;
 }
+
+const styles = StyleSheet.create({
+  option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
+  selected: { backgroundColor: color.pale },
+});
