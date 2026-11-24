@@ -75,6 +75,8 @@ export interface Receipt {
   action: Action;
   revision: number;
   state: 'awaiting_identity' | 'verified' | 'completed';
+  progress?: 'IDLE' | 'IDENTITY_PENDING' | 'IDENTITY_VERIFIED' | 'ADVOCATE_ACTIVE' | 'ENDED' | null;
+  turns?: { speaker: 'system' | 'patient' | 'advocate' | 'billing'; text: string; at: string }[];
 }
 
 export interface History {

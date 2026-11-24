@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
-import { Outreach } from '../../src/outreach';
+import { Outreach, type SimulationStep } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
@@ -101,7 +101,7 @@ export default function CaseScreen() {
     } catch (cause) { report(cause); }
   }
 
-  async function simulate(step: 'start' | 'identity' | 'finish') {
+  async function simulate(step: SimulationStep) {
     if (!draft) return;
     try {
       await update('simulation', '/simulations', { revision, action: draft.action, hash: draft.hash, step });
