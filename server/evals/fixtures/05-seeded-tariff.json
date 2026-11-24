@@ -1,0 +1,21 @@
+{
+  "name": "05-seeded-tariff",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Sample imaging | DEMO-TARIFF | 2026-11-10 | 2 | 750 | 1500\nTOTAL | T01 | Invoice total | 1500"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "reference_tariff",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 50000
+    }
+  ],
+  "expected_conditional_paise": 100000,
+  "expected_unresolved_deduction_paise": null
+}

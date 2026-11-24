@@ -1,0 +1,24 @@
+{
+  "name": "10-seeded-patient-report",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Ward service | WARD | 2026-11-10 | 2 | 400 | 800\nTOTAL | T01 | Invoice total | 800"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "patient_report",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 80000
+    }
+  ],
+  "expected_conditional_paise": 80000,
+  "expected_unresolved_deduction_paise": null,
+  "not_received_rows": [
+    "L01"
+  ]
+}

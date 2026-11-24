@@ -1,0 +1,8 @@
+{
+  "id": "fairbill-fictional-assistance-v1",
+  "fictional": true,
+  "title": "FairBill fictional hospital assistance policy",
+  "clauses": {
+    "DEMO-A1": {"base_annual_income_paise": 24000000, "per_additional_member_paise": 6000000, "maximum_household_size": 12}
+  }
+}

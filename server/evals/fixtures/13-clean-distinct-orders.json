@@ -1,0 +1,19 @@
+{
+  "name": "13-clean-distinct-orders",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Blood count | CBC | 2026-11-10 | 1 | 900 | 900\nCHARGE | L02 | Blood count | CBC | 2026-11-10 | 1 | 900 | 900\nTOTAL | T01 | Invoice total | 1800"
+    },
+    {
+      "id": "record",
+      "kind": "service_record",
+      "text": "ORDER | O01 | Blood count | CBC | 2026-11-10 | 1 | ORDER-01\nORDER | O02 | Blood count | CBC | 2026-11-10 | 1 | ORDER-02"
+    }
+  ],
+  "expected_questions": [],
+  "expected_conditional_paise": 180000,
+  "expected_unresolved_deduction_paise": null,
+  "photo": true
+}

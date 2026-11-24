@@ -1,0 +1,25 @@
+{
+  "id": "fairbill-fictional-reference-v1",
+  "fictional": true,
+  "description": "Illustrative thresholds and tariffs for synthetic FairBill cases. These are not published prices or coverage terms.",
+  "enabled": {
+    "duplicates": true,
+    "quantities": true,
+    "unit_limit": true,
+    "line_arithmetic": true,
+    "invoice_arithmetic": true,
+    "settlement": true,
+    "reference_tariff": true,
+    "patient_report": true
+  },
+  "unit_limits": {
+    "CBC": 2,
+    "DRESS": 3,
+    "DEMO-UNIT": 2,
+    "DEMO-OVERLAP": 2
+  },
+  "tariffs_paise": {
+    "DEMO-TARIFF": 50000,
+    "DEMO-OVERLAP": 50000
+  }
+}

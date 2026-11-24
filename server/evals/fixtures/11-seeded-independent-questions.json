@@ -1,0 +1,30 @@
+{
+  "name": "11-seeded-independent-questions",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Blood count | CBC | 2026-11-10 | 1 | 900 | 900\nCHARGE | L02 | Blood count | CBC | 2026-11-10 | 1 | 900 | 900\nCHARGE | L03 | Sample imaging | DEMO-TARIFF | 2026-11-10 | 2 | 750 | 1500\nTOTAL | T01 | Invoice total | 3300"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "duplicates",
+      "rows": [
+        "L01",
+        "L02"
+      ],
+      "impact_paise": 90000
+    },
+    {
+      "rule_id": "reference_tariff",
+      "rows": [
+        "L03"
+      ],
+      "impact_paise": 50000
+    }
+  ],
+  "expected_conditional_paise": 190000,
+  "expected_unresolved_deduction_paise": null,
+  "photo": true
+}

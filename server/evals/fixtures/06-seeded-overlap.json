@@ -1,0 +1,28 @@
+{
+  "name": "06-seeded-overlap",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Sample service | DEMO-OVERLAP | 2026-11-10 | 3 | 650 | 1950\nTOTAL | T01 | Invoice total | 1950"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "unit_limit",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 65000
+    },
+    {
+      "rule_id": "reference_tariff",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 45000
+    }
+  ],
+  "expected_conditional_paise": 130000,
+  "expected_unresolved_deduction_paise": null
+}

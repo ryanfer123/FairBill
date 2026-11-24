@@ -1,0 +1,23 @@
+{
+  "name": "14-clean-tariff-and-clause",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Sample imaging | DEMO-TARIFF | 2026-11-10 | 1 | 500 | 500\nTOTAL | T01 | Invoice total | 500"
+    },
+    {
+      "id": "policy",
+      "kind": "policy",
+      "text": "CLAUSE | P01 | Fictional policy provision | DEMO-C1"
+    },
+    {
+      "id": "settlement",
+      "kind": "settlement",
+      "text": "DEDUCTION | S01 | Linked deduction | 80 | DEMO-C1"
+    }
+  ],
+  "expected_questions": [],
+  "expected_conditional_paise": 50000,
+  "expected_unresolved_deduction_paise": 0
+}

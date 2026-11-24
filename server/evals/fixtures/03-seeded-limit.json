@@ -1,0 +1,21 @@
+{
+  "name": "03-seeded-limit",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Dressings | DEMO-UNIT | 2026-11-10 | 4 | 400 | 1600\nTOTAL | T01 | Invoice total | 1600"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "unit_limit",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 80000
+    }
+  ],
+  "expected_conditional_paise": 80000,
+  "expected_unresolved_deduction_paise": null
+}

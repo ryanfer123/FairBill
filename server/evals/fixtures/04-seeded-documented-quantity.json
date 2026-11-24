@@ -1,0 +1,26 @@
+{
+  "name": "04-seeded-documented-quantity",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Dressing change | DRESS | 2026-11-10 | 3 | 500 | 1500\nTOTAL | T01 | Invoice total | 1500"
+    },
+    {
+      "id": "record",
+      "kind": "service_record",
+      "text": "QUANTITY | Q01 | Dressing change | DRESS | 2026-11-10 | 2 | REC-01"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "quantities",
+      "rows": [
+        "L01"
+      ],
+      "impact_paise": 50000
+    }
+  ],
+  "expected_conditional_paise": 100000,
+  "expected_unresolved_deduction_paise": null
+}

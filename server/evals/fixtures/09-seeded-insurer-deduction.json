@@ -1,0 +1,26 @@
+{
+  "name": "09-seeded-insurer-deduction",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Ward service | WARD | 2026-11-10 | 2 | 400 | 800\nTOTAL | T01 | Invoice total | 800"
+    },
+    {
+      "id": "settlement",
+      "kind": "settlement",
+      "text": "DEDUCTION | S01 | Unexplained deduction | 12000"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "settlement",
+      "rows": [
+        "S01"
+      ],
+      "impact_paise": 1200000
+    }
+  ],
+  "expected_conditional_paise": 80000,
+  "expected_unresolved_deduction_paise": 1200000
+}

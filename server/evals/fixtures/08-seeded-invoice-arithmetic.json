@@ -1,0 +1,22 @@
+{
+  "name": "08-seeded-invoice-arithmetic",
+  "documents": [
+    {
+      "id": "invoice",
+      "kind": "invoice",
+      "text": "FAIRBILL SYNTHETIC INVOICE\nCHARGE | L01 | Ward service | WARD | 2026-11-10 | 2 | 400 | 800\nTOTAL | T01 | Invoice total | 900"
+    }
+  ],
+  "expected_questions": [
+    {
+      "rule_id": "invoice_arithmetic",
+      "rows": [
+        "L01",
+        "T01"
+      ],
+      "impact_paise": null
+    }
+  ],
+  "expected_conditional_paise": null,
+  "expected_unresolved_deduction_paise": null
+}
