@@ -23,6 +23,10 @@ def for_local():
         raise HTTPException(403, "This release accepts only the bundled synthetic fixtures.")
 
 
+def is_live_case(case):
+    return profile() == "hosted" and not case["sample"]
+
+
 def make_case(sample: bool):
     from ..sample import fixtures
 
@@ -33,8 +37,13 @@ def make_case(sample: bool):
         "agent_mode": None, "investigated_revision": None, "pending": list(CHECKS),
         "drafts": {}, "approvals": {}, "receipts": {}, "draft_history": [],
     }
-    event(case, "Case opened", "Synthetic demo documents loaded." if sample else
-          "Ready to import synthetic documents.", "FairBill")
+    if sample:
+        detail = "Synthetic demo documents loaded."
+    elif profile() == "hosted":
+        detail = "Ready to import documents."
+    else:
+        detail = "Ready to import synthetic documents."
+    event(case, "Case opened", detail, "FairBill")
     return case
 
 
@@ -48,10 +57,10 @@ def add_draft_version(case, action, draft, edited=False):
     previous = case["drafts"].get(action)
     if previous and not any(item["hash"] == previous["hash"] and item["revision"] == previous["revision"]
                             and item["action"] == action for item in versions):
-        versions.append({**previous, "version": 1, "simulated": True})
+        versions.append({**previous, "version": 1, "simulated": not is_live_case(case)})
     number = 1 + max((item["version"] for item in versions
                       if item["action"] == action and item["revision"] == case["revision"]), default=0)
-    version = {**draft, "version": number, "at": now(), "simulated": True}
+    version = {**draft, "version": number, "at": now(), "simulated": not is_live_case(case)}
     versions.append(version)
     case["drafts"][action] = version
     if edited:

@@ -29,18 +29,19 @@ function outreachStatus(data: Case, action: Action) {
   return data.approvals[action]?.hash === draft.hash ? 'Approved wording.' : 'Draft ready for approval.';
 }
 
-export function CaseActions({ data, busy, prepare, preview }:
-  { data: Case; busy: string; prepare: (action: Action) => void; preview: () => void }) {
+export function CaseActions({ data, busy, live, prepare, preview }:
+  { data: Case; busy: string; live: boolean; prepare: (action: Action) => void; preview: () => void }) {
   return <>
     <View style={ui.stack}>
       <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
-      <Text style={ui.body}>Choose a next step for revision {data.revision}. Letter and call actions are simulated.</Text>
+      <Text style={ui.body}>{live ? 'Draft a message or prepare for a call with the billing desk.'
+        : `Choose a next step for revision ${data.revision}. Letter and call actions are simulated.`}</Text>
     </View>
     <Card>
       <ActionRow title="Clarification letter" label="Draft clarification letter" icon="mail"
         detail={outreachStatus(data, 'letter')} disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => prepare('letter')} />
       <Divider />
-      <ActionRow title="Three-way call" label="Review three-way call plan" icon="phone-call"
+      <ActionRow title={live ? 'Billing call script' : 'Three-way call'} label={live ? 'Review billing call script' : 'Review three-way call plan'} icon="phone-call"
         detail={outreachStatus(data, 'call')} disabled={!!busy} busy={busy === 'draft-call'} onPress={() => prepare('call')} />
     </Card>
     <Card tone="tonal">

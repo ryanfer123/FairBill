@@ -6,6 +6,8 @@ import { CaseList } from '../src/cases';
 import { SegmentedButtons } from 'react-native-paper';
 import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
+import { AccountSettings } from '../src/account';
+import { cloudBuild } from '../src/cloud-auth';
 import { ApiError, type Case, configureEndpoint, configureInvite, createCase, endpoint, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
 import { Badge, Button, Card, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
 
@@ -125,7 +127,8 @@ export default function Home() {
     <Screen>
       <View style={[ui.between, styles.appBar]}>
         <View style={ui.row}><Mark size={34} /><Text style={styles.brand}>FairBill</Text></View>
-        <IconButton label={hostedBuild ? 'Test access' : 'Connection settings'} icon="settings" onPress={() => void openSettings()} />
+        <IconButton label={cloudBuild ? 'Your account' : hostedBuild ? 'Test access' : 'Connection settings'}
+          icon={cloudBuild ? 'user' : 'settings'} onPress={() => cloudBuild ? setSettings(true) : void openSettings()} />
       </View>
       <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
@@ -137,7 +140,7 @@ export default function Home() {
           {hostedBuild ? <Button label="Enter tester invite" icon="key" tone="ghost" onPress={() => void openSettings()} /> : <>
             <View style={styles.note}>
               <Feather name="lock" size={16} color={color.forest} />
-              <Text style={[ui.small, ui.grow]}>Use fictional documents in this build.</Text>
+              <Text style={[ui.small, ui.grow]}>{cloudBuild ? 'Bills are saved to your private account.' : 'Use fictional documents in this build.'}</Text>
             </View>
             <SegmentedButtons value={mode} onValueChange={setMode} buttons={[
               { value: 'scan', label: 'Scan or upload', disabled: !!busy },
@@ -204,7 +207,8 @@ export default function Home() {
         setBrowse(false);
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => setError(cause.message));
       }} />}
-      {settings && <Sheet title={hostedBuild ? "Tester access" : "Demo connection"} onClose={() => { if (!checking) setSettings(false); }}>
+      {settings && cloudBuild && <AccountSettings onClose={() => setSettings(false)} />}
+      {settings && !cloudBuild && <Sheet title={hostedBuild ? "Tester access" : "Demo connection"} onClose={() => { if (!checking) setSettings(false); }}>
         <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             <Text style={ui.body}>{hostedBuild

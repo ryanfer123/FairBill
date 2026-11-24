@@ -67,6 +67,13 @@ def test_rule_config_citation_matches_exact_subsection_and_can_be_disabled(tmp_p
     assert case["scenario"]["adjustments"] == 45_000
 
 
+def test_real_bill_review_excludes_fictional_reference_amounts():
+    case = build_case(fixtures()[5])
+    run_rules(case, allow_model=False, allow_fictional=False)
+    assert all(item["check"] not in {"unit_limit", "reference_tariff"} for item in case["findings"])
+    assert case["scenario"]["adjustments"] == 0
+
+
 def test_fictional_assistance_cites_policy_and_distinguishes_match():
     case = build_case(fixtures()[11])
     match = screen_assistance(case, annual_household_income_paise=30_000_000, household_size=2)

@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { cloudBuild } from './cloud-auth';
 import { pickDocument, type CaptureMethod, type PickedDocument } from './document-picker';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -41,7 +42,8 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.stack}>
           <Text style={ui.title}>Add a document</Text>
-          <Text style={ui.body}>Choose the type first, then scan or import a synthetic document for review.</Text>
+          <Text style={ui.body}>{cloudBuild ? 'Choose the document type, then scan or import it for review.'
+            : 'Choose the type first, then scan or import a synthetic document for review.'}</Text>
         </View>
         {error ? <Message text={error} /> : null}
         <Card>

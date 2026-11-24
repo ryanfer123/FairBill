@@ -253,7 +253,7 @@ class Packet(BaseModel):
 class Health(BaseModel):
     status: Literal["ok", "degraded"]
     demo: Literal["synthetic"] = "synthetic"
-    profile: Literal["local", "fixtures"]
+    profile: Literal["local", "fixtures", "hosted"]
     mode: Mode
     ocr_available: bool
     db: Literal["ok", "unavailable"]

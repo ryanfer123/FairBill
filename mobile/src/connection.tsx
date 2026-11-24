@@ -2,10 +2,11 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { endpoint, hostedBuild, testEndpoint } from './api';
+import { cloudBuild } from './cloud-auth';
 import { Badge, color } from './ui';
 
 export function ConnectionStatus({ mode, refresh = 0 }: { mode?: string | null; refresh?: number }) {
-  const service = hostedBuild ? 'Test server' : 'Local API';
+  const service = cloudBuild ? 'FairBill server' : hostedBuild ? 'Test server' : 'Local API';
   const [status, setStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking');
 
   useFocusEffect(useCallback(() => {

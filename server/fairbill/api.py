@@ -360,7 +360,7 @@ def packet(case_id: str, revision: int, owner_id: Owner, preview: bool = False):
 
 @app.middleware("http")
 async def restrict_hosted_legacy(request, call_next):
-    if api_profile() == "fixtures" and not request.url.path.startswith("/v1/"):
+    if api_profile() != "local" and not request.url.path.startswith("/v1/"):
         return JSONResponse({"code": "not_found", "message": "Use the versioned API.", "details": []}, status_code=404)
     return await call_next(request)
 

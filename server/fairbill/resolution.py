@@ -44,7 +44,7 @@ def approved_points(case):
     return points
 
 
-def make_draft(case: dict, action: Action, *, allow_model: bool = True) -> dict:
+def make_draft(case: dict, action: Action, *, allow_model: bool = True, patient_call: bool = False) -> dict:
     points = approved_points(case)
     if not points:
         points = ["Please provide an itemised bill and the available billing records."]
@@ -70,10 +70,14 @@ def make_draft(case: dict, action: Action, *, allow_model: bool = True) -> dict:
         elif model_allowed and os.environ.get("GEMINI_API_KEY"):
             fallback_reason = "model_unavailable"
     else:
-        text = "\n\n".join((
+        introduction = (
+            "I'm calling about my hospital bill. I can verify my identity if needed.",
+        ) if patient_call else (
             "I am FairBill, a virtual billing advocate. The patient is on the line.",
             "I will wait while the patient completes identity verification.",
-            *points,
+        )
+        text = "\n\n".join((
+            *introduction, *points,
             "Could you place a hold while you review the account and provide the itemised bill, supporting records and a reference number?",
         ))
         mode = "Offline"
@@ -148,13 +152,15 @@ def _approved_packet_letter(case: dict, candidate: dict | None) -> str | None:
 
 
 def redacted_packet(
-    case: dict, *, approved_letter: dict | None = None, known_pii: Iterable[str] = (),
+    case: dict, *, approved_letter: dict | None = None, known_pii: Iterable[str] = (), live_case: bool = False,
 ) -> tuple[list[str], bytes]:
     lines = packet_lines(case)
-    lines[1] = f"Synthetic demo | Simulated outreach only | Case revision {case['revision']}"
+    revision = f"Case revision {case['revision']}"
+    lines[1] = revision if live_case else f"Synthetic demo | Simulated outreach only | {revision}"
     letter = _approved_packet_letter(case, approved_letter)
     if letter:
-        lines.extend(("", "Approved letter | Simulation only", *letter.splitlines()))
+        label = "Approved letter" if live_case else "Approved letter | Simulation only"
+        lines.extend(("", label, *letter.splitlines()))
     private = known_values(case, known_pii, letter=letter)
     clean = [redact_text(line, private) for line in lines]
     assert_no_private_values("\n".join(clean), private)

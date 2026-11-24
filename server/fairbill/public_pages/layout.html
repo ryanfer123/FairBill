@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <style nonce="{nonce}">
+      :root {{ color-scheme: light; background: #f4f8f3; color: #17291f; font: 100%/1.6 system-ui, sans-serif; }}
+      body {{ max-width: 42rem; margin: 4rem auto; padding: 0 1.25rem 3rem; }}
+      header {{ color: #28533a; font-weight: 700; }}
+      h1 {{ line-height: 1.14; margin: 0.5rem 0 1.5rem; }}
+      h2 {{ margin-bottom: 0.4rem; }}
+      a {{ color: #21593a; }}
+      button, input {{ box-sizing: border-box; font: inherit; padding: 0.65rem 0.8rem; border: 1px solid #53745f; border-radius: 8px; }}
+      button {{ background: #26583e; color: white; cursor: pointer; margin-top: 0.8rem; }}
+      button:disabled {{ opacity: 0.6; cursor: default; }}
+      input {{ display: block; width: min(100%, 24rem); }}
+      label {{ display: block; font-weight: 600; }}
+      [hidden] {{ display: none; }}
+      :focus-visible {{ outline: 3px solid #815913; outline-offset: 4px; }}
+    </style>
+  </head>
+  <body>
+    <header>FairBill</header>
+    <main><h1>{title}</h1>{body}</main>
+    {script}
+  </body>
+</html>

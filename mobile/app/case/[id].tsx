@@ -5,7 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CaseActions } from '../../src/case-actions';
-import { Assistance } from '../../src/assistance';
+import { Assistance, AssistanceSources } from '../../src/assistance';
+import { cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
 import { documentForm } from '../../src/document-picker';
@@ -192,6 +193,7 @@ export default function CaseScreen() {
     }
   }
 
+  const live = cloudBuild && !data.sample;
   const openEvidence = (entry: EvidenceView) => setOverlay({ type: 'evidence', entry });
   const addEvidence = () => setOverlay({ type: 'intake' });
   return <Screen>
@@ -250,14 +252,15 @@ export default function CaseScreen() {
           {data.findings.every((item) => item.check !== 'settlement') && <EmptyState>Add a settlement statement to check deductions.</EmptyState>}
           {versioned && <Card tone="tonal">
             <SectionHeader>Help with paying</SectionHeader>
-            <Text style={ui.body}>Check the fictional assistance policy and see which clauses apply to the example.</Text>
-            <Button label="Check assistance" icon="heart" tone="light" disabled={!!busy}
+            <Text style={ui.body}>{live ? 'Find the published assistance process and prepare questions for your hospital.'
+              : 'Check the fictional assistance policy and see which clauses apply to the example.'}</Text>
+            <Button label={live ? 'View assistance resources' : 'Check assistance'} icon="heart" tone="light" disabled={!!busy}
               onPress={() => setOverlay({ type: 'assistance' })} />
           </Card>}
           <Button label="Review actions" icon="arrow-right" tone="ghost" onPress={() => setTab('Actions')} />
         </>}
       </>}
-      {activeTab === 'Actions' && ready && <CaseActions data={data} busy={busy}
+      {activeTab === 'Actions' && ready && <CaseActions data={data} busy={busy} live={live}
         prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
       {activeTab === 'Documents' && <>
         <Text style={ui.title}>Documents</Text>
@@ -304,8 +307,9 @@ export default function CaseScreen() {
           onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
-    {overlay?.type === 'assistance' && <Assistance caseId={id} revision={revision} onClose={close} />}
-    {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy}
+    {overlay?.type === 'assistance' && (live ? <AssistanceSources onClose={close} />
+      : <Assistance caseId={id} revision={revision} onClose={close} />)}
+    {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy} live={live}
       error={error} onDismissError={() => setError('')} onClose={close}
       onApprove={() => {
         if (draft) void update('approve', '/approvals', { action, revision, hash: draft.hash }).catch(report);

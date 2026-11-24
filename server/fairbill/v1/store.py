@@ -9,6 +9,9 @@ from typing import Callable
 
 from fastapi import HTTPException
 
+from . import cloud
+from .middleware import profile
+
 SCHEMA = Path(__file__).with_name("schema.sql").read_text()
 REPLAY_TTL = 86400
 
@@ -31,6 +34,8 @@ def connection():
 
 
 def health():
+    if profile() == "hosted":
+        return cloud.health()
     with connection() as conn:
         conn.execute("SELECT 1").fetchone()
 
@@ -43,11 +48,15 @@ def select_case(conn, owner, case_id):
 
 
 def get(owner, case_id):
+    if profile() == "hosted":
+        return cloud.get(owner, case_id)
     with connection() as conn:
         return json.loads(select_case(conn, owner, case_id)[1])
 
 
 def list_cases(owner, limit, after):
+    if profile() == "hosted":
+        return cloud.list_cases(owner, limit, after)
     with connection() as conn:
         rows = conn.execute(
             "SELECT snapshot FROM cases WHERE owner = ? AND id > ? ORDER BY id LIMIT ?", (owner, after, limit + 1)
@@ -75,6 +84,8 @@ def mutate(owner: str, key: str | None, reason: str, payload: dict, apply: Calla
     fingerprint = hashlib.sha256(
         json.dumps([reason, case_id, payload], sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
+    if profile() == "hosted":
+        return cloud.mutate(owner, key, reason, fingerprint, apply, case_id, persist)
     with connection() as conn:
         previous = replay(conn, owner, key, fingerprint)
         if previous is not None:

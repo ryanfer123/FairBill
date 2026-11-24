@@ -21,7 +21,7 @@ LIMIT = 120
 
 def profile() -> str:
     value = os.getenv("FAIRBILL_PROFILE", "local")
-    return "local" if value == "local" else "fixtures"
+    return value if value in {"local", "hosted"} else "fixtures"
 
 
 def error(status: int, code: str, message: str, details=None, headers=None):
@@ -111,7 +111,7 @@ class RequestContext:
             await route_error(400, "Invalid request body length.")(scope, receive, write)
         elif length is not None and int(length) > MAX_BODY:
             await route_error(413, "The request body is too large.")(scope, receive, write)
-        elif profile() == "fixtures" and not scope["path"].endswith("/health") and not self.allowed(client):
+        elif profile() != "local" and not scope["path"].endswith("/health") and not self.allowed(client):
             await route_error(429, "Too many requests. Retry in a minute.", {"Retry-After": "60"})(scope, receive, write)
         else:
             await self.app(scope, bounded_receive, write)

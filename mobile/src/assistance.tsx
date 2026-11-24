@@ -1,8 +1,26 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { hostedBuild, parseRupees, request, type AssistanceResult } from './api';
 import { ActionBar, Badge, Button, Card, EmptyState, Input, Message, SectionHeader, Sheet, color, ui } from './ui';
+
+const tataBooklet = 'https://tmc.gov.in/event/upload/12112025_5/TMH_Brochure_%20patient%20booklet.pdf';
+
+export function AssistanceSources({ onClose }: { onClose: () => void }) {
+  const [error, setError] = useState('');
+  return <Sheet title="Help with paying" onClose={onClose}>
+    <ScrollView contentContainerStyle={ui.content}>
+      <Text style={ui.body}>Ask your hospital’s billing or medical social work office about financial assistance and what documents they need.</Text>
+      {error ? <Message text={error} onClose={() => setError('')} /> : null}
+      <Card>
+        <SectionHeader>Tata Memorial Hospital, Mumbai</SectionHeader>
+        <Text style={ui.body}>If your bill is from Tata Memorial, section 14.2 of its patient booklet describes the hospital’s patient categories and means assessment.</Text>
+        <Button label="Open the hospital’s patient booklet" icon="external-link" tone="ghost"
+          onPress={() => void Linking.openURL(tataBooklet).catch(() => setError('Could not open the patient booklet.'))} />
+      </Card>
+    </ScrollView>
+  </Sheet>;
+}
 
 export function Assistance({ caseId, revision, onClose }: { caseId: string; revision: number; onClose: () => void }) {
   const [income, setIncome] = useState('');

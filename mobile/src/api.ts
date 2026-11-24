@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { accountUser, cloudAuthorization, cloudBuild, rejectAccount } from './cloud-auth';
 import type { components } from './generated/fairbill-v1';
 
 type V1 = components['schemas'];
@@ -112,7 +113,7 @@ export interface Case {
 
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8765';
 const hostedApi: string | undefined = Constants.expoConfig?.extra?.fairbillHostedApi;
-export const hostedBuild = !!hostedApi;
+export const hostedBuild = !!hostedApi && !cloudBuild;
 const INVITE_KEY = 'fairbill_tester_invite';
 const TOKEN_KEY = 'fairbill_installation';
 const ENDPOINT_KEY = 'fairbill_endpoint';
@@ -124,7 +125,7 @@ let backendPromise: Promise<Backend> | undefined;
 export interface Backend {
   origin: string;
   prefix: '' | '/v1';
-  profile: 'local' | 'fixtures';
+  profile: 'local' | 'fixtures' | 'hosted';
   mode?: 'Offline' | 'Gemini';
 }
 
@@ -137,7 +138,8 @@ async function createToken() {
   return generated;
 }
 
-export async function headers() {
+export async function headers(): Promise<Record<string, string>> {
+  if (cloudBuild) return { Authorization: await cloudAuthorization() };
   tokenPromise ??= createToken().catch((error: unknown) => {
     tokenPromise = undefined;
     throw error;
@@ -175,22 +177,22 @@ function validEndpoint(raw: string) {
 async function discover(base: string): Promise<Backend> {
   const origin = hostedApi ?? validEndpoint(base);
   const signal = new AbortController();
-  const timer = setTimeout(() => signal.abort(), 5000);
+  const timer = setTimeout(() => signal.abort(), cloudBuild ? 65000 : 5000);
   try {
     const versioned = await fetch(`${origin}/v1/health`, { signal: signal.signal });
-    const prefix = !hostedBuild && versioned.status === 404 ? '' : '/v1';
+    const prefix = !hostedApi && versioned.status === 404 ? '' : '/v1';
     const response = prefix ? versioned : await fetch(`${origin}/health`, { signal: signal.signal });
-    const result: Partial<V1['Health']> = await response.json();
-    if (!response.ok || result.demo !== 'synthetic' || result.status !== 'ok'
-      || (hostedBuild && result.profile !== 'fixtures')) {
+    const result: Partial<Omit<V1['Health'], 'profile'>> & { profile?: string } = await response.json();
+    if (!response.ok || result.status !== 'ok'
+      || (cloudBuild ? result.profile !== 'hosted' : result.demo !== 'synthetic' || (hostedBuild && result.profile !== 'fixtures'))) {
       throw new Error('FairBill demo service did not respond.');
     }
     return {
-      origin, prefix, profile: result.profile === 'fixtures' ? 'fixtures' : 'local',
+      origin, prefix, profile: cloudBuild ? 'hosted' : result.profile === 'fixtures' ? 'fixtures' : 'local',
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {
-    throw new Error(hostedBuild ? 'FairBill could not reach the test server. Check your network connection and retry.'
+    throw new Error(hostedApi ? 'FairBill could not reach its server. Check your network connection and retry.'
       : 'FairBill could not reach the laptop API. Start the demo server, then check USB forwarding or the local Wi-Fi address.');
   } finally {
     clearTimeout(timer);
@@ -217,7 +219,7 @@ export async function apiUrl(path: string) {
 }
 
 export async function configureEndpoint(raw: string) {
-  if (hostedBuild) throw new Error('This test build uses its configured FairBill server.');
+  if (hostedApi) throw new Error('This build uses its configured FairBill server.');
   const base = validEndpoint(raw);
   const backend = await discover(base);
   await SecureStore.setItemAsync(ENDPOINT_KEY, base);
@@ -245,8 +247,16 @@ export async function configureInvite(raw: string) {
   }
 }
 
-export const lastCase = () => SecureStore.getItemAsync(CASE_KEY);
-export const rememberCase = (id: string) => SecureStore.setItemAsync(CASE_KEY, id);
+function lastCaseKey() {
+  if (!cloudBuild) return CASE_KEY;
+  const user = accountUser();
+  if (!user) throw new Error('Sign in to open your cases.');
+  return `${CASE_KEY}.${user.id}`;
+}
+
+export const lastCase = async () => SecureStore.getItemAsync(lastCaseKey());
+export const rememberCase = async (id: string) => SecureStore.setItemAsync(lastCaseKey(), id);
+export const forgetCase = async () => SecureStore.deleteItemAsync(lastCaseKey());
 
 export class ApiError extends Error {
   constructor(readonly status: number, detail: string) { super(detail); }
@@ -267,8 +277,10 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       headers: requestHeaders,
       signal: control.signal,
     });
+    if (response.status === 204) return undefined as T;
     const payload = await response.json();
     if (!response.ok) {
+      if (cloudBuild && response.status === 401) await rejectAccount(auth.Authorization);
       throw new ApiError(response.status, typeof payload.message === 'string' ? payload.message : typeof payload.detail === 'string'
         ? payload.detail : 'Could not complete the request.');
     }
@@ -276,7 +288,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   } catch (error) {
     if (error instanceof ApiError) throw error;
     backendPromise = undefined;
-    throw new Error(hostedBuild ? 'FairBill could not reach the test server. Check your network connection and retry.'
+    throw new Error(hostedApi ? 'FairBill could not reach its server. Check your network connection and retry.'
       : 'FairBill could not reach the laptop API. Start the demo server, check USB forwarding or the local Wi-Fi address in Settings, then retry.');
   } finally {
     clearTimeout(timer);
