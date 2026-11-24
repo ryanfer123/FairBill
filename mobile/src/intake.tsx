@@ -1,47 +1,25 @@
 import { Feather } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
+import { pickDocument, type CaptureMethod, type PickedDocument } from './document-picker';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
-type Asset = { uri: string; name: string; type: string };
-
 export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   { busy: boolean; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
-    onFile: (kind: Kind, asset: Asset) => Promise<void> }) {
+    onFile: (kind: Kind, asset: PickedDocument) => Promise<void> }) {
   const [kind, setKind] = useState<Kind>(startKind);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [picking, setPicking] = useState(false);
   const disabled = picking || busy;
 
-  async function pick(method: 'file' | 'photo' | 'camera') {
+  async function pick(method: CaptureMethod) {
     setError('');
     setPicking(true);
     try {
-      if (method === 'file') {
-        const result = await DocumentPicker.getDocumentAsync({
-          type: ['application/pdf', 'image/png', 'image/jpeg'],
-          copyToCacheDirectory: true,
-        });
-        const asset = result.assets?.[0];
-        if (asset) await onFile(kind, { uri: asset.uri, name: asset.name, type: asset.mimeType ?? 'application/octet-stream' });
-      } else {
-        if (method === 'camera' && !(await ImagePicker.requestCameraPermissionsAsync()).granted) {
-          setError('Allow camera access in Android Settings or choose an existing image.');
-          return;
-        }
-        const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, exif: false };
-        const result = method === 'camera'
-          ? await ImagePicker.launchCameraAsync(options)
-          : await ImagePicker.launchImageLibraryAsync(options);
-        const asset = result.assets?.[0];
-        if (asset) await onFile(kind, {
-          uri: asset.uri, name: asset.fileName ?? 'scan.jpg', type: asset.mimeType ?? 'image/jpeg',
-        });
-      }
+      const asset = await pickDocument(method);
+      if (asset) await onFile(kind, asset);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {

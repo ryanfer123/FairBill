@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Assistance } from '../../src/assistance';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
+import { documentForm } from '../../src/document-picker';
 import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
@@ -14,11 +15,11 @@ import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Loadin
 
 type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
   | { type: 'assistance' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
-type Tab = 'Review' | 'Documents' | 'Timeline';
+type Tab = 'Review' | 'Documents' | 'Timeline' | 'Actions';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export default function CaseScreen() {
-  const params = useLocalSearchParams<{ id: string; capture?: string }>();
+  const params = useLocalSearchParams<{ id: string; document?: string; section?: string }>();
   const id = typeof params.id === 'string' && caseID.test(params.id) ? params.id : '';
   const [data, setData] = useState<Case>();
   const [versioned, setVersioned] = useState(false);
@@ -26,7 +27,20 @@ export default function CaseScreen() {
   const working = useRef(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
-  const [overlay, setOverlay] = useState<Overlay | undefined>(() => !hostedBuild && params.capture === '1' ? { type: 'intake' } : undefined);
+  const [overlay, setOverlay] = useState<Overlay>();
+  const [directed, setDirected] = useState(false);
+
+  useEffect(() => {
+    if (!data || directed) return;
+    setDirected(true);
+    if (params.document && data.documents.some((doc) => doc.id === params.document && !doc.confirmed)) {
+      setOverlay({ type: 'review', id: params.document });
+    } else if (params.section === 'aid' && versioned && data.investigated_revision === data.revision) {
+      setOverlay({ type: 'assistance' });
+    } else if (params.section === 'act' && data.investigated_revision === data.revision) {
+      setTab('Actions');
+    }
+  }, [data, directed, params.document, params.section, versioned]);
 
   const refresh = useCallback(async () => {
     setError('');
@@ -75,6 +89,7 @@ export default function CaseScreen() {
 
   const revision = data.revision;
   const ready = revision === data.investigated_revision;
+  const activeTab = !ready && tab === 'Actions' ? 'Review' : tab;
   const pending = data.documents.find((doc) => !doc.confirmed);
   const hasInvoice = data.documents.some((doc) => doc.kind === 'invoice' && doc.confirmed);
   const canAddOrder = data.sample && !data.documents.some((doc) => doc.id === 'second-order');
@@ -168,15 +183,15 @@ export default function CaseScreen() {
     </View>
     <ConnectionStatus mode={data.agent_mode} />
     <View style={styles.tabs}>
-      {(['Review', 'Documents', 'Timeline'] as Tab[]).map((name) => <Pressable key={name} accessibilityRole="tab" accessibilityLabel={name}
-        accessibilityState={{ selected: tab === name }} onPress={() => setTab(name)}
-        style={[styles.tab, name === tab && styles.tabActive]}>
-        <Text style={[styles.tabLabel, name === tab && { color: color.ink }]}>{name}</Text>
+      {((ready ? ['Review', 'Documents', 'Timeline', 'Actions'] : ['Review', 'Documents', 'Timeline']) as Tab[]).map((name) => <Pressable key={name} accessibilityRole="tab" accessibilityLabel={name}
+        accessibilityState={{ selected: activeTab === name }} onPress={() => setTab(name)}
+        style={[styles.tab, name === activeTab && styles.tabActive]}>
+        <Text style={[styles.tabLabel, name === activeTab && { color: color.ink }]}>{name}</Text>
       </Pressable>)}
     </View>
-    <ScrollView key={tab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+    <ScrollView key={activeTab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       {error && !overlay ? <Message text={error} onClose={() => setError('')} /> : null}
-      {tab === 'Review' && <>
+      {activeTab === 'Review' && <>
         <View style={ui.between}>
           <Text accessibilityRole="header" style={[ui.title, ui.grow]}>Case review</Text>
           <Badge tone="neutral">Revision {revision}</Badge>
@@ -216,6 +231,12 @@ export default function CaseScreen() {
             <Button label="Check assistance" icon="heart" tone="light" disabled={!!busy}
               onPress={() => setOverlay({ type: 'assistance' })} />
           </Card>}
+          <Button label="Review actions" icon="arrow-right" tone="ghost" onPress={() => setTab('Actions')} />
+        </>}
+      </>}
+      {activeTab === 'Actions' && ready && <>
+        <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
+        <Text style={ui.body}>Review the wording for this revision before you approve an action.</Text>
           <View style={ui.card}>
             <SectionHeader>Next steps</SectionHeader>
             <Button label="Draft clarification letter" icon="mail" disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => void prepare('letter')} />
@@ -224,9 +245,8 @@ export default function CaseScreen() {
             <Button label="Preview evidence packet" icon="share-2" tone="ghost" busy={busy === 'preview'}
               disabled={!!busy} onPress={() => void previewPacket()} />
           </View>
-        </>}
       </>}
-      {tab === 'Documents' && <>
+      {activeTab === 'Documents' && <>
         <Text style={ui.title}>Documents</Text>
         {data.documents.length > 0 ? <Card>
           {data.documents.map((doc, index) => <View key={doc.id}>
@@ -245,7 +265,7 @@ export default function CaseScreen() {
         </Card> : <EmptyState>No documents in this case yet.</EmptyState>}
         {!hostedBuild && <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />}
       </>}
-      {tab === 'Timeline' && <>
+      {activeTab === 'Timeline' && <>
         <Text style={ui.title}>Timeline</Text>
         <Timeline data={data} onRevision={(entry) => setOverlay({ type: 'revision', revision: entry })} />
       </>}
@@ -253,11 +273,7 @@ export default function CaseScreen() {
     {!hostedBuild && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
       onPaste={async (kind: Kind, text: string) => reviewNew(await update('import', '/documents/text', { kind, text, revision }))}
       onFile={async (kind, asset) => {
-        const form = new FormData();
-        form.append('kind', kind);
-        form.append('revision', String(revision));
-        form.append('file', asset as unknown as Blob);
-        reviewNew(await update('import', '/documents/file', form));
+        reviewNew(await update('import', '/documents/file', documentForm(kind, revision, asset)));
       }} />}
     {reviewing && <Review key={reviewing.id} doc={reviewing} readOnly={hostedBuild} busy={!!busy} onClose={close} onConfirm={confirm}
       onDiscard={async () => {
