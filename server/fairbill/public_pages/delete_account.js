@@ -11,6 +11,7 @@ async function request(path, body) {
     body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error('Verification failed. Check your email or request a new code.');
+  if (path.startsWith('otp?')) return;
   return response.json();
 }
 

@@ -40,7 +40,7 @@ async function auth<T>(path: string, data: object, accessToken?: string): Promis
   const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' });
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   const control = new AbortController();
-  const timeout = setTimeout(() => control.abort(), 15000);
+  const timeout = setTimeout(() => control.abort(), 45000);
   try {
     const response = await fetch(`${origin}/auth/v1/${path}`, {
       method: 'POST', headers, body: JSON.stringify(data), signal: control.signal,
@@ -52,9 +52,11 @@ async function auth<T>(path: string, data: object, accessToken?: string): Promis
         : 'FairBill could not complete the sign-in request.';
       throw new AuthError(response.status, message);
     }
-    return response.status === 204 ? undefined as T : await response.json() as T;
+    if (response.status === 204 || path.startsWith('otp?') || path.startsWith('logout?')) return undefined as T;
+    return await response.json() as T;
   } catch (cause) {
     if (cause instanceof AuthError) throw cause;
+    if (control.signal.aborted) throw new Error('Sign-in took longer than expected. Check your email before requesting another link.');
     throw new Error('FairBill could not reach sign-in. Check your connection and retry.');
   } finally {
     clearTimeout(timeout);
