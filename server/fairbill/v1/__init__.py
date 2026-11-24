@@ -22,6 +22,7 @@ from .. import documents, resolution
 from ..assistance import screen_assistance
 from ..documents import MAX_BYTES, ROW_TYPES, Kind
 from ..investigation import event, now
+from ..india_pilot import PilotInput, PilotReview, review_case
 from ..rules import run_rules
 from ..sample import fixtures
 from . import models as m
@@ -373,6 +374,22 @@ def get_finding(case_id: str, finding_id: str, owner: Owner, revision: int | Non
     if result is None:
         raise HTTPException(404, "Billing question unavailable.")
     return result
+
+
+
+@app.post("/cases/{case_id}/india-review", response_model=PilotReview)
+def india_review(case_id: str, data: PilotInput, owner: Owner):
+    from ..api import check_revision
+
+    for_local()
+    case = store.get(owner, case_id)
+    check_revision(case, data.revision)
+    if case["sample"]:
+        raise HTTPException(422, "India source review requires a non-sample case.")
+    try:
+        return review_case(case, data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 def assistance_case(case_id, data, owner):

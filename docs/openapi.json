@@ -1,6 +1,64 @@
 {
   "components": {
     "schemas": {
+      "AidInput": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "NC",
+                  "C",
+                  "B",
+                  "A",
+                  "D",
+                  "FN"
+                ],
+                "type": "string"
+              },
+              {
+                "enum": [
+                  "BP",
+                  "F"
+                ],
+                "type": "string"
+              }
+            ],
+            "title": "Category"
+          },
+          "hospital": {
+            "const": "tmh-parel",
+            "title": "Hospital",
+            "type": "string"
+          },
+          "invoice_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "review": {
+            "const": "aid",
+            "title": "Review",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "review",
+          "invoice_id",
+          "hospital",
+          "category"
+        ],
+        "title": "AidInput",
+        "type": "object"
+      },
       "Approval": {
         "properties": {
           "action": {
@@ -1085,6 +1143,63 @@
         "title": "Health",
         "type": "object"
       },
+      "InsuranceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed_applicability": {
+            "const": true,
+            "title": "Confirmed Applicability",
+            "type": "boolean"
+          },
+          "invoice_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "policy_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "review": {
+            "const": "insurance",
+            "title": "Review",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "settlement_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Settlement Id",
+            "type": "string"
+          },
+          "uin": {
+            "enum": [
+              "NIAHLIP25040V082425",
+              "NIAHLIP25040V102425"
+            ],
+            "title": "Uin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "review",
+          "invoice_id",
+          "settlement_id",
+          "policy_id",
+          "uin",
+          "confirmed_applicability"
+        ],
+        "title": "InsuranceInput",
+        "type": "object"
+      },
       "Investigation": {
         "properties": {
           "at": {
@@ -1283,6 +1398,32 @@
         "title": "Paste",
         "type": "object"
       },
+      "PilotReview": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "findings",
+          "note"
+        ],
+        "title": "PilotReview",
+        "type": "object"
+      },
       "Receipt": {
         "properties": {
           "action": {
@@ -1422,6 +1563,105 @@
           "received"
         ],
         "title": "Received",
+        "type": "object"
+      },
+      "RecordLine": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "page",
+          "line",
+          "quote"
+        ],
+        "title": "RecordLine",
+        "type": "object"
+      },
+      "ReferenceFinding": {
+        "properties": {
+          "billed_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed Paise"
+          },
+          "citation": {
+            "title": "Citation",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "difference_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference Paise"
+          },
+          "record": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordLine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Paise"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "detail",
+          "source_url",
+          "citation"
+        ],
+        "title": "ReferenceFinding",
         "type": "object"
       },
       "Scenario": {
@@ -1598,6 +1838,59 @@
           "basis"
         ],
         "title": "Source",
+        "type": "object"
+      },
+      "TariffInput": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "enum": [
+              "NC",
+              "C",
+              "B",
+              "A",
+              "D",
+              "FN"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "confirmed_applicability": {
+            "const": true,
+            "title": "Confirmed Applicability",
+            "type": "boolean"
+          },
+          "edition": {
+            "const": "tmh-parel-2026-11-01-v6",
+            "title": "Edition",
+            "type": "string"
+          },
+          "invoice_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "review": {
+            "const": "tariff",
+            "title": "Review",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "review",
+          "invoice_id",
+          "category",
+          "edition",
+          "confirmed_applicability"
+        ],
+        "title": "TariffInput",
         "type": "object"
       },
       "Turn": {
@@ -4926,6 +5219,176 @@
           }
         ],
         "summary": "Get Finding"
+      }
+    },
+    "/cases/{case_id}/india-review": {
+      "post": {
+        "operationId": "india_review_cases__case_id__india_review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-FairBill-Invite",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Fairbill-Invite"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "aid": "#/components/schemas/AidInput",
+                    "insurance": "#/components/schemas/InsuranceInput",
+                    "tariff": "#/components/schemas/TariffInput"
+                  },
+                  "propertyName": "review"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TariffInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AidInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InsuranceInput"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "India Review"
       }
     },
     "/cases/{case_id}/investigate": {

@@ -5,7 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CaseActions } from '../../src/case-actions';
-import { Assistance, AssistanceSources } from '../../src/assistance';
+import { Assistance } from '../../src/assistance';
+import { IndiaReview } from '../../src/india-review';
 import { cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
@@ -16,7 +17,7 @@ import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioC
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
 type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
-  | { type: 'assistance' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
+  | { type: 'india-review' } | { type: 'assistance' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
 type Tab = 'Review' | 'Documents' | 'Timeline' | 'Actions';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -250,6 +251,8 @@ export default function CaseScreen() {
           {data.findings.filter((item) => item.check === 'settlement').map((finding) => <FindingCard key={finding.id} finding={finding}
             onPress={openEvidence} />)}
           {data.findings.every((item) => item.check !== 'settlement') && <EmptyState>Add a settlement statement to check deductions.</EmptyState>}
+          {live && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
+            onPress={() => setOverlay({ type: 'india-review' })} />}
           {versioned && <Card tone="tonal">
             <SectionHeader>Help with paying</SectionHeader>
             <Text style={ui.body}>{live ? 'Find the published assistance process and prepare questions for your hospital.'
@@ -307,7 +310,8 @@ export default function CaseScreen() {
           onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
-    {overlay?.type === 'assistance' && (live ? <AssistanceSources onClose={close} />
+    {live && overlay?.type === 'india-review' && <IndiaReview data={data} initial="tariff" onClose={close} />}
+    {overlay?.type === 'assistance' && (live ? <IndiaReview data={data} initial="aid" onClose={close} />
       : <Assistance caseId={id} revision={revision} onClose={close} />)}
     {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy} live={live}
       error={error} onDismissError={() => setError('')} onClose={close}
