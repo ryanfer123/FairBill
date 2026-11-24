@@ -41,3 +41,9 @@ Set `ANDROID_HOME` to your SDK, install NDK 27.2.12479018, and use Java 17. The 
 The optional Gemini path reads `GEMINI_API_KEY` and `FAIRBILL_GEMINI_MODEL` from the local server environment. It receives a small set of structured facts about the unedited bundled case. Offline mode runs the same checks and uses a fixed draft template. The app labels the mode in use. The backend computes figures in integer paise and holds the authoritative case revision, drafts, approvals, and simulated receipts. Local case data is in `.local/fairbill.sqlite3`.
 
 Workflow inspiration from [BetterBill](https://github.com/matmanna/betterbill). FairBill's interface, implementation, synthetic documents, and test results are separate.
+
+## Versioned backend
+
+The phone demo keeps its existing local connection settings. The versioned API is served under `/v1`. Use `/v1/health` to check the active profile, database, planner mode and OCR. Open the sample investigation to create an install-scoped case using the bundled fixtures.
+
+See the [backend architecture](docs/ARCHITECTURE.md), [V1 OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). Use `make eval` to regenerate the synthetic evaluation. The hosted closed-test profile serves the bundled synthetic flow over a configured HTTPS endpoint.

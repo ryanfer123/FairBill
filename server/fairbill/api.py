@@ -18,6 +18,8 @@ from .documents import MAX_BYTES, ROW_TYPES, Kind, Row, make_document
 from .investigation import CHECKS, DEPENDENCIES, event, run
 from .resolution import Action, evidence_packet, make_draft, packet_lines
 from .sample import fixtures
+from .v1 import app as v1_app
+from .v1.middleware import profile as api_profile
 
 app = FastAPI(title="FairBill", version="0.1.0", docs_url=None, redoc_url=None)
 
@@ -354,3 +356,13 @@ def packet(case_id: str, revision: int, owner_id: Owner, preview: bool = False):
     return Response(evidence_packet(lines), media_type="application/pdf", headers={
         "Content-Disposition": "attachment; filename=FairBill-evidence.pdf", "Cache-Control": "no-store",
     })
+
+
+@app.middleware("http")
+async def restrict_hosted_legacy(request, call_next):
+    if api_profile() == "fixtures" and not request.url.path.startswith("/v1/"):
+        return JSONResponse({"code": "not_found", "message": "Use the versioned API.", "details": []}, status_code=404)
+    return await call_next(request)
+
+
+app.mount("/v1", v1_app)
