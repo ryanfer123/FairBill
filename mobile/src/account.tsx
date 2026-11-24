@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text } from 'react-native';
 import { forgetCase, request } from './api';
-import { accountUser, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { accountUser, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
 
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
@@ -26,7 +26,19 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   }
 
   useEffect(() => {
-    if (restoring) void run(restoreAccount);
+    const callback = ({ url }: { url: string }) => {
+      if (/^fairbill:\/\/signin(?:[?#]|$)/.test(url)) void run(() => confirmSignInLink(url));
+    };
+    const listener = Linking.addEventListener('url', callback);
+    if (restoring) void run(async () => {
+      const url = await Linking.getInitialURL();
+      if (url && /^fairbill:\/\/signin(?:[?#]|$)/.test(url)) {
+        try { await confirmSignInLink(url); return; }
+        catch (cause) { await restoreAccount(); throw cause; }
+      }
+      await restoreAccount();
+    });
+    return () => listener.remove();
   }, [restoring]);
 
   async function send() {
@@ -45,20 +57,20 @@ export function SignIn({ restoring }: { restoring: boolean }) {
         <Text style={ui.body}>Sign in to review a bill and pick up where you left off on another device.</Text>
         {error ? <Message text={error} onClose={() => setError('')} /> : null}
         {restoring ? <Button label="Restore session" icon="refresh-cw" busy={busy} onPress={() => void run(restoreAccount)} /> : <Card>
-          <SectionHeader>{destination ? 'Enter your sign-in code' : 'Sign in with email'}</SectionHeader>
+          <SectionHeader>{destination ? 'Check your email' : 'Sign in with email'}</SectionHeader>
           {destination ? <>
-            <Text style={ui.body}>We sent a code to {destination}.</Text>
+            <Text style={ui.body}>Open the sign-in link on this phone, or enter the code if your email includes one. We sent it to {destination}.</Text>
             <Input label="Email code" accessibilityLabel="Email code" value={code}
               onChangeText={(value) => setCode(value.replace(/\D/g, ''))} keyboardType="number-pad"
               autoComplete="one-time-code" maxLength={10} editable={!busy} />
             <Button label="Verify code" icon="arrow-right" busy={busy} disabled={code.length < 6}
               onPress={() => void run(() => verifySignInCode(destination, code))} />
-            <Button label="Send a new code" tone="ghost" disabled={busy} onPress={() => void run(send)} />
+            <Button label="Send a new email" tone="ghost" disabled={busy} onPress={() => void run(send)} />
             <Button label="Use a different email" tone="ghost" disabled={busy} onPress={() => { setDestination(''); setError(''); }} />
           </> : <>
             <Input label="Email address" accessibilityLabel="Email address" value={email} onChangeText={setEmail}
               autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" editable={!busy} />
-            <Button label="Send sign-in code" icon="mail" busy={busy} onPress={() => void run(send)} />
+            <Button label="Send sign-in email" icon="mail" busy={busy} onPress={() => void run(send)} />
           </>}
         </Card>}
         {privacyUrl && <Button label="Privacy notice" tone="ghost" onPress={() => void run(() => Linking.openURL(privacyUrl))} />}

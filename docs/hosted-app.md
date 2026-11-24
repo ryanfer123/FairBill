@@ -20,7 +20,7 @@ Set the Supabase secret directly in the host's environment panel. The Android bu
 
 Set `FAIRBILL_PLAY_BUILD=1`, `FAIRBILL_CLOUD_BUILD=1`, `FAIRBILL_RELEASE_API_URL` to the HTTPS API origin, `FAIRBILL_PRIVACY_URL` to its `/privacy` page, and the same Supabase URL and publishable key shown above. Run `scripts/build-android.sh` for an installable APK. Google Play release signing and the Play Console submission are separate steps.
 
-Use two authorized test accounts and synthetic bills to verify email sign-in, app relaunch, sync, photo and PDF ingestion, account isolation, redacted export, sign-out and deletion. A deletion from the public web page must also remove originals and reject the prior session. Test the mail and dialer handoffs with destinations controlled by the project team.
+Use two authorized test accounts and synthetic bills to verify email sign-in, app relaunch, sync, photo and PDF ingestion, account isolation, redacted export, sign-out and deletion. Open the sign-in link on the same device or browser that requested it. A deletion from the public web page must also remove originals and reject the prior session. Test the mail and dialer handoffs with destinations controlled by the project team.
 
 ## What works on real cases
 

@@ -1,4 +1,6 @@
 import Constants from 'expo-constants';
+import * as Crypto from 'expo-crypto';
+import { parse as parseLink } from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 
 const config = Constants.expoConfig?.extra;
@@ -7,6 +9,7 @@ const key: string | undefined = config?.fairbillSupabaseKey;
 export const cloudBuild = !!(origin && key);
 
 const refreshKey = 'fairbill_cloud_refresh';
+const verifierKey = 'fairbill_cloud_sign_in_verifier';
 type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string } };
 type Current = { accessToken: string; expiresAt: number; user: Session['user'] };
 type AccountState = 'loading' | 'signed-out' | 'signed-in';
@@ -68,12 +71,28 @@ async function saveSession(session: Session): Promise<Current> {
   return value;
 }
 
-export function requestSignInCode(email: string) {
-  return auth('otp', { email, create_user: true });
+export async function requestSignInCode(email: string) {
+  const verifier = Array.from(await Crypto.getRandomBytesAsync(32), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, { encoding: Crypto.CryptoEncoding.BASE64 });
+  const challenge = hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  await SecureStore.setItemAsync(verifierKey, verifier);
+  return auth(`otp?redirect_to=${encodeURIComponent('fairbill://signin')}`, {
+    email, create_user: true, code_challenge: challenge, code_challenge_method: 's256',
+  });
 }
 
 export async function verifySignInCode(email: string, token: string) {
   await saveSession(await auth<Session>('verify', { email, token, type: 'email' }));
+  await SecureStore.deleteItemAsync(verifierKey);
+}
+
+export async function confirmSignInLink(url: string) {
+  if (!/^fairbill:\/\/signin(?:[?#]|$)/.test(url)) return;
+  const code = parseLink(url).queryParams?.code;
+  const verifier = await SecureStore.getItemAsync(verifierKey);
+  if (typeof code !== 'string' || !code || !verifier) throw new Error('The sign-in link expired. Request a new email on this phone.');
+  await saveSession(await auth<Session>('token?grant_type=pkce', { auth_code: code, code_verifier: verifier }));
+  await SecureStore.deleteItemAsync(verifierKey);
 }
 
 export async function restoreAccount() {

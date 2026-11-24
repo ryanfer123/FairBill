@@ -8,6 +8,6 @@ Run the scripts in `tests/` as the project's database administrator. They verify
 
 Cases expire 30 days after creation. `ops/schedule_retention.sql` schedules the `fairbill-retention` Edge Function hourly. The scheduler authenticates using a purpose-limited token in Vault. The function removes aged database records and uses the Storage API to remove queued originals. Failed file removals remain queued for the next run.
 
-Enable the email-code flow by setting the Auth email template for **Magic Link** to include `{{ .Token }}`. Keep verified email sign-in enabled. For users outside the project team, configure a custom SMTP sender. See [Supabase's SMTP documentation](https://supabase.com/docs/guides/auth/auth-smtp).
+Keep verified email sign-in enabled and allow the exact redirect URLs `fairbill://signin` and `https://fairbill-api.onrender.com/delete-account` in Auth URL configuration. The app and web deletion page support Supabase's default magic links. When custom SMTP is configured, the email templates can also include `{{ .Token }}` so users can enter the code. For users outside the project team, configure a custom SMTP sender. See [Supabase's SMTP documentation](https://supabase.com/docs/guides/auth/auth-smtp).
 
 See the [hosted app runbook](../docs/hosted-app.md) for service environment, Android builds and deployment checks.
