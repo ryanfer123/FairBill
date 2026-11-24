@@ -14,6 +14,10 @@ const RULES: Record<string, string> = {
   quantities: 'Billed and documented quantities',
   settlement: 'Settlement deductions and cited policy clauses',
   patient_report: 'Patient-reported service receipt',
+  line_arithmetic: 'Line quantity times unit price',
+  daily_unit_limit: 'Fictional daily unit limit',
+  tariff: 'Fictional reference tariff',
+  bill_total: 'Invoice total and sum of lines',
 };
 
 export interface EvidenceView {
@@ -89,9 +93,9 @@ export function ScenarioCard({ data, stale, onEvidence }:
   const scenario = data.scenario;
   if (!scenario) return null;
   const previous = data.history.at(-2);
-  const invoices = stale ? [] : invoiceSources(data);
+  const invoices = scenario.sources?.billed ?? (stale ? [] : invoiceSources(data));
   const adjustments = data.findings.filter((finding) => scenario.included.includes(finding.id));
-  const adjustmentSources = unique(adjustments.flatMap((finding) => finding.evidence));
+  const adjustmentSources = scenario.sources?.adjustments ?? unique(adjustments.flatMap((finding) => finding.evidence));
   const explanation = scenario.reconciled
     ? 'This total applies if the listed billing adjustments are supported.'
     : 'The invoice and its itemised lines need reconciliation.';
@@ -103,7 +107,7 @@ export function ScenarioCard({ data, stale, onEvidence }:
     {stale && <Badge tone="amber">Previous revision</Badge>}
     <AmountWithSource headline onEvidence={onEvidence} entry={{
       title: 'Conditional invoice', amount: scenario.conditional, explanation,
-      rule: 'Invoice total and supported billing adjustments', evidence: unique([...invoices, ...adjustmentSources]),
+      rule: 'Invoice total and supported billing adjustments', evidence: scenario.sources?.conditional ?? unique([...invoices, ...adjustmentSources]),
     }} />
     <Text style={ui.body}>{explanation}</Text>
     {!!previous && previous.scenario.conditional !== scenario.conditional &&
@@ -118,6 +122,15 @@ export function ScenarioCard({ data, stale, onEvidence }:
       rule: [...new Set(adjustments.map((finding) => RULES[finding.check]).filter(Boolean))].join(' · '),
       evidence: adjustmentSources,
     }} />
+    {scenario.unresolved_deduction !== null && scenario.unresolved_deduction > 0 && <>
+      <Divider />
+      <AmountWithSource onEvidence={onEvidence} entry={{
+        title: 'Separate insurance deduction', amount: scenario.unresolved_deduction,
+        explanation: 'This deduction is reported separately from the conditional invoice.',
+        evidence: scenario.sources?.unresolved_deduction ?? unique(data.findings.filter((finding) =>
+          finding.check === 'settlement' && finding.status === 'active').flatMap((finding) => finding.evidence)),
+      }} />
+    </>}
   </Card>;
 }
 

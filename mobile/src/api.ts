@@ -1,5 +1,11 @@
+import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import type { components } from './generated/fairbill-v1';
+
+type V1 = components['schemas'];
+export type AssistanceResult = V1['AssistanceResult'];
+export type CasePage = V1['CasePage'];
 
 export type Kind = 'invoice' | 'policy' | 'settlement' | 'service_record';
 export type RowType = 'charge' | 'invoice_total' | 'deduction' | 'clause' | 'order' | 'quantity';
@@ -60,6 +66,7 @@ export interface Scenario {
   conditional: number | null;
   unresolved_deduction: number | null;
   included: string[];
+  sources?: Partial<Record<'billed' | 'adjustments' | 'conditional' | 'unresolved_deduction', Source[]>>;
 }
 
 export interface Draft {
@@ -76,7 +83,8 @@ export interface Receipt {
   revision: number;
   state: 'awaiting_identity' | 'verified' | 'completed';
   progress?: 'IDLE' | 'IDENTITY_PENDING' | 'IDENTITY_VERIFIED' | 'ADVOCATE_ACTIVE' | 'ENDED' | null;
-  turns?: { speaker: 'system' | 'patient' | 'advocate' | 'billing'; text: string; at: string }[];
+  turns?: V1['Turn'][];
+  outcome?: V1['Receipt']['outcome'];
 }
 
 export interface History {
@@ -103,11 +111,22 @@ export interface Case {
 }
 
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8765';
+const hostedApi: string | undefined = Constants.expoConfig?.extra?.fairbillHostedApi;
+export const hostedBuild = !!hostedApi;
+const INVITE_KEY = 'fairbill_tester_invite';
 const TOKEN_KEY = 'fairbill_installation';
 const ENDPOINT_KEY = 'fairbill_endpoint';
 const CASE_KEY = 'fairbill_last_case';
 let tokenPromise: Promise<string> | undefined;
 let endpointPromise: Promise<string> | undefined;
+let backendPromise: Promise<Backend> | undefined;
+
+export interface Backend {
+  origin: string;
+  prefix: '' | '/v1';
+  profile: 'local' | 'fixtures';
+  mode?: 'Offline' | 'Gemini';
+}
 
 async function createToken() {
   const saved = await SecureStore.getItemAsync(TOKEN_KEY);
@@ -123,10 +142,16 @@ export async function headers() {
     tokenPromise = undefined;
     throw error;
   });
-  return { Authorization: `Bearer ${await tokenPromise}` };
+  const result: Record<string, string> = { Authorization: `Bearer ${await tokenPromise}` };
+  if (hostedBuild) {
+    const invite = await SecureStore.getItemAsync(INVITE_KEY);
+    if (invite) result['X-FairBill-Invite'] = invite;
+  }
+  return result;
 }
 
 export function endpoint() {
+  if (hostedApi) return Promise.resolve(hostedApi);
   endpointPromise ??= SecureStore.getItemAsync(ENDPOINT_KEY).then((value) => value || DEFAULT_ENDPOINT);
   return endpointPromise;
 }
@@ -147,26 +172,77 @@ function validEndpoint(raw: string) {
   return value;
 }
 
-export async function testEndpoint(base: string) {
+async function discover(base: string): Promise<Backend> {
+  const origin = hostedApi ?? validEndpoint(base);
   const signal = new AbortController();
   const timer = setTimeout(() => signal.abort(), 5000);
   try {
-    const response = await fetch(`${validEndpoint(base)}/health`, { signal: signal.signal });
-    const result = await response.json();
-    if (!response.ok || result.demo !== 'synthetic') throw new Error('FairBill demo service did not respond.');
+    const versioned = await fetch(`${origin}/v1/health`, { signal: signal.signal });
+    const prefix = !hostedBuild && versioned.status === 404 ? '' : '/v1';
+    const response = prefix ? versioned : await fetch(`${origin}/health`, { signal: signal.signal });
+    const result: Partial<V1['Health']> = await response.json();
+    if (!response.ok || result.demo !== 'synthetic' || result.status !== 'ok'
+      || (hostedBuild && result.profile !== 'fixtures')) {
+      throw new Error('FairBill demo service did not respond.');
+    }
+    return {
+      origin, prefix, profile: result.profile === 'fixtures' ? 'fixtures' : 'local',
+      mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
+    };
   } catch {
-    throw new Error('Could not reach the FairBill demo. Check the local server and USB or Wi-Fi connection.');
+    throw new Error(hostedBuild ? 'FairBill could not reach the test server. Check your network connection and retry.'
+      : 'FairBill could not reach the laptop API. Start the demo server, then check USB forwarding or the local Wi-Fi address.');
   } finally {
     clearTimeout(timer);
   }
 }
 
+export async function testEndpoint(base: string): Promise<Backend> {
+  const backend = await discover(base);
+  if (base === await endpoint()) backendPromise = Promise.resolve(backend);
+  return backend;
+}
+
+export function getBackend() {
+  backendPromise ??= endpoint().then(discover).catch((error: unknown) => {
+    backendPromise = undefined;
+    throw error;
+  });
+  return backendPromise;
+}
+
+export async function apiUrl(path: string) {
+  const backend = await getBackend();
+  return `${backend.origin}${backend.prefix}${path}`;
+}
+
 export async function configureEndpoint(raw: string) {
+  if (hostedBuild) throw new Error('This test build uses its configured FairBill server.');
   const base = validEndpoint(raw);
-  await testEndpoint(base);
+  const backend = await discover(base);
   await SecureStore.setItemAsync(ENDPOINT_KEY, base);
   endpointPromise = Promise.resolve(base);
+  backendPromise = Promise.resolve(backend);
   return base;
+}
+
+export async function configureInvite(raw: string) {
+  if (!hostedBuild) return;
+  const invite = raw.trim();
+  if (!invite || invite.length > 256 || /[\r\n]/.test(invite)) throw new Error('Enter a valid tester invite code.');
+  const backend = await getBackend();
+  const signal = new AbortController();
+  const timer = setTimeout(() => signal.abort(), 5000);
+  try {
+    const response = await fetch(`${backend.origin}${backend.prefix}/cases?limit=1`, {
+      headers: { ...await headers(), 'X-FairBill-Invite': invite }, signal: signal.signal,
+    });
+    if (response.status === 401 || response.status === 403) throw new Error('The tester invite code was rejected.');
+    if (!response.ok) throw new Error('Could not validate the tester invite. Try again.');
+    await SecureStore.setItemAsync(INVITE_KEY, invite);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export const lastCase = () => SecureStore.getItemAsync(CASE_KEY);
@@ -177,23 +253,31 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const [base, auth] = await Promise.all([endpoint(), headers()]);
+  const [backend, auth] = await Promise.all([getBackend(), headers()]);
   const control = new AbortController();
   const timer = setTimeout(() => control.abort(), 65000);
   try {
-    const response = await fetch(`${base}${path}`, {
+    const requestHeaders = new Headers(options.headers);
+    for (const [key, value] of Object.entries(auth)) requestHeaders.set(key, value);
+    if (backend.prefix && options.method && options.method !== 'GET') {
+      requestHeaders.set('Idempotency-Key', Crypto.randomUUID());
+    }
+    const response = await fetch(`${backend.origin}${backend.prefix}${path}`, {
       ...options,
-      headers: { ...auth, ...options.headers },
+      headers: requestHeaders,
       signal: control.signal,
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new ApiError(response.status, typeof payload.detail === 'string' ? payload.detail : 'Could not complete the request.');
+      throw new ApiError(response.status, typeof payload.message === 'string' ? payload.message : typeof payload.detail === 'string'
+        ? payload.detail : 'Could not complete the request.');
     }
     return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new Error('FairBill could not reach the laptop API. Start the demo server, check USB forwarding or the local Wi-Fi address in Settings, then retry.');
+    backendPromise = undefined;
+    throw new Error(hostedBuild ? 'FairBill could not reach the test server. Check your network connection and retry.'
+      : 'FairBill could not reach the laptop API. Start the demo server, check USB forwarding or the local Wi-Fi address in Settings, then retry.');
   } finally {
     clearTimeout(timer);
   }
@@ -221,4 +305,12 @@ export function money(paise: number | null) {
   const rupees = Number(digits.slice(0, -2)).toLocaleString('en-IN');
   const remainder = digits.slice(-2);
   return `${paise < 0 ? '−' : ''}₹${rupees}${remainder === '00' ? '' : `.${remainder}`}`;
+}
+
+export function parseRupees(value: string) {
+  const cleaned = value.trim().replace(/[₹,]/g, '');
+  if (!cleaned) return null;
+  if (!/^\d{1,11}(\.\d{1,2})?$/.test(cleaned)) throw new Error('Use a rupee amount with up to two decimal places.');
+  const [whole = '', fraction = ''] = cleaned.split('.');
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
 }

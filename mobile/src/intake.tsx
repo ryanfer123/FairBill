@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Document, Kind, KINDS, money, Row, RowType } from './api';
+import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
 type Asset = { uri: string; name: string; type: string };
@@ -121,14 +121,6 @@ function inputAmount(amount: number | null) {
   return amount === null ? '' : money(amount).replace(/[₹,]/g, '');
 }
 
-function parseAmount(value: string) {
-  const cleaned = value.trim().replace(/[₹,]/g, '');
-  if (!cleaned) return null;
-  if (!/^\d{1,11}(\.\d{1,2})?$/.test(cleaned)) throw new Error('Use a rupee amount with up to two decimal places.');
-  const [whole = '', fraction = ''] = cleaned.split('.');
-  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
-}
-
 function number(value: string, label: string, allowEmpty = false) {
   if (allowEmpty && !value.trim()) return null;
   if (!/^\d{1,4}$/.test(value) || Number(value) < 1) throw new Error(`Enter a valid ${label}.`);
@@ -144,9 +136,9 @@ function editable(row: Row): EditFields {
   };
 }
 
-export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
+export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = false }:
   { doc: Document; busy: boolean; onClose: () => void; onConfirm: (rows: Row[]) => Promise<void>;
-    onDiscard: () => Promise<void> }) {
+    onDiscard: () => Promise<void>; readOnly?: boolean }) {
   const [rows, setRows] = useState(doc.rows);
   const [source, setSource] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
@@ -179,8 +171,8 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
       const row: Row = {
         ...editing, description: fields.description.trim(), page, line,
         code: fields.code.trim(), service_date: fields.service_date.trim(), reference: fields.reference.trim(),
-        units: number(fields.units, 'quantity', true), amount: parseAmount(fields.amount),
-        unit_price: parseAmount(fields.unit_price),
+        units: number(fields.units, 'quantity', true), amount: parseRupees(fields.amount),
+        unit_price: parseRupees(fields.unit_price),
       };
       setRows((current) => current.some((item) => item.id === row.id)
         ? current.map((item) => item.id === row.id ? row : item)
@@ -249,7 +241,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
           <Text style={ui.title}>Confirm document lines</Text>
-          <Text style={ui.body}>Compare each row with the document and correct any misreads.</Text>
+          <Text style={ui.body}>{readOnly ? 'Compare the supplied synthetic rows with the document.' : 'Compare each row with the document and correct any misreads.'}</Text>
           <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved changes' : doc.confirmed ? 'Confirmed' : 'Awaiting confirmation'}</Badge>
           <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost" onPress={() => setSource(!source)} />
           {source && doc.pages.map((page, index) => <View key={index} style={ui.card}>
@@ -271,12 +263,12 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
                 <Text style={ui.label}>{row.description}</Text>
               </View>
               {row.amount !== null && <Text style={ui.money}>{money(row.amount)}</Text>}
-              {!editing && !busy && <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />}
+              {!readOnly && !editing && !busy && <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />}
             </View>
             {row.units !== null && <Text style={ui.small}>{row.units} units</Text>}
             {doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `)) &&
               <Text style={ui.small}>Extraction needs review</Text>}
-            {row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service" disabled={!!editing || busy}
+            {!readOnly && row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service" disabled={!!editing || busy}
               accessibilityState={{ checked: row.received === false, disabled: !!editing || busy }}
               onPress={() => setRows((current) => current.map((item) => item.id === row.id
                 ? { ...item, received: item.received === false ? null : false } : item))}
@@ -289,13 +281,13 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard }:
           </View>)}
           </View>}
           {editing && !editingExisting && <View style={ui.card}>{editor}</View>}
-          {ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
+          {!readOnly && ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
             tone="ghost" disabled={busy || !!editing} onPress={() => add(type)} />)}
           {error && !editing ? <Message text={error} /> : null}
-          {!doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="destructive"
+          {!readOnly && !doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="destructive"
             disabled={busy || !!editing} onPress={() => void discard()} />}
       </ScrollView>
-      {!editing && <ActionBar>
+      {!editing && (!readOnly || !doc.confirmed) && <ActionBar>
           <Button label={`Confirm ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`} icon="check"
             disabled={!rows.length || !!editing} busy={busy} onPress={() => void confirm()} />
       </ActionBar>}

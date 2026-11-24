@@ -4,15 +4,16 @@ import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Assistance } from '../../src/assistance';
 import { ConnectionStatus } from '../../src/connection';
-import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, headers, postCase, request } from '../../src/api';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
 import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
 type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
-  | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
+  | { type: 'assistance' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
 type Tab = 'Review' | 'Documents' | 'Timeline';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -20,26 +21,34 @@ export default function CaseScreen() {
   const params = useLocalSearchParams<{ id: string; capture?: string }>();
   const id = typeof params.id === 'string' && caseID.test(params.id) ? params.id : '';
   const [data, setData] = useState<Case>();
+  const [versioned, setVersioned] = useState(false);
   const [busy, setBusy] = useState('');
   const working = useRef(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
-  const [overlay, setOverlay] = useState<Overlay | undefined>(() => params.capture === '1' ? { type: 'intake' } : undefined);
+  const [overlay, setOverlay] = useState<Overlay | undefined>(() => !hostedBuild && params.capture === '1' ? { type: 'intake' } : undefined);
 
   const refresh = useCallback(async () => {
     setError('');
     if (!id) { setError('This case link is invalid.'); return; }
-    try { setData(await getCase(id)); } catch (cause) { setError((cause as Error).message); }
+    try {
+      const [snapshot, backend] = await Promise.all([getCase(id), getBackend()]);
+      setVersioned(backend.prefix === '/v1');
+      setData(snapshot);
+    } catch (cause) { setError((cause as Error).message); }
   }, [id]);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function update(label: string, suffix: string, body: object | FormData) {
+  async function update(label: string, suffix: string, body: object | FormData, method: 'POST' | 'PATCH' = 'POST') {
     if (working.current) throw new Error('An action is already in progress.');
     working.current = true;
     setError('');
     setBusy(label);
     try {
-      const next = await postCase(`/cases/${id}${suffix}`, body);
+      const path = `/cases/${id}${suffix}`;
+      const next = method === 'PATCH' ? await request<Case>(path, {
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }) : await postCase(path, body);
       setData(next);
       return next;
     } catch (cause) {
@@ -119,7 +128,7 @@ export default function CaseScreen() {
       const filename = `${directory}FairBill-evidence.pdf`;
       await FileSystem.deleteAsync(filename, { idempotent: true });
       const result = await FileSystem.downloadAsync(
-        `${await endpoint()}/cases/${id}/packet?revision=${revision}`, filename, { headers: await headers() },
+        await apiUrl(`/cases/${id}/packet?revision=${revision}`), filename, { headers: await headers() },
       );
       if (result.status !== 200 || !result.headers['Content-Type']?.includes('pdf')
         && !result.headers['content-type']?.includes('pdf')) {
@@ -155,7 +164,7 @@ export default function CaseScreen() {
         <Text style={ui.heading}>{data.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
         <Text style={ui.kicker}>{data.sample ? 'Synthetic demo' : 'Case documents and findings'}</Text>
       </View>
-      <IconButton label="Add evidence" icon="plus" onPress={() => { if (!busy) addEvidence(); }} />
+      {!hostedBuild && <IconButton label="Add evidence" icon="plus" onPress={() => { if (!busy) addEvidence(); }} />}
     </View>
     <ConnectionStatus mode={data.agent_mode} />
     <View style={styles.tabs}>
@@ -201,6 +210,12 @@ export default function CaseScreen() {
           {data.findings.filter((item) => item.check === 'settlement').map((finding) => <FindingCard key={finding.id} finding={finding}
             onPress={openEvidence} />)}
           {data.findings.every((item) => item.check !== 'settlement') && <EmptyState>Add a settlement statement to check deductions.</EmptyState>}
+          {versioned && <Card tone="tonal">
+            <SectionHeader>Help with paying</SectionHeader>
+            <Text style={ui.body}>Check the fictional assistance policy and see which clauses apply to the example.</Text>
+            <Button label="Check assistance" icon="heart" tone="light" disabled={!!busy}
+              onPress={() => setOverlay({ type: 'assistance' })} />
+          </Card>}
           <View style={ui.card}>
             <SectionHeader>Next steps</SectionHeader>
             <Button label="Draft clarification letter" icon="mail" disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => void prepare('letter')} />
@@ -228,14 +243,14 @@ export default function CaseScreen() {
             </Pressable>
           </View>)}
         </Card> : <EmptyState>No documents in this case yet.</EmptyState>}
-        <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />
+        {!hostedBuild && <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />}
       </>}
       {tab === 'Timeline' && <>
         <Text style={ui.title}>Timeline</Text>
         <Timeline data={data} onRevision={(entry) => setOverlay({ type: 'revision', revision: entry })} />
       </>}
     </ScrollView>
-    {overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
+    {!hostedBuild && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
       onPaste={async (kind: Kind, text: string) => reviewNew(await update('import', '/documents/text', { kind, text, revision }))}
       onFile={async (kind, asset) => {
         const form = new FormData();
@@ -244,7 +259,7 @@ export default function CaseScreen() {
         form.append('file', asset as unknown as Blob);
         reviewNew(await update('import', '/documents/file', form));
       }} />}
-    {reviewing && <Review key={reviewing.id} doc={reviewing} busy={!!busy} onClose={close} onConfirm={confirm}
+    {reviewing && <Review key={reviewing.id} doc={reviewing} readOnly={hostedBuild} busy={!!busy} onClose={close} onConfirm={confirm}
       onDiscard={async () => {
         await update('discard', `/documents/${reviewing.id}/discard`, { revision });
         setOverlay(undefined);
@@ -260,12 +275,17 @@ export default function CaseScreen() {
           onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
+    {overlay?.type === 'assistance' && <Assistance caseId={id} revision={revision} onClose={close} />}
     {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy}
       error={error} onDismissError={() => setError('')} onClose={close}
       onApprove={() => {
         if (draft) void update('approve', '/approvals', { action, revision, hash: draft.hash }).catch(report);
       }}
-      onSimulate={(step) => void simulate(step)} />}
+      onSimulate={(step) => void simulate(step)}
+      onEdit={versioned && !hostedBuild && action === 'letter' ? async (text) => {
+        try { await update('edit-letter', '/drafts/letter', { revision, text }, 'PATCH'); }
+        catch (cause) { report(cause); throw cause; }
+      } : undefined} />}
     {overlay?.type === 'packet' && <Sheet title="Redacted packet" onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
         <Card tone="tonal">

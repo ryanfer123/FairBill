@@ -1,10 +1,11 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
-import { endpoint, testEndpoint } from './api';
+import { endpoint, hostedBuild, testEndpoint } from './api';
 import { Badge, color } from './ui';
 
 export function ConnectionStatus({ mode, refresh = 0 }: { mode?: string | null; refresh?: number }) {
+  const service = hostedBuild ? 'Test server' : 'Local API';
   const [status, setStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking');
 
   useFocusEffect(useCallback(() => {
@@ -32,7 +33,7 @@ export function ConnectionStatus({ mode, refresh = 0 }: { mode?: string | null; 
 
   return <View accessibilityLiveRegion="polite" style={styles.strip}>
     <Badge tone={status === 'unavailable' ? 'amber' : 'neutral'}>
-      {status === 'connected' ? 'Local API connected' : status === 'unavailable' ? 'Local API unavailable' : 'Checking local API'}
+      {status === 'connected' ? `${service} connected` : status === 'unavailable' ? `${service} unavailable` : 'Checking connection'}
     </Badge>
     <Badge tone="neutral">{mode === 'Gemini' ? 'Gemini planner' : mode ? 'Offline planner' : 'Planner pending'}</Badge>
   </View>;

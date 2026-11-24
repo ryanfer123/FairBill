@@ -19,10 +19,11 @@ function Turn({ speaker, patient, children }: { speaker: string; patient?: boole
 
 function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
   const pending = receipt.state === 'awaiting_identity';
+  const failed = receipt.outcome === 'identity_failed';
   return <View style={ui.stack}>
     <SectionHeader>Simulated call transcript</SectionHeader>
-    <Badge tone={pending ? 'amber' : 'green'}>
-      {receipt.state === 'completed' ? 'Simulation complete' : pending ? 'Identity verification required' : 'Identity verified'}
+    <Badge tone={pending || failed ? 'amber' : 'green'}>
+      {failed ? 'Ended before verification' : receipt.state === 'completed' ? 'Simulation complete' : pending ? 'Identity verification required' : 'Identity verified'}
     </Badge>
     {receipt.turns?.length ? receipt.turns.map((turn, index) => <Turn key={index}
       speaker={speakerNames[turn.speaker]} patient={turn.speaker === 'patient'}>{turn.text}</Turn>) : <>
@@ -33,7 +34,7 @@ function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
         <Turn speaker="Billing desk">The billing desk acknowledged the requests. Reference {receipt.id}.</Turn>
       </>}
     </>}
-    {receipt.state === 'completed' && <Text style={ui.label}>Reference {receipt.id}</Text>}
+    {receipt.state === 'completed' && !failed && <Text style={ui.label}>Reference {receipt.id}</Text>}
   </View>;
 }
 
@@ -104,6 +105,8 @@ export function Outreach({ action, draft, receipt, approved, busy, error, onDism
           icon={call ? 'phone-call' : 'send'} busy={busy === 'simulation'} disabled={!!busy} onPress={() => onSimulate('start')} />
           : activeCall && <>
             {pending && <Button label="I verified my identity" icon="user-check" busy={!!busy} onPress={() => onSimulate('identity')} />}
+            {pending && receipt?.progress && <Button label="I couldn’t verify" tone="ghost" disabled={!!busy}
+              onPress={() => onSimulate('identity_failed')} />}
             <Button label="Continue the call" icon="arrow-right" disabled={pending} busy={!!busy && !pending}
               onPress={() => onSimulate('finish')} />
           </>}
