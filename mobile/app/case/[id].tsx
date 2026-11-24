@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CaseActions } from '../../src/case-actions';
 import { Assistance } from '../../src/assistance';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
@@ -135,6 +136,11 @@ export default function CaseScreen() {
   }
 
   async function prepare(nextAction: Action) {
+    if (data?.drafts[nextAction]?.revision === revision) {
+      setError('');
+      setOverlay({ type: 'action', action: nextAction });
+      return;
+    }
     try {
       await update(`draft-${nextAction}`, '/drafts', { revision, action: nextAction });
       setOverlay({ type: 'action', action: nextAction });
@@ -251,18 +257,8 @@ export default function CaseScreen() {
           <Button label="Review actions" icon="arrow-right" tone="ghost" onPress={() => setTab('Actions')} />
         </>}
       </>}
-      {activeTab === 'Actions' && ready && <>
-        <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
-        <Text style={ui.body}>Review the wording for this revision before you approve an action.</Text>
-          <View style={ui.card}>
-            <SectionHeader>Next steps</SectionHeader>
-            <Button label="Draft clarification letter" icon="mail" disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => void prepare('letter')} />
-            <Button label="Review three-way call plan" icon="phone-call" tone="ghost" disabled={!!busy}
-              busy={busy === 'draft-call'} onPress={() => void prepare('call')} />
-            <Button label="Preview evidence packet" icon="share-2" tone="ghost" busy={busy === 'preview'}
-              disabled={!!busy} onPress={() => void previewPacket()} />
-          </View>
-      </>}
+      {activeTab === 'Actions' && ready && <CaseActions data={data} busy={busy}
+        prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
       {activeTab === 'Documents' && <>
         <Text style={ui.title}>Documents</Text>
         {data.documents.length > 0 ? <Card>

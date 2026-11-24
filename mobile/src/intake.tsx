@@ -119,6 +119,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
     onDiscard: () => Promise<void>; readOnly?: boolean }) {
   const [rows, setRows] = useState(doc.rows);
   const [source, setSource] = useState(false);
+  const [openLine, setOpenLine] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [fields, setFields] = useState<EditFields | null>(null);
   const [error, setError] = useState('');
@@ -218,32 +219,45 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
   return <Sheet title={KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-          <Text style={ui.title}>Confirm document lines</Text>
-          <Text style={ui.body}>{readOnly ? 'Compare the supplied synthetic rows with the document.' : 'Compare each row with the document and correct any misreads.'}</Text>
-          <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved changes' : doc.confirmed ? 'Confirmed' : 'Awaiting confirmation'}</Badge>
-          <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost" onPress={() => setSource(!source)} />
+          <View style={ui.stack}>
+            <Text accessibilityRole="header" style={ui.title}>Confirm document lines</Text>
+            <Text style={ui.body}>{readOnly ? 'Compare the supplied rows with the document.' : 'Open a source line to see the extracted text, then correct anything that was misread.'}</Text>
+          </View>
+          <View style={styles.readSummary}>
+            <Feather name="file-text" size={20} color={color.forest} />
+            <View style={ui.grow}>
+              <Text style={ui.label}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
+              <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
+            </View>
+            <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved' : doc.confirmed ? 'Confirmed' : 'Pending'}</Badge>
+          </View>
+          <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost"
+            onPress={() => setSource(!source)} />
           {source && doc.pages.map((page, index) => <View key={index} style={ui.card}>
             <Text style={ui.kicker}>PAGE {index + 1}</Text>
             <Text selectable style={ui.small}>{page.split('\n').map((line, i) => `${i + 1}  ${line}`).join('\n') || 'No text found'}</Text>
           </View>)}
-          {doc.notes.length > 0 && <View style={ui.card}>
-            <Text style={ui.label}>Needs review</Text>
-            <Text style={ui.small}>{doc.notes.slice(0, 6).join(' ')}</Text>
+          {doc.notes.length > 0 && <View style={styles.extractionNotice}>
+            <Feather name="alert-circle" size={18} color={color.amber} />
+            <View style={[ui.grow, ui.stack]}>
+              <Text style={ui.label}>Check the extraction</Text>
+              {doc.notes.slice(0, source ? undefined : 4).map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
+              {!source && doc.notes.length > 4 && <Text style={ui.small}>Show extracted text to read the remaining notes.</Text>}
+            </View>
           </View>}
           {!rows.length && !editing && <EmptyState>No rows were extracted. Add a row using the source text.</EmptyState>}
           {rows.length > 0 && <View style={ui.card}>
-          <Text style={ui.kicker}>DOCUMENT ROWS</Text>
-          {rows.map((row) => <View key={row.id} style={ui.stack}>
-            <Divider />
+          {rows.map((row, index) => <View key={row.id} style={ui.stack}>
+            {index > 0 && <Divider />}
             <View style={ui.between}>
               <View style={ui.grow}>
-                <Text style={ui.kicker}>{ROW_LABEL[row.type].toUpperCase()} · PAGE {row.page} · LINE {row.line}</Text>
+                <Text style={ui.kicker}>{ROW_LABEL[row.type]}</Text>
                 <Text style={ui.label}>{row.description}</Text>
               </View>
               {row.amount !== null && <Text style={ui.money}>{money(row.amount)}</Text>}
               {!readOnly && !editing && !busy && <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />}
             </View>
-            {row.units !== null && <Text style={ui.small}>{row.units} units</Text>}
+            {row.units !== null && <Text style={ui.small}>{row.units} {row.units === 1 ? 'unit' : 'units'}</Text>}
             {doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `)) &&
               <Text style={ui.small}>Extraction needs review</Text>}
             {!readOnly && row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service" disabled={!!editing || busy}
@@ -255,6 +269,19 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
               <Text style={ui.small}>I did not receive this service</Text>
             </Pressable>}
             {!!row.reference && <Badge>{row.reference}</Badge>}
+            <Pressable accessibilityRole="button" accessibilityLabel={`Source for ${row.description}, page ${row.page}, line ${row.line}`}
+              accessibilityState={{ expanded: openLine === row.id }}
+              onPress={() => setOpenLine(openLine === row.id ? null : row.id)}
+              style={({ pressed }) => [styles.sourceLink, pressed && { opacity: 0.7 }]}>
+              <Feather name="file-text" size={15} color={color.forest} />
+              <Text style={[ui.small, styles.sourceLabel]}>Page {row.page}, line {row.line}</Text>
+              <Feather name={openLine === row.id ? 'chevron-up' : 'chevron-down'} size={16} color={color.forest} />
+            </Pressable>
+            {openLine === row.id && <View style={styles.excerpt}>
+              <Text style={ui.kicker}>Extracted text</Text>
+              <Text selectable style={ui.body}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
+                || 'No extracted text at this position.'}</Text>
+            </View>}
             {editing?.id === row.id && editor}
           </View>)}
           </View>}
@@ -274,6 +301,12 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
 }
 
 const styles = StyleSheet.create({
+  readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.pale, borderRadius: 16, padding: 12 },
+  extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.sand, borderRadius: 12, padding: 12 },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7,
+    minHeight: 44, borderWidth: 1, borderColor: color.line, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
+  sourceLabel: { color: color.forest, flexShrink: 1 },
+  excerpt: { backgroundColor: color.panel, borderRadius: 10, gap: 5, padding: 12 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
   selected: { backgroundColor: color.pale },
 });
