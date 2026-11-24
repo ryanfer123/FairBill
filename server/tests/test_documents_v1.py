@@ -1,0 +1,177 @@
+import hashlib
+import shutil
+from pathlib import Path
+
+import pymupdf
+import pytest
+
+from fairbill import resolution
+from fairbill.documents import (
+    ObservedRow,
+    Row,
+    excerpt,
+    make_document,
+    remove_original,
+    store_original,
+)
+from fairbill.investigation import run
+from fairbill.redaction import RedactionError
+from fairbill.sample import fixtures
+
+DEMO = Path(__file__).resolve().parents[2] / "demo"
+
+
+def test_versioned_document_preserves_multipage_geometry():
+    data = (DEMO / "invoice.pdf").read_bytes()
+    document = make_document("invoice", "invoice", data, versioned=True, media_type="application/pdf")
+    assert len(document["pages"]) == 2
+    assert document["sha256"] == hashlib.sha256(data).hexdigest()
+    assert document["media_type"] == "application/pdf"
+    assert len(document["rows"]) == 5
+    charge = next(row for row in document["rows"] if row["id"] == "L43")
+    match = next(line for line in document["extracted_lines"] if line["page"] == charge["page"]
+                 and line["line"] == charge["line"])
+    assert match["raw_text"] == excerpt(document, charge)
+    assert match["page"] == 2
+    assert match["source"] == "pdf_text"
+    assert len(match["bbox"]) == 4
+    assert match["confidence"] is None
+    assert not match["needs_manual_entry"]
+
+
+def test_versioned_parser_preserves_recorded_arithmetic_and_manually_reviewed_text():
+    data = (
+        "｜CHARGE｜R01｜Consultation｜CONSULT｜2026-01-01｜2｜100｜300｜\n"
+        "CHARGE | R02 | Missing fields\n"
+        "TOTAL\tT01\tTotal\t300"
+    ).encode()
+    document = make_document("text", "invoice", data, pasted=True, versioned=True)
+    assert document["rows"][0]["amount"] == 30000
+    assert document["rows"][0]["units"] == 2
+    assert document["rows"][0]["unit_price"] == 10000
+    assert ObservedRow.model_validate(document["rows"][0])
+    with pytest.raises(ValueError, match="quantity times unit price"):
+        Row.model_validate(document["rows"][0])
+    assert document["extracted_lines"][1]["needs_manual_entry"]
+    assert document["extracted_lines"][1]["source"] == "paste"
+    assert document["rows"][1]["type"] == "invoice_total"
+    assert document["notes"] == ["Page 1, line 2 needs manual review."]
+
+
+def test_rejects_invalid_media_encryption_and_oversized_dimensions():
+    data = (DEMO / "invoice.pdf").read_bytes()
+    with pytest.raises(ValueError, match="declared media type"):
+        make_document("doc", "invoice", data, versioned=True, media_type="image/png")
+    dimensions = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\x0dIHDR" + (9000).to_bytes(4, "big") * 2
+    with pytest.raises(ValueError, match="Image dimensions"):
+        make_document("doc", "invoice", dimensions, versioned=True)
+    with pymupdf.open(stream=data, filetype="pdf") as pdf:
+        protected = pdf.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="synthetic-fixture")
+    with pytest.raises(ValueError, match="unlocked PDF"):
+        make_document("doc", "invoice", protected, versioned=True)
+
+
+@pytest.mark.skipif(not shutil.which("tesseract"), reason="Tesseract is needed for local OCR")
+@pytest.mark.parametrize("scan_kind", ["image/png", "image/jpeg", "application/pdf"])
+def test_scans_keep_bounding_boxes_raw_lines_and_confidence(scan_kind):
+    with pymupdf.open(DEMO / "scan-invoice.pdf") as printable:
+        pixmap = printable[0].get_pixmap(matrix=pymupdf.Matrix(2.4, 2.4).prerotate(3))
+    if scan_kind == "application/pdf":
+        with pymupdf.open() as scanned:
+            page = scanned.new_page(width=700, height=820)
+            page.insert_image(page.rect, pixmap=pixmap, keep_proportion=True)
+            payload = scanned.tobytes()
+    else:
+        payload = pixmap.tobytes(scan_kind.split("/")[-1])
+    document = make_document("scan", "invoice", payload, versioned=True, media_type=scan_kind)
+    assert sorted(row["type"] for row in document["rows"]) == ["charge", "invoice_total"]
+    assert {row["amount"] for row in document["rows"]} == {150000}
+    assert all(line["source"] == "ocr" and len(line["bbox"]) == 4 and 0 <= line["confidence"] <= 100
+               for line in document["extracted_lines"])
+
+
+def test_original_storage_is_private_scoped_and_cleans_up(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAIRBILL_DOCUMENT_STORE", str(tmp_path))
+    data = (DEMO / "invoice.pdf").read_bytes()
+    document = make_document("doc", "invoice", data, versioned=True)
+    store_original("owner", "case-1", document, data)
+    location = tmp_path / "owner" / "case-1" / "doc"
+    assert location.read_bytes() == data
+    assert location.stat().st_mode & 0o777 == 0o600
+    assert location.parent.stat().st_mode & 0o777 == 0o700
+    with pytest.raises(ValueError, match="document hash"):
+        store_original("owner", "case-1", document, b"replacement")
+    with pytest.raises(ValueError, match="storage identifier"):
+        store_original("..", "case-1", document, data)
+    remove_original("owner", "case-1", document)
+    assert not location.exists()
+
+
+def packet_case(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    case = {
+        "documents": fixtures()[:4], "drafts": {}, "approvals": {}, "findings": [], "timeline": [],
+        "pending": ["duplicates", "quantities", "settlement", "patient_report"],
+        "investigated_revision": None, "history": [], "revision": 1, "sample": True,
+    }
+    run(case)
+    return case
+
+
+def test_packet_includes_only_hash_bound_approved_letter_and_removes_ids(monkeypatch):
+    case = packet_case(monkeypatch)
+    text = ("Request for clarification to Alex Sample.\n"
+            "Phone: +91 70000 44221\nPolicy number: SAMPLE-42\n"
+            "Address: 12 Synthetic Lane\nPlease review the itemised bill.")
+    letter = {"revision": 1, "text": text, "hash": hashlib.sha256(text.encode()).hexdigest()}
+    case["patient_name"] = "Alex Sample"
+    preview, _ = resolution.redacted_packet(case, approved_letter=letter)
+    assert "Approved letter | Simulation only" not in preview
+    case["approvals"]["letter"] = letter
+    preview, _ = resolution.redacted_packet(case, approved_letter={**letter, "hash": "wrong"})
+    assert "Approved letter | Simulation only" not in preview
+    preview, packet = resolution.redacted_packet(case, approved_letter=letter)
+    assert "Approved letter | Simulation only" in preview
+    with pymupdf.open(stream=packet, filetype="pdf") as pdf:
+        rendered = "\n".join(page.get_text() for page in pdf)
+    for value in ["Alex Sample", "70000 44221", "SAMPLE-42", "12 Synthetic Lane"]:
+        assert value not in "\n".join(preview)
+        assert value not in rendered
+    assert "Evidence review" in rendered
+    assert "Revision history" in rendered
+    assert "Approved letter" in rendered
+    assert "[redacted]" in rendered
+
+
+def test_packet_fails_if_readback_contains_an_injected_known_value(monkeypatch):
+    case = packet_case(monkeypatch)
+    original_renderer = resolution.evidence_packet
+    monkeypatch.setattr(resolution, "evidence_packet",
+                        lambda lines: original_renderer([*lines, "Alex   Sample"]))
+    with pytest.raises(RedactionError, match="identity redaction check"):
+        resolution.redacted_packet(case, known_pii=["Alex Sample"])
+
+
+def test_packet_redacts_common_unlabelled_identifiers(monkeypatch):
+    case = packet_case(monkeypatch)
+    text = "Name: Alex Sample\nSend records to Alex Sample at synthetic@example.invalid or 7000099999."
+    letter = {"revision": 1, "text": text, "hash": hashlib.sha256(text.encode()).hexdigest()}
+    case["approvals"]["letter"] = letter
+    preview, _ = resolution.redacted_packet(case, approved_letter=letter)
+    assert "Alex Sample" not in "\n".join(preview)
+    assert "synthetic@example.invalid" not in "\n".join(preview)
+    assert "7000099999" not in "\n".join(preview)
+
+
+def test_model_claim_rejection_uses_template_and_records_reason(monkeypatch):
+    case = packet_case(monkeypatch)
+    monkeypatch.setattr(resolution, "gemini", lambda *args: resolution.Wording(
+        opening="Please explain the INR 982341.00 charge.",
+        closing=resolution.CLOSINGS[0],
+    ))
+    draft = resolution.make_draft(case, "letter")
+    assert draft["mode"] == "Offline"
+    assert draft["fallback_reason"] == "unsupported_claim"
+    assert resolution.OPENINGS[0] in draft["text"]
+    assert "982341" not in draft["text"]
+    assert any(entry["detail"] == "unsupported_claim" for entry in case["timeline"])

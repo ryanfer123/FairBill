@@ -1,10 +1,14 @@
 import hashlib
+import os
 import textwrap
+from collections.abc import Iterable
 from typing import Literal
 
 import pymupdf
 
+from .claims import validate_claims
 from .investigation import Wording, eligible_for_model, event, gemini
+from .redaction import RedactionError, assert_no_private_values, known_values, redact_text
 
 Action = Literal["letter", "call"]
 OPENINGS = ("Please review the following items on my hospital bill and settlement statement.",
@@ -31,26 +35,40 @@ def approved_points(case):
             "quantities": "Please reconcile the billed and documented quantities.",
             "settlement": "Please explain the deduction and identify the policy clause.",
             "patient_report": "Please confirm the service against the treatment record.",
-        }[item["check"]]
+            "unit_limit": "Please confirm the documented units for this service.",
+            "line_arithmetic": "Please explain how the line amount was calculated.",
+            "invoice_arithmetic": "Please reconcile the itemised charges with the invoice total.",
+            "reference_tariff": "Please explain the difference from the cited fictional reference tariff.",
+        }.get(item["check"], "Please clarify this item using the linked supporting records.")
         points.append(f"{label}{value}. {ask}")
     return points
 
 
-def make_draft(case: dict, action: Action) -> dict:
+def make_draft(case: dict, action: Action, *, allow_model: bool = True) -> dict:
     points = approved_points(case)
     if not points:
         points = ["Please provide an itemised bill and the available billing records."]
+    fallback_reason = None
     if action == "letter":
+        model_allowed = allow_model and eligible_for_model(case)
         choice = gemini(
             Wording,
             "Choose an opening and closing by copying exactly one sentence from each list. "
             "The message will request clarification about hospital billing. "
             f"Openings: {OPENINGS}. Closings: {CLOSINGS}.",
-        ) if eligible_for_model(case) else None
-        valid = choice and choice.opening in OPENINGS and choice.closing in CLOSINGS
-        opening, closing = (choice.opening, choice.closing) if valid else (OPENINGS[0], CLOSINGS[0])
-        text = "\n\n".join(("Dear billing or claims team,", opening, *points, closing, "Thank you."))
-        mode = "Gemini" if valid else "Offline"
+        ) if model_allowed else None
+        text = "\n\n".join(("Dear billing or claims team,", OPENINGS[0], *points, CLOSINGS[0], "Thank you."))
+        mode = "Offline"
+        if choice:
+            candidate = "\n\n".join(("Dear billing or claims team,", choice.opening, *points, choice.closing, "Thank you."))
+            if validate_claims(candidate, case):
+                fallback_reason = "unsupported_claim"
+            elif choice.opening in OPENINGS and choice.closing in CLOSINGS:
+                text, mode = candidate, "Gemini"
+            else:
+                fallback_reason = "unverified_model_wording"
+        elif model_allowed and os.environ.get("GEMINI_API_KEY"):
+            fallback_reason = "model_unavailable"
     else:
         text = "\n\n".join((
             "I am FairBill, a virtual billing advocate. The patient is on the line.",
@@ -61,6 +79,9 @@ def make_draft(case: dict, action: Action) -> dict:
         mode = "Offline"
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     draft = {"action": action, "revision": case["revision"], "hash": digest, "text": text, "mode": mode}
+    if fallback_reason:
+        draft["fallback_reason"] = fallback_reason
+        event(case, "Draft used the offline template", fallback_reason, "Resolution strategist")
     case["drafts"][action] = draft
     event(case, f"{action.title()} prepared", f"Exact wording ready for review. Draft mode: {mode}.",
           "Resolution strategist")
@@ -109,3 +130,36 @@ def evidence_packet(lines: list[str]) -> bytes:
                                  fontname="hebo" if title else "helv", color=(0.10, 0.20, 0.19))
                 y += 28 if title else 16
         return pdf.tobytes(garbage=4, deflate=True)
+
+
+def _approved_packet_letter(case: dict, candidate: dict | None) -> str | None:
+    approval = case.get("approvals", {}).get("letter")
+    if not approval:
+        return None
+    if candidate is None:
+        candidate = case.get("drafts", {}).get("letter")
+    if not candidate or approval.get("hash") != candidate.get("hash"):
+        return None
+    text = candidate.get("text")
+    digest = candidate.get("hash")
+    if not isinstance(text, str) or not isinstance(digest, str) or candidate.get("revision") != case["revision"]:
+        return None
+    return text if hashlib.sha256(text.encode()).hexdigest() == digest else None
+
+
+def redacted_packet(
+    case: dict, *, approved_letter: dict | None = None, known_pii: Iterable[str] = (),
+) -> tuple[list[str], bytes]:
+    lines = packet_lines(case)
+    lines[1] = f"Synthetic demo | Simulated outreach only | Case revision {case['revision']}"
+    letter = _approved_packet_letter(case, approved_letter)
+    if letter:
+        lines.extend(("", "Approved letter | Simulation only", *letter.splitlines()))
+    private = known_values(case, known_pii, letter=letter)
+    clean = [redact_text(line, private) for line in lines]
+    assert_no_private_values("\n".join(clean), private)
+    packet = evidence_packet(clean)
+    with pymupdf.open(stream=packet, filetype="pdf") as pdf:
+        output_text = "\n".join(page.get_text() for page in pdf)
+    assert_no_private_values(output_text, private)
+    return clean, packet

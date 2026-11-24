@@ -1,13 +1,18 @@
 import hashlib
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Literal
 
 import pymupdf
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .document_media import extract_versioned, media_type as sniff_media_type
 
 Kind = Literal["invoice", "policy", "settlement", "service_record"]
 RowKind = Literal["charge", "invoice_total", "deduction", "clause", "order", "quantity"]
@@ -31,7 +36,6 @@ class Row(BaseModel):
     unit_price: int | None = Field(default=None, ge=0, le=MAX_MONEY, strict=True)
     received: bool | None = None
 
-    @model_validator(mode="after")
     def check_required_fields(self):
         if self.service_date:
             date.fromisoformat(self.service_date)
@@ -43,11 +47,24 @@ class Row(BaseModel):
             raise ValueError("Enter a policy clause ID.")
         if self.type in {"order", "quantity"} and not all((self.code, self.service_date, self.reference)):
             raise ValueError("Enter the service code, date and record ID.")
-        if self.type == "charge" and self.unit_price is not None and self.units * self.unit_price != self.amount:
-            raise ValueError("The quantity times unit price must equal the line amount.")
         if not self.description:
             raise ValueError("Enter a description.")
         return self
+
+    @model_validator(mode="after")
+    def validate_record(self):
+        self.check_required_fields()
+        if self.type == "charge" and self.unit_price is not None and self.units * self.unit_price != self.amount:
+            raise ValueError("The quantity times unit price must equal the line amount.")
+        return self
+
+
+class ObservedRow(Row):
+    """Preserve a source's recorded amount so the arithmetic rule can check it."""
+
+    @model_validator(mode="after")
+    def validate_record(self):
+        return self.check_required_fields()
 
 
 ROW_TYPES = {
@@ -77,13 +94,17 @@ def paise(raw: str) -> int | None:
     raise ValueError("Use a rupee amount with at most two decimal places.")
 
 
-def read_rows(pages: list[str], kind: Kind) -> tuple[list[dict], list[str]]:
+def read_rows(pages: list[str], kind: Kind, *, observed: bool = False) -> tuple[list[dict], list[str]]:
     rows = []
     notes = []
     seen = set()
     for page, body in enumerate(pages, 1):
         for line, raw in enumerate(body.splitlines(), 1):
-            cells = [cell.strip() for cell in raw.split("|")]
+            if observed:
+                separator = r"[|｜│¦]" if re.search(r"[|｜│¦]", raw) else r"\t"
+                cells = [cell.strip() for cell in re.split(separator, raw.strip(" |｜│¦"))]
+            else:
+                cells = [cell.strip() for cell in raw.split("|")]
             row_type = LABELS.get(cells[0].upper())
             if row_type not in ROW_TYPES[kind]:
                 continue
@@ -106,7 +127,8 @@ def read_rows(pages: list[str], kind: Kind) -> tuple[list[dict], list[str]]:
                 else:
                     code, service_date, units, reference = parts
                     data.update(code=code, service_date=service_date, units=int(units), reference=reference)
-                row = Row.model_validate(data)
+                row_class = ObservedRow if observed else Row
+                row = row_class.model_validate(data)
                 if row.id in seen:
                     raise ValueError("Duplicate row ID")
                 seen.add(row.id)
@@ -159,21 +181,76 @@ def extract(data: bytes) -> list[str]:
     raise ValueError("Choose a PDF, JPEG or PNG, or paste the text.")
 
 
-def make_document(doc_id: str, kind: Kind, data: bytes, *, pasted=False, trusted=False) -> dict:
+def make_document(
+    doc_id: str, kind: Kind, data: bytes, *, pasted=False, trusted=False,
+    versioned: bool = False, media_type: str | None = None,
+) -> dict:
+    extracted = None
     if pasted:
         if len(data) > 20_000:
             raise ValueError("Paste up to 20,000 bytes at a time.")
         pages = data.decode("utf-8").split("\f")
         if not data.strip() or len(pages) > MAX_PAGES:
             raise ValueError("Paste text for up to 10 pages.")
+        mime = "text/plain"
+        if versioned:
+            extracted = [[{
+                "raw_text": line, "source": "paste", "bbox": None, "confidence": None,
+            } for line in page.splitlines()] for page in pages]
+    elif versioned:
+        if not data or len(data) > MAX_BYTES:
+            raise ValueError("Choose a document up to 10 MB.")
+        mime = sniff_media_type(data)
+        if media_type and media_type.split(";")[0].strip().lower() not in {mime, "application/octet-stream"}:
+            raise ValueError("The file contents do not match the declared media type.")
+        extracted = extract_versioned(data, mime, MAX_PAGES)
+        pages = ["\n".join(line["raw_text"] for line in page) for page in extracted]
     else:
         pages = extract(data)
-    rows, notes = read_rows(pages, kind)
-    return {
+    rows, notes = read_rows(pages, kind, observed=versioned)
+    document = {
         "id": doc_id, "kind": kind, "sha256": hashlib.sha256(data).hexdigest(),
         "pages": pages, "rows": rows, "notes": notes,
         "confirmed": trusted, "bundled": trusted,
     }
+    if extracted is not None:
+        parsed = {(row["page"], row["line"]) for row in rows}
+        document.update(media_type=mime, extracted_lines=[
+            {**record, "id": f"p{page}-l{line}", "page": page, "line": line,
+             "needs_manual_entry": bool(record["raw_text"].strip()) and (page, line) not in parsed}
+            for page, records in enumerate(extracted, 1)
+            for line, record in enumerate(records, 1)
+        ])
+    return document
+
+
+def _original_path(owner_id: str, case_id: str, document: dict) -> Path:
+    ids = (owner_id, case_id, document["id"])
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value) for value in ids):
+        raise ValueError("Invalid document storage identifier.")
+    database = Path(os.getenv("FAIRBILL_DB", "../.local/fairbill.sqlite3"))
+    root = Path(os.getenv("FAIRBILL_DOCUMENT_STORE", str(database.parent / "originals")))
+    return root.joinpath(*ids)
+
+
+def store_original(owner_id: str, case_id: str, document: dict, data: bytes) -> None:
+    if hashlib.sha256(data).hexdigest() != document["sha256"]:
+        raise ValueError("The original file does not match the document hash.")
+    target = _original_path(owner_id, case_id, document)
+    target.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as temporary:
+        staging = Path(temporary.name)
+        try:
+            temporary.write(data)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            os.replace(staging, target)
+        finally:
+            staging.unlink(missing_ok=True)
+
+
+def remove_original(owner_id: str, case_id: str, document: dict) -> None:
+    _original_path(owner_id, case_id, document).unlink(missing_ok=True)
 
 
 def excerpt(doc: dict, row: dict) -> str:
