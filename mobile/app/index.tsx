@@ -6,11 +6,12 @@ import { CaseList } from '../src/cases';
 import { SegmentedButtons } from 'react-native-paper';
 import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
-import { ApiError, configureEndpoint, configureInvite, createCase, endpoint, getCase, getBackend, hostedBuild, lastCase, postCase, rememberCase } from '../src/api';
+import { ApiError, type Case, configureEndpoint, configureInvite, createCase, endpoint, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
 import { Badge, Button, Card, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 export default function Home() {
   const [latest, setLatest] = useState<string | null>(null);
+  const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
   const [mode, setMode] = useState('scan');
   const [text, setText] = useState('');
@@ -27,7 +28,15 @@ export default function Home() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    void lastCase().then((id) => { if (active) setLatest(id); }).catch(() => undefined);
+    void lastCase().then(async (id) => {
+      if (!active) return;
+      setLatest(id);
+      setRecent(null);
+      if (id) {
+        const saved = await getCase(id);
+        if (active) setRecent(saved);
+      }
+    }).catch(() => undefined);
     void getBackend().then((backend) => { if (active) setVersioned(backend.prefix === '/v1'); }).catch(() => undefined);
     return () => { active = false; };
   }, [connectionRevision]));
@@ -150,13 +159,26 @@ export default function Home() {
               <Button label="Check pasted bill" icon="arrow-right" busy={busy === 'paste'} disabled={!!busy || !text.trim()} onPress={() => void start('paste')} />
             </Card>}
           </>}
+          {!!latest && <Card>
+            <View style={ui.row}>
+              <Feather name="folder" size={21} color={color.forest} />
+              <View style={ui.grow}>
+                <Text style={ui.label}>{recent?.sample ? 'Sample investigation' : 'Continue your case'}</Text>
+                {!!recent && <Text style={ui.small}>{recent.investigated_revision === recent.revision
+                  ? 'Review complete' : recent.documents.some((document) => !document.confirmed)
+                    ? 'Document lines need confirmation' : recent.documents.length ? 'Ready for review' : 'Add a bill to begin'}</Text>}
+              </View>
+              {recent && recent.investigated_revision === recent.revision && recent.scenario?.conditional != null &&
+                <Text style={ui.money}>{money(recent.scenario.conditional)}</Text>}
+            </View>
+            <Button label="Resume last case" icon="arrow-right" tone="ghost" onPress={() => open(latest)} disabled={!!busy} />
+          </Card>}
           <Card tone="tonal">
             <Badge tone="neutral">Synthetic example</Badge>
             <SectionHeader>Try a sample bill</SectionHeader>
             <Text style={ui.body}>Follow the evidence from the original invoice to the revised total after a second lab order.</Text>
             <Button label="Open sample case" icon="arrow-up-right" tone="ghost" busy={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />
           </Card>
-          {latest && <Button label="Resume last case" icon="arrow-right" tone="ghost" onPress={() => open(latest)} disabled={!!busy} />}
           {versioned && <Button label="Your cases" icon="folder" tone="ghost" onPress={() => setBrowse(true)} disabled={!!busy} />}
           <View style={styles.note}>
             <Feather name="lock" size={16} color={color.forest} />

@@ -62,19 +62,21 @@ function SourceChips({ evidence, onPress, compact = false }:
   </View>;
 }
 
-export function AmountWithSource({ entry, onEvidence, headline = false }:
-  { entry: EvidenceView; onEvidence: (entry: EvidenceView) => void; headline?: boolean }) {
-  return <View style={ui.stack}>
-    {headline ? <>
-      <Text accessibilityRole="header" style={ui.label}>{entry.title}</Text>
-      <Text style={[ui.money, styles.headline]}>{money(entry.amount)}</Text>
-    </> : <View style={ui.between}>
-      <Text style={[ui.body, ui.grow]}>{entry.title}</Text>
-      <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>
-    </View>}
-    {entry.amount !== null && entry.evidence.length > 0 && <SourceChips evidence={entry.evidence} compact
-      onPress={(selected) => onEvidence({ ...entry, selected })} />}
-  </View>;
+function LedgerLine({ entry, onEvidence }: { entry: EvidenceView; onEvidence: (entry: EvidenceView) => void }) {
+  const sourced = entry.amount !== null && entry.evidence.length > 0;
+  const content = <>
+    <View style={ui.grow}>
+      <Text style={ui.label}>{entry.title}</Text>
+      {!!sourced && <Text style={ui.small}>{entry.evidence.length} {entry.evidence.length === 1 ? 'source' : 'sources'}</Text>}
+    </View>
+    <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>
+    {sourced && <Feather name="chevron-right" size={17} color={color.forest} />}
+  </>;
+  return sourced ? <Pressable accessibilityRole="button"
+    accessibilityLabel={`${entry.title}, ${money(entry.amount)}. View sources`}
+    onPress={() => onEvidence(entry)} style={({ pressed }) => [styles.ledgerLine, pressed && styles.ledgerPressed]}>
+    {content}
+  </Pressable> : <View style={styles.ledgerLine}>{content}</View>;
 }
 
 function invoiceSources(data: Case): Source[] {
@@ -99,39 +101,53 @@ export function ScenarioCard({ data, stale, onEvidence }:
   const explanation = scenario.reconciled
     ? 'This total applies if the listed billing adjustments are supported.'
     : 'The invoice and its itemised lines need reconciliation.';
-  return <Card tone="tonal">
-    <View style={ui.row}>
-      <Feather name="trending-down" size={17} color={color.forest} />
-      <Text style={ui.kicker}>Bill estimate</Text>
+  const conditional: EvidenceView = {
+    title: 'Conditional invoice', amount: scenario.conditional, explanation,
+    rule: 'Invoice total and supported billing adjustments',
+    evidence: scenario.sources?.conditional ?? unique([...invoices, ...adjustmentSources]),
+  };
+  return <View style={styles.ledger}>
+    <View style={styles.ledgerHead}>
+      <View style={ui.between}>
+        <Text style={[styles.ledgerLabel, ui.grow]}>{conditional.title}</Text>
+        <Feather name="file-text" size={19} color={color.mint} />
+      </View>
+      {stale && <View style={styles.previousTag}><Text style={styles.previousTagText}>Previous review</Text></View>}
+      <Text selectable style={[ui.money, styles.headline]}>{money(conditional.amount)}</Text>
+      <Text style={styles.ledgerCopy}>{explanation}</Text>
+      {!!previous && previous.scenario.conditional !== scenario.conditional &&
+        <Text style={styles.ledgerCopy}>Revised from <Text style={styles.previousAmount}>{money(previous.scenario.conditional)}</Text></Text>}
+      {conditional.amount !== null && conditional.evidence.length > 0 && <Pressable
+        accessibilityRole="button" onPress={() => onEvidence(conditional)} style={({ pressed }) =>
+          [styles.ledgerSource, pressed && { opacity: 0.8 }]}>
+        <Feather name="layers" size={16} color={color.mint} />
+        <Text style={[styles.ledgerSourceText, ui.grow]}>
+          View calculation · {conditional.evidence.length} {conditional.evidence.length === 1 ? 'source' : 'sources'}
+        </Text>
+        <Feather name="arrow-up-right" size={16} color={color.mint} />
+      </Pressable>}
     </View>
-    {stale && <Badge tone="amber">Previous revision</Badge>}
-    <AmountWithSource headline onEvidence={onEvidence} entry={{
-      title: 'Conditional invoice', amount: scenario.conditional, explanation,
-      rule: 'Invoice total and supported billing adjustments', evidence: scenario.sources?.conditional ?? unique([...invoices, ...adjustmentSources]),
-    }} />
-    <Text style={ui.body}>{explanation}</Text>
-    {!!previous && previous.scenario.conditional !== scenario.conditional &&
-      <Text style={ui.small}>Revised from <Text style={ui.money}>{money(previous.scenario.conditional)}</Text></Text>}
-    <Divider />
-    <AmountWithSource onEvidence={onEvidence} entry={{
+    <View style={styles.ledgerDetails}>
+    <LedgerLine onEvidence={onEvidence} entry={{
       title: 'Original invoice', amount: scenario.billed, explanation: 'Total from the confirmed hospital invoice.', evidence: invoices,
     }} />
-    <Divider />
-    <AmountWithSource onEvidence={onEvidence} entry={{
+    <View style={ui.divider} />
+    <LedgerLine onEvidence={onEvidence} entry={{
       title: 'Conditional adjustments', amount: scenario.adjustments, explanation: 'Billing questions included in this calculation.',
       rule: [...new Set(adjustments.map((finding) => RULES[finding.check]).filter(Boolean))].join(' · '),
       evidence: adjustmentSources,
     }} />
     {scenario.unresolved_deduction !== null && scenario.unresolved_deduction > 0 && <>
-      <Divider />
-      <AmountWithSource onEvidence={onEvidence} entry={{
+      <View style={ui.divider} />
+      <LedgerLine onEvidence={onEvidence} entry={{
         title: 'Separate insurance deduction', amount: scenario.unresolved_deduction,
         explanation: 'This deduction is reported separately from the conditional invoice.',
         evidence: scenario.sources?.unresolved_deduction ?? unique(data.findings.filter((finding) =>
           finding.check === 'settlement' && finding.status === 'active').flatMap((finding) => finding.evidence)),
       }} />
     </>}
-  </Card>;
+    </View>
+  </View>;
 }
 
 export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (entry: EvidenceView) => void }) {
@@ -151,9 +167,8 @@ export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (
       {finding.amount !== null && <Text style={[ui.money, styles.value]}>{money(finding.amount)}</Text>}
       <Feather name="arrow-up-right" size={17} color={color.forest} />
     </Pressable>
-    {!!entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
     <Text style={ui.body}>{finding.explanation}</Text>
-    <SourceChips evidence={entry.evidence} onPress={(selected) => onPress({ ...entry, selected })} />
+    <SourceChips evidence={entry.evidence} compact onPress={(selected) => onPress({ ...entry, selected })} />
   </Card>;
 }
 
@@ -188,7 +203,7 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
           <View style={styles.sourceQuote}>
             <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
           </View>
-          <Text selectable style={ui.kicker}>DOCUMENT HASH {source.sha256.slice(0, 12)}</Text>
+          <Text selectable style={styles.hash}>Source fingerprint {source.sha256.slice(0, 12)}</Text>
         </>}
       </Card>)}
       {!entry.evidence.length && <EmptyState>No source excerpts are available for this finding.</EmptyState>}
@@ -266,7 +281,21 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: color.forest },
   currentDot: { backgroundColor: color.forest },
   railLine: { width: 1, flex: 1, backgroundColor: color.line, marginBottom: -10 },
-  headline: { color: color.forest, fontSize: 38 },
+  ledger: { borderRadius: 22, borderWidth: 1, borderColor: color.line, overflow: 'hidden', backgroundColor: color.card },
+  ledgerHead: { backgroundColor: color.forest, padding: 18, gap: 8 },
+  ledgerLabel: { color: color.lime, fontWeight: '600', fontSize: 16 },
+  headline: { color: color.lime, fontSize: 41, letterSpacing: -1.2 },
+  ledgerCopy: { color: color.mint, fontSize: 14, lineHeight: 20 },
+  previousAmount: { fontVariant: ['tabular-nums'], color: color.lime, fontWeight: '700' },
+  previousTag: { alignSelf: 'flex-start', backgroundColor: color.sand, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8 },
+  previousTagText: { color: color.amber, fontSize: 12, fontWeight: '600' },
+  ledgerSource: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
+    marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.mint },
+  ledgerSourceText: { color: color.lime, fontSize: 14, fontWeight: '600' },
+  ledgerDetails: { paddingHorizontal: 16, paddingVertical: 4 },
+  ledgerLine: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 55, paddingVertical: 9 },
+  ledgerPressed: { opacity: 0.65 },
+  hash: { color: color.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
   value: { fontSize: 17, maxWidth: '56%', flexShrink: 1 },
   comparison: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   findingHeading: { minHeight: 44 },

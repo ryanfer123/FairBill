@@ -18,6 +18,21 @@ type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'ev
 type Tab = 'Review' | 'Documents' | 'Timeline' | 'Actions';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
+function ReviewProgress({ stage }: { stage: 0 | 1 | 2 | 3 }) {
+  const labels = ['Add bill', 'Confirm lines', 'Run checks'];
+  const description = stage === 3 ? 'Bill review complete' : `Current step. ${labels[stage]}`;
+  return <View accessible accessibilityLabel={description} style={styles.progress}>
+    {labels.map((label, index) => <View key={label} style={styles.progressStep}>
+      <View style={[styles.progressLine, index <= stage && styles.progressActive]} />
+      <View style={styles.progressLabel}>
+        {index < stage && <Feather name="check" size={13} color={color.forest} />}
+        {index === stage && <View style={styles.progressDot} />}
+        <Text style={[ui.kicker, index === stage && styles.progressCurrent]}>{label}</Text>
+      </View>
+    </View>)}
+  </View>;
+}
+
 export default function CaseScreen() {
   const params = useLocalSearchParams<{ id: string; document?: string; section?: string }>();
   const id = typeof params.id === 'string' && caseID.test(params.id) ? params.id : '';
@@ -91,6 +106,7 @@ export default function CaseScreen() {
   const ready = revision === data.investigated_revision;
   const activeTab = !ready && tab === 'Actions' ? 'Review' : tab;
   const pending = data.documents.find((doc) => !doc.confirmed);
+  const hasBill = data.documents.some((doc) => doc.kind === 'invoice');
   const hasInvoice = data.documents.some((doc) => doc.kind === 'invoice' && doc.confirmed);
   const canAddOrder = data.sample && !data.documents.some((doc) => doc.id === 'second-order');
   const reviewing = overlay?.type === 'review' ? data.documents.find((doc) => doc.id === overlay.id) : undefined;
@@ -196,7 +212,7 @@ export default function CaseScreen() {
           <Text accessibilityRole="header" style={[ui.title, ui.grow]}>Case review</Text>
           <Badge tone="neutral">Revision {revision}</Badge>
         </View>
-        <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
+        <ReviewProgress stage={ready ? 3 : !hasBill ? 0 : pending ? 1 : 2} />
         {!ready && <View style={ui.card}>
           <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
           <Text style={ui.body}>{pending ? 'Review the source and confirm the extracted rows.' : hasInvoice
@@ -207,6 +223,7 @@ export default function CaseScreen() {
               busy={busy === 'investigate'} disabled={!!busy} onPress={() => void run()} />
               : <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
         </View>}
+        <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {ready && <>
           {canAddOrder && <Card tone="tonal">
             <View style={ui.row}>
@@ -331,6 +348,13 @@ export default function CaseScreen() {
 
 const styles = StyleSheet.create({
   toolbar: { paddingHorizontal: 20, paddingVertical: 9 },
+  progress: { flexDirection: 'row', gap: 8 },
+  progressStep: { flex: 1, gap: 6 },
+  progressLine: { height: 3, borderRadius: 3, backgroundColor: color.line },
+  progressActive: { backgroundColor: color.forest },
+  progressLabel: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
+  progressCurrent: { color: color.forest },
+  progressDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.forest },
   documentRow: { minHeight: 54, paddingVertical: 8 },
   tabs: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: color.line, gap: 6 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderRadius: 24, paddingVertical: 8, paddingHorizontal: 5 },
