@@ -9,7 +9,7 @@ import { Action, ApiError, Case, History, KINDS, Kind, Row, endpoint, getCase, h
 import { Intake, Review } from '../../src/intake';
 import { Outreach } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
-import { Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
+import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
 type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
   | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
@@ -152,8 +152,8 @@ export default function CaseScreen() {
     <View style={[ui.between, styles.toolbar]}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => { if (!busy) router.back(); }} />
       <View style={ui.grow}>
-        <Text style={ui.kicker}>FAIRBILL · SYNTHETIC DEMO</Text>
-        <Text style={ui.label}>{data.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
+        <Text style={ui.heading}>{data.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
+        <Text style={ui.kicker}>{data.sample ? 'Synthetic demo' : 'Case documents and findings'}</Text>
       </View>
       <IconButton label="Add evidence" icon="plus" onPress={() => { if (!busy) addEvidence(); }} />
     </View>
@@ -169,8 +169,8 @@ export default function CaseScreen() {
       {error && !overlay ? <Message text={error} onClose={() => setError('')} /> : null}
       {tab === 'Review' && <>
         <View style={ui.between}>
-          <Text style={[ui.title, ui.grow]}>Case review</Text>
-          <Badge tone="neutral">Rev {revision}</Badge>
+          <Text accessibilityRole="header" style={[ui.title, ui.grow]}>Case review</Text>
+          <Badge tone="neutral">Revision {revision}</Badge>
         </View>
         <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {!ready && <View style={ui.card}>
@@ -184,7 +184,7 @@ export default function CaseScreen() {
               : <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
         </View>}
         {ready && <>
-          {canAddOrder && <View style={[ui.card, { backgroundColor: color.pale }]}>
+          {canAddOrder && <Card tone="tonal">
             <View style={ui.row}>
               <Feather name="file-plus" color={color.forest} size={21} />
               <Text style={[ui.label, ui.grow]}>A second lab order is available</Text>
@@ -192,7 +192,7 @@ export default function CaseScreen() {
             <Text style={ui.small}>Add it to see how new evidence changes the calculation.</Text>
             <Button label="Add second lab order" icon="plus" tone="ghost" busy={busy === 'sample-order'} disabled={!!busy}
               onPress={() => { void update('sample-order', '/documents/sample-order', { revision }).then(reviewNew).catch(report); }} />
-          </View>}
+          </Card>}
           <SectionHeader>Billing questions</SectionHeader>
           {data.findings.filter((item) => item.check !== 'settlement').map((finding) => <FindingCard key={finding.id} finding={finding}
             onPress={openEvidence} />)}
@@ -268,7 +268,7 @@ export default function CaseScreen() {
       onSimulate={(step) => void simulate(step)} />}
     {overlay?.type === 'packet' && <Sheet title="Redacted packet" onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
-        <Card>
+        <Card tone="tonal">
           <View style={ui.row}>
             <Feather name="shield" size={20} color={color.forest} />
             <SectionHeader>Redactions</SectionHeader>
@@ -285,8 +285,10 @@ export default function CaseScreen() {
             </View>
           )}
         </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
-        <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy || !overlay.lines.length} onPress={() => void share()} />
       </ScrollView>
+      <ActionBar>
+        <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy || !overlay.lines.length} onPress={() => void share()} />
+      </ActionBar>
     </Sheet>}
   </Screen>;
 }
@@ -294,8 +296,8 @@ export default function CaseScreen() {
 const styles = StyleSheet.create({
   toolbar: { paddingHorizontal: 20, paddingVertical: 9 },
   documentRow: { minHeight: 54, paddingVertical: 8 },
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: color.line, gap: 8 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  tabActive: { borderBottomColor: color.forest },
+  tabs: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: color.line, gap: 6 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderRadius: 24, paddingVertical: 8, paddingHorizontal: 5 },
+  tabActive: { backgroundColor: color.mint },
   tabLabel: { color: color.muted, fontWeight: '800', fontSize: 13, textAlign: 'center' },
 });

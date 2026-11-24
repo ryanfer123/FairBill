@@ -95,7 +95,11 @@ export function ScenarioCard({ data, stale, onEvidence }:
   const explanation = scenario.reconciled
     ? 'This total applies if the listed billing adjustments are supported.'
     : 'The invoice and its itemised lines need reconciliation.';
-  return <Card>
+  return <Card tone="tonal">
+    <View style={ui.row}>
+      <Feather name="trending-down" size={17} color={color.forest} />
+      <Text style={ui.kicker}>Bill estimate</Text>
+    </View>
     {stale && <Badge tone="amber">Previous revision</Badge>}
     <AmountWithSource headline onEvidence={onEvidence} entry={{
       title: 'Conditional invoice', amount: scenario.conditional, explanation,
@@ -121,9 +125,12 @@ export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (
   const withdrawn = finding.status === 'withdrawn';
   const entry: EvidenceView = { ...finding, rule: RULES[finding.check], evidence: unique(finding.evidence) };
   return <Card>
-    <Badge tone={withdrawn ? 'neutral' : finding.status === 'linked' ? 'green' : 'amber'}>
+    <View style={ui.row}>
+      <Feather name={withdrawn ? 'check-circle' : finding.status === 'linked' ? 'link' : 'help-circle'} size={16} color={color.forest} />
+      <Badge tone={withdrawn ? 'neutral' : finding.status === 'linked' ? 'green' : 'amber'}>
       {withdrawn ? 'Withdrawn' : finding.status === 'linked' ? 'Clause linked' : 'Ask billing'}
-    </Badge>
+      </Badge>
+    </View>
     <Pressable onPress={() => onPress(entry)} accessibilityRole="button"
       accessibilityLabel={`${finding.title}, ${withdrawn ? 'withdrawn' : finding.amount === null ? finding.status : money(finding.amount)}. View evidence`}
       style={[ui.between, styles.findingHeading]}>
@@ -147,13 +154,14 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
   }
   return <Sheet title="Linked evidence" onClose={onClose} bottom>
     <ScrollView contentContainerStyle={ui.content}>
-      <Card>
+      <Card tone="tonal">
         {entry.status === 'withdrawn' && <Badge tone="neutral">Finding withdrawn</Badge>}
         <SectionHeader>{entry.title}</SectionHeader>
         {entry.amount !== null && <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>}
         {entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
         <Text style={ui.body}>{entry.explanation}</Text>
       </Card>
+      {order.length > 0 && <SectionHeader>Source records</SectionHeader>}
       {order.map(({ source, index }) => <Card key={sourceKey(source)}>
         <Badge tone={source.relation === 'contradicts' ? 'amber' : source.relation === 'supports' ? 'green' : 'neutral'}>
           {RELATION[source.relation]}
@@ -164,7 +172,9 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
         <Button label={opened === index ? 'Hide source line' : 'View source line'} icon="file-text" tone="ghost"
           onPress={() => setOpened(opened === index ? null : index)} />
         {opened === index && <>
-          <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          <View style={styles.sourceQuote}>
+            <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          </View>
           <Text selectable style={ui.kicker}>DOCUMENT HASH {source.sha256.slice(0, 12)}</Text>
         </>}
       </Card>)}
@@ -208,14 +218,22 @@ export function Timeline({ data, onRevision }: { data: Case; onRevision: (revisi
   return <>
     <SectionHeader>Case revisions</SectionHeader>
     {!data.history.length && <EmptyState>Run an investigation to record the first revision.</EmptyState>}
-    {[...data.history].reverse().map((item) => <Pressable key={item.revision} accessibilityRole="button"
-      onPress={() => onRevision(item)} style={ui.card}>
-      <View style={ui.between}>
-        <Text style={ui.label}>Revision {item.revision}</Text>
-        <Feather name="arrow-up-right" color={color.ink} size={17} />
-      </View>
-      <RevisionComparison data={data} item={item} />
-    </Pressable>)}
+    <View style={ui.stack}>
+      {[...data.history].reverse().map((item, index) => <View key={item.revision} style={styles.revisionRow}>
+        <View style={styles.rail} importantForAccessibility="no">
+          <View style={[styles.dot, index === 0 && styles.currentDot]} />
+          {index < data.history.length - 1 && <View style={styles.railLine} />}
+        </View>
+        <Pressable accessibilityRole="button" onPress={() => onRevision(item)} style={[ui.card, ui.grow]}>
+          <View style={ui.between}>
+            <Text style={[ui.label, ui.grow]}>Revision {item.revision}</Text>
+            {index === 0 && <Badge>Latest</Badge>}
+            <Feather name="chevron-right" color={color.forest} size={17} />
+          </View>
+          <RevisionComparison data={data} item={item} />
+        </Pressable>
+      </View>)}
+    </View>
     <SectionHeader>Activity</SectionHeader>
     <Card>
       {[...data.timeline].reverse().map((item, index) => <View key={item.id} style={ui.stack}>
@@ -229,6 +247,12 @@ export function Timeline({ data, onRevision }: { data: Case; onRevision: (revisi
 }
 
 const styles = StyleSheet.create({
+  sourceQuote: { backgroundColor: color.panel, borderRadius: 12, padding: 14 },
+  revisionRow: { flexDirection: 'row', gap: 10 },
+  rail: { alignItems: 'center', width: 16, paddingTop: 22 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: color.forest },
+  currentDot: { backgroundColor: color.forest },
+  railLine: { width: 1, flex: 1, backgroundColor: color.line, marginBottom: -10 },
   headline: { color: color.forest, fontSize: 38 },
   value: { fontSize: 17, maxWidth: '56%', flexShrink: 1 },
   comparison: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
