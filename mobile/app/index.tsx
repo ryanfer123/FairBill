@@ -2,7 +2,8 @@ import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-nati
 import { AppIcon, type IconName } from '../src/icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { I18nManager, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
@@ -11,7 +12,7 @@ import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
 import { ApiError, type Case, createCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
-import { Button, Card, Divider, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
+import { Button, Card, Divider, Input, Mark, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
@@ -20,23 +21,25 @@ const destinations = [
 ] as const;
 type Destination = typeof destinations[number]['key'];
 
-function TabDock({ current, busy, onSelect }: { current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
-  const [width, setWidth] = useState(0);
+function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
+  const { width, fontScale } = useWindowDimensions();
+  const narrow = compact && fontScale <= 1.3;
+  const dockWidth = Math.min(width * 0.92, 410);
+  const size = useAnimatedStyle(() => ({ width: withTiming(narrow ? Math.min(214, dockWidth) : dockWidth, { duration: 200, reduceMotion: ReduceMotion.System }) }));
   const [typing, setTyping] = useState(() => Keyboard.isVisible());
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
-  const segment = width / destinations.length;
-  const offset = destinations.findIndex(tab => tab.key === current) * segment * (I18nManager.isRTL ? -1 : 1);
+  const index = destinations.findIndex(tab => tab.key === current);
   const slide = useAnimatedStyle(() => ({
-    transform: [{ translateX: withTiming(offset, { duration: 180, reduceMotion: ReduceMotion.System }) }],
+    start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, { duration: 180, reduceMotion: ReduceMotion.System }),
   }));
   if (typing) return null;
-  return <View style={styles.dock}>
-    <View style={styles.tabTrack} onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
-      {width > 0 && <Animated.View pointerEvents="none" style={[styles.selection, { width: segment }, slide]} />}
+  return <Animated.View style={[styles.dock, { bottom }, size]}>
+    <View style={styles.tabTrack}>
+      <Animated.View pointerEvents="none" style={[styles.selection, slide]} />
       {destinations.map(tab => {
         const selected = tab.key === current;
         const tint = selected ? color.onPrimaryContainer : color.paper;
@@ -45,12 +48,12 @@ function TabDock({ current, busy, onSelect }: { current: Destination; busy: bool
           rippleColor={selected ? color.primaryContainer : '#467562'} style={styles.tab}>
           <View style={styles.tabContents}>
             <AppIcon name={tab.icon} color={tint} size={20} />
-            <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>
+            {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
           </View>
         </TouchableRipple>;
       })}
     </View>
-  </View>;
+  </Animated.View>;
 }
 
 function CaseLink({ title, label, detail, amount, progress, icon, disabled, pending = false, featured = false, onPress }:
@@ -86,6 +89,20 @@ export default function Home() {
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
+  const { bottom } = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const clearance = bottom + 86 + Math.max(0, fontScale - 1) * 32;
+  const [compact, setCompact] = useState(false);
+  const anchor = useRef(0);
+  useEffect(() => { anchor.current = 0; setCompact(false); }, [destination]);
+  const onScroll: NonNullable<ScrollViewProps['onScroll']> = useCallback(({ nativeEvent }) => {
+    const limit = Math.max(0, nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height);
+    const y = Math.max(0, Math.min(limit, nativeEvent.contentOffset.y));
+    if (y <= 2 || Math.abs(y - anchor.current) >= 12) {
+      setCompact(y > 2 && y > anchor.current);
+      anchor.current = y;
+    }
+  }, []);
   const [connectionRevision, setConnectionRevision] = useState(0);
   const [versioned, setVersioned] = useState(cloudBuild);
 
@@ -181,12 +198,12 @@ export default function Home() {
     : recent ? 'Add a bill to begin' : 'Pick up where you left off';
 
   return (
-    <Screen>
+    <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
       <View style={[ui.between, styles.appBar]}>
         <View style={ui.row}><Mark size={36} /><Text style={styles.brand}>FairBill</Text></View>
         <Text style={ui.small}>INR · ₹</Text>
       </View>
-      {destination === 'check' && <ScrollView style={ui.grow} contentContainerStyle={[ui.content, styles.homeContent]}>
+      {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
         {!!latest && <View style={ui.stack}>
           <SectionHeader>{recent && !reviewed ? 'Needs your attention' : 'Recent case'}</SectionHeader>
@@ -230,12 +247,12 @@ export default function Home() {
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onOpen={(id) => {
+      {destination === 'cases' && <CaseList onScroll={onScroll} clearance={clearance} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
       }} />}
-      {destination === 'settings' && <AccountSettings embedded onClose={() => setDestination('check')} onInvite={() => {
+      {destination === 'settings' && <AccountSettings onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
@@ -266,7 +283,7 @@ export default function Home() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Sheet>}
-      <TabDock current={destination} busy={!!busy} onSelect={(tab) => {
+      <TabDock compact={compact} bottom={bottom + 8} current={destination} busy={!!busy} onSelect={(tab) => {
           if (tab === 'cases' && !versioned) {
             if (latest) open(latest);
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
@@ -274,7 +291,7 @@ export default function Home() {
           }
           setDestination(tab);
         }} />
-    </Screen>
+    </SafeAreaView>
   );
 }
 
@@ -307,11 +324,11 @@ const styles = StyleSheet.create({
   caseAmount: { fontSize: 24, lineHeight: 30 },
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  dock: { alignSelf: 'center', width: '92%', maxWidth: 410, marginTop: 6, marginBottom: 8,
+  dock: { alignSelf: 'center', position: 'absolute', zIndex: 2,
     padding: 5, backgroundColor: color.onPrimaryContainer, borderRadius: 34, elevation: 5,
     shadowColor: color.ink, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, shadowOpacity: 0.17 },
   tabTrack: { flexDirection: 'row', position: 'relative' },
-  selection: { position: 'absolute', start: 0, top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
+  selection: { position: 'absolute', width: '33.333333%', top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
   tab: { flex: 1, minHeight: 49, borderRadius: 28, overflow: 'hidden' },
   tabContents: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 4 },
   tabText: { textAlign: 'center', fontFamily: font.semibold, fontSize: 13 },

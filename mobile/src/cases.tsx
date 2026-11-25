@@ -1,6 +1,6 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import { SegmentedButtons, TouchableRipple } from 'react-native-paper';
 import { Illustration } from './illustrations';
@@ -12,7 +12,7 @@ import { Button, LoadingState, Message, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
-export function CaseList({ onOpen }: { onOpen: (id: string) => void }) {
+export function CaseList({ onOpen, onScroll, clearance }: { onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
@@ -36,7 +36,7 @@ export function CaseList({ onOpen }: { onOpen: (id: string) => void }) {
     || (item.investigated_revision === item.revision) === (filter === 'complete'));
 
   const inReview = cases.filter(item => item.investigated_revision !== item.revision).length;
-  return <ScrollView style={ui.grow} contentContainerStyle={ui.content}>
+  return <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
     <Animated.View entering={enterShelf} style={styles.cover}>
       <View style={ui.between}>
         <View style={ui.grow}>
