@@ -128,3 +128,49 @@ def test_hosted_account_removes_files_before_auth_and_retries(hosted_client):
         assert client.delete("/v1/account").status_code == 204
         assert auth_deleted
         assert client.delete("/v1/account").status_code == 401
+
+
+def test_hosted_rejects_all_demo_routes_and_creates_empty_cases(hosted_client):
+    def upstream(request):
+        path = request.url.path
+        if path.endswith("/fairbill_validate_session"):
+            return httpx.Response(200, json=True)
+        if path.endswith("/fairbill_hosted_state"):
+            return httpx.Response(200, json={"status": "ok", "replay": None, "current": None})
+        assert path.endswith("/fairbill_commit_case")
+        snapshot = json.loads(request.content)["p_snapshot"]
+        assert snapshot["sample"] is False and snapshot["documents"] == []
+        return httpx.Response(200, json={"status": "ok", "snapshot": snapshot})
+
+    with hosted_client(upstream, "hosted-only-workflow") as client:
+        case = client.post("/v1/cases", json={})
+        assert case.status_code == 201
+        assert client.post("/v1/cases", json={"sample": True}).status_code == 404
+        path = f"/v1/cases/{case.json()['id']}"
+        assert client.post(path + "/documents/sample-order", json={"revision": 1}).status_code == 404
+        assert client.post(path + "/assistance/sample", json={"revision": 1}).status_code == 404
+        assert client.post(path + "/assistance", json={
+            "revision": 1, "annual_household_income_paise": 10000, "household_size": 1,
+        }).status_code == 404
+        assert client.post(path + "/simulations", json={
+            "revision": 1, "action": "letter", "hash": "a" * 64,
+        }).status_code == 404
+
+
+def test_hosted_excludes_old_sample_cases(hosted_client):
+    case = make_case(True)
+
+    def upstream(request):
+        path = request.url.path
+        if path.endswith("/fairbill_validate_session"):
+            return httpx.Response(200, json=True)
+        if path.endswith("/fairbill_hosted_state"):
+            query = json.loads(request.content)
+            current = {"serial": 0, "snapshot": case} if query["p_case"] else None
+            return httpx.Response(200, json={"status": "ok", "replay": None, "current": current})
+        assert request.url.params["snapshot->>sample"] == "eq.false"
+        return httpx.Response(200, json=[])
+
+    with hosted_client(upstream, "old-hosted-samples") as client:
+        assert client.get(f"/v1/cases/{case['id']}").status_code == 404
+        assert client.get("/v1/cases").json() == {"cases": [], "next_after": None}

@@ -82,6 +82,7 @@ export default function Home() {
     setError('');
     try {
       if (action === 'sample') {
+        if (cloudBuild) return;
         const created = await createCase(true);
         await rememberCase(created.id);
         open(created.id);
@@ -128,7 +129,7 @@ export default function Home() {
     try {
       const id = latest ?? await lastCase();
       if (id) open(id, { section });
-      else setError('Open the sample or add a bill to start a case.');
+      else setError('Add a bill to start a case.');
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -171,9 +172,9 @@ export default function Home() {
         </View>}
         <View style={styles.caseList}>
           {versioned && <><CaseLink title="Your cases" label="Your cases" icon="folder"
-            disabled={!!busy} onPress={() => setBrowse(true)} /><Divider /></>}
-          <CaseLink title="Try a sample bill" label="Open sample case" detail="See a review using a fictional bill."
-            icon="file-text" pending={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />
+            disabled={!!busy} onPress={() => setBrowse(true)} />{!cloudBuild && <Divider />}</>}
+          {!cloudBuild && <CaseLink title="Try a sample bill" label="Open sample case" detail="See a review using a fictional bill."
+            icon="file-text" pending={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />}
         </View>
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>
