@@ -21,7 +21,7 @@ class Error(BaseModel):
 
 
 class Create(Input):
-    sample: bool = True
+    sample: bool | None = None
 
 
 class Version(Input):
@@ -252,7 +252,7 @@ class Packet(BaseModel):
 
 class Health(BaseModel):
     status: Literal["ok", "degraded"]
-    demo: Literal["synthetic"] = "synthetic"
+    demo: Literal["synthetic"] | None = None
     profile: Literal["local", "fixtures", "hosted"]
     mode: Mode
     ocr_available: bool

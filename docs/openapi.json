@@ -570,9 +570,15 @@
         "additionalProperties": false,
         "properties": {
           "sample": {
-            "default": true,
-            "title": "Sample",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
           }
         },
         "title": "Create",
@@ -1098,10 +1104,16 @@
             "type": "string"
           },
           "demo": {
-            "const": "synthetic",
-            "default": "synthetic",
-            "title": "Demo",
-            "type": "string"
+            "anyOf": [
+              {
+                "const": "synthetic",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo"
           },
           "mode": {
             "enum": [

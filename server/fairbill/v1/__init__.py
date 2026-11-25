@@ -95,6 +95,11 @@ Owner = Annotated[str, Depends(request_owner)]
 Key = Annotated[str | None, Header(alias="Idempotency-Key", pattern=r"^[A-Za-z0-9._:-]{1,128}$")]
 
 
+def require_demo():
+    if profile() == "hosted":
+        raise HTTPException(404, "This action is unavailable on the hosted service.")
+
+
 def mutate(owner, case_id, key, reason, data, apply, *, persist=None):
     from ..api import check_revision
 
@@ -115,11 +120,13 @@ def health():
         db = "ok"
     except (OSError, sqlite3.Error):
         db = "unavailable"
+    ocr_available = current != "fixtures" and bool(shutil.which("tesseract"))
+    ready = db == "ok" and configured and (current != "hosted" or ocr_available)
     health_result = {
-        "status": "ok" if db == "ok" and configured else "degraded",
-        "demo": "synthetic", "profile": current,
+        "status": "ok" if ready else "degraded",
+        "demo": None if current == "hosted" else "synthetic", "profile": current,
         "mode": "Gemini" if current == "local" and os.getenv("GEMINI_API_KEY") else "Offline",
-        "ocr_available": current != "fixtures" and bool(shutil.which("tesseract")), "db": db,
+        "ocr_available": ocr_available, "db": db,
     }
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
@@ -136,9 +143,13 @@ def delete_account(owner: Owner):
 
 @app.post("/cases", status_code=201, response_model=m.Case)
 def create_case(data: m.Create, owner: Owner, key: Key = None):
-    if not data.sample:
+    hosted = profile() == "hosted"
+    sample = (not hosted) if data.sample is None else data.sample
+    if sample:
+        require_demo()
+    else:
         for_local()
-    return store.mutate(owner, key, "create", data.model_dump(), partial(make_case, data.sample))
+    return store.mutate(owner, key, "create", {"sample": sample}, partial(make_case, sample))
 
 
 @app.get("/cases", response_model=m.CasePage)
@@ -162,6 +173,8 @@ def get_document(case_id: str, doc_id: str, owner: Owner):
 def sample_order(case_id: str, data: m.Version, owner: Owner, key: Key = None):
     from ..api import attach
 
+    require_demo()
+
     def apply(case):
         if not case["sample"]:
             raise HTTPException(422, "The second order belongs to the bundled sample case.")
@@ -180,8 +193,6 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
 
     def apply(case):
         nonlocal created
-        if profile() == "hosted" and case["sample"]:
-            raise HTTPException(422, "Open a new bill review to import your own documents.")
         try:
             created = documents.make_document(
                 uuid4().hex, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
@@ -397,13 +408,12 @@ def assistance_case(case_id, data, owner):
 
     case = store.get(owner, case_id)
     check_revision(case, data.revision)
-    if is_live_case(case):
-        raise HTTPException(422, "A verified financial assistance policy is needed for this case.")
     return case
 
 
 @app.post("/cases/{case_id}/assistance/sample", response_model=m.AssistanceResult)
 def sample_assistance(case_id: str, data: m.Version, owner: Owner):
+    require_demo()
     case = assistance_case(case_id, data, owner)
     return screen_assistance(case, annual_household_income_paise=18_000_000, household_size=3)
 
@@ -411,6 +421,7 @@ def sample_assistance(case_id: str, data: m.Version, owner: Owner):
 @app.post("/cases/{case_id}/assistance", response_model=m.AssistanceResult)
 def assistance(case_id: str, data: m.AssistanceInput, owner: Owner):
     for_local()
+    require_demo()
     case = assistance_case(case_id, data, owner)
     # Screening inputs are processed in memory and excluded from documents, snapshots and logs.
     try:
@@ -465,9 +476,9 @@ def approve(case_id: str, data: m.ApprovalInput, owner: Owner, key: Key = None):
 def simulate(case_id: str, data: m.Simulate, owner: Owner, key: Key = None):
     from ..api import exact_draft
 
+    require_demo()
+
     def apply(case):
-        if is_live_case(case):
-            raise HTTPException(422, "Use your email app or phone dialer for this case.")
         current = exact_draft(case, data)
         simulated(case, current, data)
 

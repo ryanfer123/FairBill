@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from uuid import UUID
 
@@ -128,3 +129,82 @@ def test_hosted_account_removes_files_before_auth_and_retries(hosted_client):
         assert client.delete("/v1/account").status_code == 204
         assert auth_deleted
         assert client.delete("/v1/account").status_code == 401
+
+
+def test_hosted_rejects_all_demo_routes_and_creates_empty_cases(hosted_client):
+    def upstream(request):
+        path = request.url.path
+        if path.endswith("/fairbill_validate_session"):
+            return httpx.Response(200, json=True)
+        if path.endswith("/fairbill_hosted_state"):
+            return httpx.Response(200, json={"status": "ok", "replay": None, "current": None})
+        assert path.endswith("/fairbill_commit_case")
+        snapshot = json.loads(request.content)["p_snapshot"]
+        assert snapshot["sample"] is False and snapshot["documents"] == []
+        return httpx.Response(200, json={"status": "ok", "snapshot": snapshot})
+
+    with hosted_client(upstream, "hosted-only-workflow") as client:
+        case = client.post("/v1/cases", json={})
+        assert case.status_code == 201
+        assert client.post("/v1/cases", json={"sample": True}).status_code == 404
+        path = f"/v1/cases/{case.json()['id']}"
+        assert client.post(path + "/documents/sample-order", json={"revision": 1}).status_code == 404
+        assert client.post(path + "/assistance/sample", json={"revision": 1}).status_code == 404
+        assert client.post(path + "/assistance", json={
+            "revision": 1, "annual_household_income_paise": 10000, "household_size": 1,
+        }).status_code == 404
+        assert client.post(path + "/simulations", json={
+            "revision": 1, "action": "letter", "hash": "a" * 64,
+        }).status_code == 404
+
+
+def test_hosted_excludes_old_sample_cases(hosted_client):
+    case = make_case(True)
+
+    def upstream(request):
+        path = request.url.path
+        if path.endswith("/fairbill_validate_session"):
+            return httpx.Response(200, json=True)
+        if path.endswith("/fairbill_hosted_state"):
+            query = json.loads(request.content)
+            current = {"serial": 0, "snapshot": case} if query["p_case"] else None
+            return httpx.Response(200, json={"status": "ok", "replay": None, "current": current})
+        assert request.url.params["snapshot->>sample"] == "eq.false"
+        return httpx.Response(200, json=[])
+
+    with hosted_client(upstream, "old-hosted-samples") as client:
+        assert client.get(f"/v1/cases/{case['id']}").status_code == 404
+        assert client.get("/v1/cases").json() == {"cases": [], "next_after": None}
+
+
+def test_hosted_readiness_requires_ocr(hosted_client, monkeypatch):
+    def upstream(request):
+        assert request.url.path.endswith("/fairbill_hosted_state")
+        return httpx.Response(200, json={"status": "inactive"})
+
+    with hosted_client(upstream, "hosted-ocr-readiness") as client:
+        monkeypatch.setattr("fairbill.v1.shutil.which", lambda name: None)
+        response = client.get("/v1/health")
+        assert response.status_code == 503
+        assert response.json()["ocr_available"] is False
+        assert response.json()["demo"] is None
+        monkeypatch.setattr("fairbill.v1.shutil.which", lambda name: "/usr/bin/tesseract")
+        assert client.get("/v1/health").status_code == 200
+
+
+def test_hosted_rules_and_export_use_no_fictional_data_or_approved_free_text(monkeypatch):
+    from fairbill import resolution
+    from fairbill.rules import run_rules
+
+    monkeypatch.setenv("FAIRBILL_RULES_FILE", "/nonexistent/local-fixture.json")
+    case = make_case(False)
+    run_rules(case, allow_model=False, allow_fictional=False)
+    assert case["investigated_revision"] == case["revision"]
+    letter = resolution.make_draft(case, "letter", allow_model=False)
+    text = "Kind regards, Anita Fictional Smith"
+    letter.update(text=text, hash=hashlib.sha256(text.encode()).hexdigest())
+    case["approvals"]["letter"] = letter.copy()
+    lines, pdf = resolution.redacted_packet(case, approved_letter=letter, live_case=True)
+    assert "Anita Fictional Smith" not in "\\n".join(lines)
+    assert "Approved letter" not in lines
+    assert pdf.startswith(b"%PDF")

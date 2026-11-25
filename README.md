@@ -6,7 +6,7 @@ FairBill helps patients trace hospital charges and insurance deductions to the r
 
 Install the hosted APK on an Android arm64 phone or emulator, connect to the internet, and sign in with your email. FairBill connects to its HTTPS service automatically.
 
-The sample case uses fictional bills and simulated outreach. The hosted app also supports uploading a bill to a signed-in account. Read [the privacy notice](https://fairbill-api.onrender.com/privacy) before uploading a bill.
+The hosted app supports uploading bills to a signed-in account, reviewing the confirmed lines, and preparing a letter or call script. The separate development build includes fictional bills and simulated outreach. Read [the privacy notice](https://fairbill-api.onrender.com/privacy) before uploading a bill.
 
 ## Local development
 
@@ -45,4 +45,4 @@ Workflow inspiration from [BetterBill](https://github.com/matmanna/betterbill). 
 
 The versioned API is served under `/v1`. Use `/v1/health` to check the active profile, database, planner mode and OCR. The hosted service stores cases under the signed-in account. The sample investigation uses bundled fixtures.
 
-See the [backend architecture](docs/ARCHITECTURE.md), [V1 OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). Use `make eval` to regenerate the synthetic evaluation. The hosted closed-test profile serves the bundled synthetic flow over a configured HTTPS endpoint.
+See the [backend architecture](docs/ARCHITECTURE.md), [V1 OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). Use `make eval` to regenerate the synthetic evaluation. The optional fixture profile serves the synthetic test flow in a separate environment.

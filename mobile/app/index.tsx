@@ -10,7 +10,7 @@ import { ConnectionStatus } from '../src/connection';
 import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
-import { ApiError, type Case, createCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
+import { ApiError, type Case, createCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 const destinations = [
@@ -64,8 +64,15 @@ export default function Home() {
       setLatest(id);
       setRecent((saved) => saved?.id === id ? saved : null);
       if (id) {
-        const saved = await getCase(id);
-        if (active) setRecent(saved);
+        try {
+          const saved = await getCase(id);
+          if (active) setRecent(saved);
+        } catch (cause) {
+          if (cause instanceof ApiError && cause.status === 404 && active) {
+            setLatest((current) => current === id ? null : current);
+            if (await lastCase() === id) await forgetCase();
+          }
+        }
       }
     }).catch(() => undefined);
     void getBackend().then((backend) => { if (active) setVersioned(backend.prefix === '/v1'); }).catch(() => undefined);
@@ -82,6 +89,7 @@ export default function Home() {
     setError('');
     try {
       if (action === 'sample') {
+        if (cloudBuild) return;
         const created = await createCase(true);
         await rememberCase(created.id);
         open(created.id);
@@ -128,7 +136,7 @@ export default function Home() {
     try {
       const id = latest ?? await lastCase();
       if (id) open(id, { section });
-      else setError('Open the sample or add a bill to start a case.');
+      else setError('Add a bill to start a case.');
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -171,9 +179,9 @@ export default function Home() {
         </View>}
         <View style={styles.caseList}>
           {versioned && <><CaseLink title="Your cases" label="Your cases" icon="folder"
-            disabled={!!busy} onPress={() => setBrowse(true)} /><Divider /></>}
-          <CaseLink title="Try a sample bill" label="Open sample case" detail="See a review using a fictional bill."
-            icon="file-text" pending={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />
+            disabled={!!busy} onPress={() => setBrowse(true)} />{!cloudBuild && <Divider />}</>}
+          {!cloudBuild && <CaseLink title="Try a sample bill" label="Open sample case" detail="See a review using a fictional bill."
+            icon="file-text" pending={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />}
         </View>
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>

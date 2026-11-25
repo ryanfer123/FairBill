@@ -102,6 +102,8 @@ def state(owner, case_id=None, key=None):
     result = rpc("hosted_state", p_owner=owner, p_case=case_uuid(case_id) if case_id else None, p_key=key)
     if result["status"] == "inactive":
         raise HTTPException(403, "This account is being deleted.")
+    if case_id and result["current"] and result["current"]["snapshot"].get("sample"):
+        raise HTTPException(404, "Case unavailable for this account.")
     return result
 
 
@@ -114,7 +116,10 @@ def get(owner, case_id):
 
 def list_cases(owner, limit, after):
     state(owner)
-    params = {"select": "snapshot", "owner_id": f"eq.{owner}", "order": "id.asc", "limit": limit + 1}
+    params = {
+        "select": "snapshot", "owner_id": f"eq.{owner}", "snapshot->>sample": "eq.false",
+        "order": "id.asc", "limit": limit + 1,
+    }
     if after:
         params["id"] = f"gt.{case_uuid(after)}"
     rows = body(request("GET", "/rest/v1/fairbill_cases", params=params))
