@@ -1,20 +1,17 @@
-import { Platform } from 'react-native';
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
-import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-
 export const fonts = {
-  FairBillRegular: Inter_400Regular,
-  FairBillMedium: Inter_500Medium,
-  FairBillSemibold: Inter_600SemiBold,
-  FairBillBold: Inter_700Bold,
+  FairBillRegular: require('../assets/fonts/PTSans-Regular.ttf'),
+  FairBillBold: require('../assets/fonts/PTSans-Bold.ttf'),
+  FairBillDisplay: require('../assets/fonts/CrimsonPro-Bold.ttf'),
+  FairBillEditorial: require('../assets/fonts/CrimsonPro-Regular.ttf'),
+  FairBillMono: require('../assets/fonts/SourceCodePro-Medium.ttf'),
 };
 
 export const font = {
   regular: 'FairBillRegular',
-  medium: 'FairBillMedium',
-  semibold: 'FairBillSemibold',
+  medium: 'FairBillBold',
+  semibold: 'FairBillBold',
   bold: 'FairBillBold',
-  mono: Platform.select({ ios: 'Menlo', default: 'monospace' }),
-} as const;
+  display: 'FairBillDisplay',
+  editorial: 'FairBillEditorial',
+  mono: 'FairBillMono',
+} as const satisfies Record<string, keyof typeof fonts>;

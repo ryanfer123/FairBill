@@ -1,15 +1,18 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SegmentedButtons } from 'react-native-paper';
+import { Illustration } from './illustrations';
 import { cloudBuild } from './cloud-auth';
 import { request, type CasePage } from './api';
-import { Button, Card, EmptyState, LoadingState, Message, Sheet, color, ui } from './ui';
+import { Badge, Button, EmptyState, LoadingState, Message, color, ui } from './ui';
 
-export function CaseList({ onOpen, onClose }: { onOpen: (id: string) => void; onClose: () => void }) {
+export function CaseList({ onOpen }: { onOpen: (id: string) => void }) {
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
 
   const load = useCallback(async (cursor?: string) => {
     setBusy(true);
@@ -24,24 +27,38 @@ export function CaseList({ onOpen, onClose }: { onOpen: (id: string) => void; on
 
   useEffect(() => { void load(); }, [load]);
 
-  return <Sheet title="Your cases" onClose={onClose}>
-    <ScrollView contentContainerStyle={ui.content}>
+  const filtered = cases.filter((item) => filter === 'all'
+    || (item.investigated_revision === item.revision) === (filter === 'complete'));
+
+  return <ScrollView style={ui.grow} contentContainerStyle={ui.content}>
+      <View style={ui.between}>
+        <View style={[ui.grow, ui.stack]}>
+          <Text accessibilityRole="header" style={ui.title}>Your cases</Text>
+          <Text style={ui.body}>{cloudBuild ? 'Reviews saved to your FairBill account.' : 'Reviews saved to this installation.'}</Text>
+        </View>
+        <Illustration name="cases" size={58} />
+      </View>
+      <SegmentedButtons value={filter} onValueChange={setFilter} buttons={[
+        { value: 'all', label: 'All' }, { value: 'open', label: 'In review' }, { value: 'complete', label: 'Reviewed' },
+      ]} />
       {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load()} /></> : null}
-      {cases.map((item) => <Pressable key={item.id} accessibilityRole="button"
-        onPress={() => onOpen(item.id)} style={[ui.card, ui.between, styles.case]}>
+      {filtered.map((item) => <Pressable key={item.id} accessibilityRole="button"
+        onPress={() => onOpen(item.id)} style={({ pressed }) => [ui.card, ui.between, styles.case, pressed && styles.pressed]}>
         <AppIcon name="file-text" size={20} color={color.primary} />
         <View style={ui.grow}>
           <Text style={ui.label}>{item.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
-          <Text style={ui.small}>Revision {item.revision} · {item.investigated_revision === item.revision ? 'Review complete' : 'Needs review'}</Text>
+          <Badge tone={item.investigated_revision === item.revision ? 'green' : 'amber'}>
+            {item.investigated_revision === item.revision ? 'Review complete' : 'Needs review'}
+          </Badge>
         </View>
         <AppIcon name="chevron-right" size={18} color={color.primary} />
       </Pressable>)}
       {busy ? <LoadingState label="Loading cases" />
-        : !error && !cases.length && <EmptyState>Open the sample or create a case to get started.</EmptyState>}
+        : !error && !filtered.length && <EmptyState>{cases.length
+          ? after ? 'No matches on the loaded page. Load more cases to keep looking.' : 'No cases match this filter.'
+          : 'Open the sample or create a case to get started.'}</EmptyState>}
       {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
-      {!busy && !!cases.length && <Card><Text style={ui.small}>{cloudBuild ? 'Cases saved to your FairBill account.' : 'Cases saved to this installation.'}</Text></Card>}
-    </ScrollView>
-  </Sheet>;
+    </ScrollView>;
 }
 
-const styles = StyleSheet.create({ case: { minHeight: 64 } });
+const styles = StyleSheet.create({ case: { minHeight: 72 }, pressed: { backgroundColor: color.secondaryContainer } });
