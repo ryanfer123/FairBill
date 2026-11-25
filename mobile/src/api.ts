@@ -120,12 +120,14 @@ const TOKEN_KEY = 'fairbill_installation';
 const CASE_KEY = 'fairbill_last_case';
 let tokenPromise: Promise<string> | undefined;
 let backendPromise: Promise<Backend> | undefined;
+let checkedAt: number | undefined;
 
 export interface Backend {
   origin: string;
   prefix: '' | '/v1';
   profile: 'local' | 'fixtures' | 'hosted';
   mode?: 'Offline' | 'Gemini';
+  indiaReview?: boolean;
 }
 
 async function createToken() {
@@ -171,6 +173,7 @@ async function discover(origin: string): Promise<Backend> {
     }
     return {
       origin, prefix, profile: cloudBuild ? 'hosted' : result.profile === 'fixtures' ? 'fixtures' : 'local',
+      indiaReview: response.headers.get('X-FairBill-Features')?.split(',').map((feature) => feature.trim()).includes('india-review'),
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {
@@ -180,17 +183,18 @@ async function discover(origin: string): Promise<Backend> {
   }
 }
 
-export async function testEndpoint(base: string): Promise<Backend> {
-  const backend = await discover(base);
-  if (base === await endpoint()) backendPromise = Promise.resolve(backend);
-  return backend;
-}
-
-export function getBackend() {
-  backendPromise ??= endpoint().then(discover).catch((error: unknown) => {
-    backendPromise = undefined;
-    throw error;
-  });
+export function getBackend(refresh = false) {
+  if (refresh && checkedAt !== undefined && Date.now() - checkedAt > 2000) backendPromise = undefined;
+  if (!backendPromise) {
+    checkedAt = undefined;
+    backendPromise = endpoint().then(discover).then((backend) => {
+      checkedAt = Date.now();
+      return backend;
+    }).catch((error: unknown) => {
+      backendPromise = undefined;
+      throw error;
+    });
+  }
   return backendPromise;
 }
 
@@ -233,6 +237,20 @@ export class ApiError extends Error {
   constructor(readonly status: number, detail: string) { super(detail); }
 }
 
+async function readWithRetry(url: string, init: RequestInit, signal: AbortSignal) {
+  for (const delay of [350, 900, 0]) {
+    try {
+      const response = await fetch(url, init);
+      if (!delay || signal.aborted || ![502, 503, 504].includes(response.status)) return response;
+    } catch (error) {
+      if (!delay || signal.aborted) throw error;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    if (signal.aborted) throw new Error(networkError);
+  }
+  throw new Error(networkError);
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const [backend, auth] = await Promise.all([getBackend(), headers()]);
   const control = new AbortController();
@@ -243,12 +261,12 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     if (backend.prefix && options.method && options.method !== 'GET') {
       requestHeaders.set('Idempotency-Key', Crypto.randomUUID());
     }
-    const response = await fetch(`${backend.origin}${backend.prefix}${path}`, {
-      ...options,
-      headers: requestHeaders,
-      signal: control.signal,
-    });
+    const url = `${backend.origin}${backend.prefix}${path}`;
+    const init = { ...options, headers: requestHeaders, signal: control.signal };
+    const read = !options.method || options.method.toUpperCase() === 'GET';
+    const response = await (read ? readWithRetry(url, init, control.signal) : fetch(url, init));
     if (response.status === 204) return undefined as T;
+    if ([502, 503, 504].includes(response.status)) throw new Error(networkError);
     const payload = await response.json();
     if (!response.ok) {
       if (cloudBuild && response.status === 401) await rejectAccount(auth.Authorization);

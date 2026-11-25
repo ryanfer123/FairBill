@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
+import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
 import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
@@ -81,7 +82,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   </Screen>;
 }
 
-const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', delete: 'Delete your account', invite: 'Tester access' };
+const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
 export function AccountSettings({ onClose, onInvite }: { onClose: () => void; onInvite?: () => void }) {
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
@@ -139,6 +140,7 @@ export function AccountSettings({ onClose, onInvite }: { onClose: () => void; on
         <Card>
           <SectionHeader>Support</SectionHeader>
           <Button label="Help with a bill" icon="help-circle" tone="ghost" disabled={busy} onPress={() => show('help')} />
+          <Button label="Service status" icon="alert-circle" tone="ghost" disabled={busy} onPress={() => show('status')} />
           <Button label="About FairBill" icon="file-text" tone="ghost" disabled={busy} onPress={() => show('about')} />
           {hostedBuild && <Button label="Tester access" icon="key" tone="ghost" disabled={busy} onPress={() => show('invite')} />}
         </Card>
@@ -161,6 +163,7 @@ export function AccountSettings({ onClose, onInvite }: { onClose: () => void; on
         </View>
         {cloudBuild && <><Divider /><Text style={ui.body}>FairBill uses the internet to sign in, save cases, and review documents.</Text></>}
       </Card>}
+      {panel === 'status' && <ConnectionStatus />}
       {panel === 'about' && <Card>
         <Mark size={44} />
         <SectionHeader>FairBill</SectionHeader>

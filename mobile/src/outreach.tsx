@@ -21,7 +21,7 @@ function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
   const pending = receipt.state === 'awaiting_identity';
   const failed = receipt.outcome === 'identity_failed';
   return <View style={ui.stack}>
-    <SectionHeader>Simulated call transcript</SectionHeader>
+    <SectionHeader>Call transcript</SectionHeader>
     <Badge tone={pending || failed ? 'amber' : 'green'}>
       {failed ? 'Ended before verification' : receipt.state === 'completed' ? 'Simulation complete' : pending ? 'Identity verification required' : 'Identity verified'}
     </Badge>
@@ -51,6 +51,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
   const pending = receipt?.state === 'awaiting_identity';
   const complete = receipt?.state === 'completed';
   const terminal = complete || receipt?.progress === 'ENDED';
+  const canContinue = receipt?.state === 'verified' && !terminal;
 
   async function saveEdit() {
     try {
@@ -90,10 +91,9 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
               <AppIcon name={call ? 'phone-call' : 'mail'} size={22} color={color.primary} />
               <View style={ui.grow}>
                 <SectionHeader>{call ? 'Review the call plan' : 'Review the exact letter'}</SectionHeader>
-                <Text style={ui.small}>Revision {draft.revision} · {draft.mode} draft</Text>
+                <Text style={ui.small}>{receipt ? 'Sent' : approved ? 'Approved' : 'Draft'}</Text>
               </View>
             </View>
-            {approved && <Badge>Approved · Locked</Badge>}
           </Card>
           <Card>
             {editing ? <Input value={text} onChangeText={setText} label="Exact letter text"
@@ -115,9 +115,8 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
               : 'Check the address against your bill. You send the letter from your email app.'}</Text>
           </Card>}
           {receipt && <Card tone="tonal">
-            <Badge>Simulation complete</Badge>
             <Text style={ui.label}>Reference {receipt.id}</Text>
-            <Text style={ui.body}>The simulated send was recorded in the case timeline.</Text>
+            <Text style={ui.body}>The send was recorded in the case timeline.</Text>
           </Card>}
         </>}
     </ScrollView>
@@ -136,7 +135,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
             {pending && <Button label="I verified my identity" icon="user-check" busy={!!busy} onPress={() => onSimulate('identity')} />}
             {pending && receipt?.progress && <Button label="I couldn’t verify" tone="ghost" disabled={!!busy}
               onPress={() => onSimulate('identity_failed')} />}
-            <Button label="Continue the call" icon="arrow-right" disabled={pending} busy={!!busy && !pending}
+            <Button label="Continue the call" icon="arrow-right" disabled={!canContinue || !!busy} busy={!!busy && !pending}
               onPress={() => onSimulate('finish')} />
           </>}
     </ActionBar>}
