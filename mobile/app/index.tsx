@@ -47,7 +47,7 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
           accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
           style={styles.tab}>
           {({ pressed }) => <View style={[styles.tabContents, pressed && styles.tabPressed]}>
-            <AppIcon name={tab.icon} color={tint} size={20} />
+            <AppIcon name={tab.icon} selected={selected} color={tint} size={22} />
             {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
           </View>}
         </Pressable>;
@@ -247,7 +247,7 @@ export default function Home() {
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onScroll={onScroll} clearance={clearance} onOpen={(id) => {
+      {destination === 'cases' && <CaseList onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
