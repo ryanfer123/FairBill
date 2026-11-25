@@ -120,11 +120,13 @@ def health():
         db = "ok"
     except (OSError, sqlite3.Error):
         db = "unavailable"
+    ocr_available = current != "fixtures" and bool(shutil.which("tesseract"))
+    ready = db == "ok" and configured and (current != "hosted" or ocr_available)
     health_result = {
-        "status": "ok" if db == "ok" and configured else "degraded",
+        "status": "ok" if ready else "degraded",
         "demo": None if current == "hosted" else "synthetic", "profile": current,
         "mode": "Gemini" if current == "local" and os.getenv("GEMINI_API_KEY") else "Offline",
-        "ocr_available": current != "fixtures" and bool(shutil.which("tesseract")), "db": db,
+        "ocr_available": ocr_available, "db": db,
     }
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)

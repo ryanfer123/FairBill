@@ -337,7 +337,9 @@ export default function CaseScreen() {
             <AppIcon name="shield" size={20} color={color.primary} />
             <SectionHeader>Redactions</SectionHeader>
           </View>
-          <Text style={ui.body}>Uploaded source text and patient-entered excerpts are excluded. The packet retains source locations, findings, amounts, and revision history.</Text>
+          <Text style={ui.body}>{live
+            ? 'The packet includes source locations, findings, amounts and revision history. It omits uploaded text and approved letters.'
+            : 'The packet retains source locations, findings, amounts and revision history.'}</Text>
         </Card>
         {error ? <Message text={error} /> : null}
         {overlay.lines.length ? <Card>

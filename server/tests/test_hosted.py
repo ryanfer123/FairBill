@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from uuid import UUID
 
@@ -174,3 +175,36 @@ def test_hosted_excludes_old_sample_cases(hosted_client):
     with hosted_client(upstream, "old-hosted-samples") as client:
         assert client.get(f"/v1/cases/{case['id']}").status_code == 404
         assert client.get("/v1/cases").json() == {"cases": [], "next_after": None}
+
+
+def test_hosted_readiness_requires_ocr(hosted_client, monkeypatch):
+    def upstream(request):
+        assert request.url.path.endswith("/fairbill_hosted_state")
+        return httpx.Response(200, json={"status": "inactive"})
+
+    with hosted_client(upstream, "hosted-ocr-readiness") as client:
+        monkeypatch.setattr("fairbill.v1.shutil.which", lambda name: None)
+        response = client.get("/v1/health")
+        assert response.status_code == 503
+        assert response.json()["ocr_available"] is False
+        assert response.json()["demo"] is None
+        monkeypatch.setattr("fairbill.v1.shutil.which", lambda name: "/usr/bin/tesseract")
+        assert client.get("/v1/health").status_code == 200
+
+
+def test_hosted_rules_and_export_use_no_fictional_data_or_approved_free_text(monkeypatch):
+    from fairbill import resolution
+    from fairbill.rules import run_rules
+
+    monkeypatch.setenv("FAIRBILL_RULES_FILE", "/nonexistent/local-fixture.json")
+    case = make_case(False)
+    run_rules(case, allow_model=False, allow_fictional=False)
+    assert case["investigated_revision"] == case["revision"]
+    letter = resolution.make_draft(case, "letter", allow_model=False)
+    text = "Kind regards, Anita Fictional Smith"
+    letter.update(text=text, hash=hashlib.sha256(text.encode()).hexdigest())
+    case["approvals"]["letter"] = letter.copy()
+    lines, pdf = resolution.redacted_packet(case, approved_letter=letter, live_case=True)
+    assert "Anita Fictional Smith" not in "\\n".join(lines)
+    assert "Approved letter" not in lines
+    assert pdf.startswith(b"%PDF")

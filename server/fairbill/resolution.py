@@ -157,10 +157,10 @@ def redacted_packet(
     lines = packet_lines(case)
     revision = f"Case revision {case['revision']}"
     lines[1] = revision if live_case else f"Synthetic demo | Simulated outreach only | {revision}"
-    letter = _approved_packet_letter(case, approved_letter)
+    # Patient-edited prose can contain names and addresses outside the patterns we recognize.
+    letter = None if live_case else _approved_packet_letter(case, approved_letter)
     if letter:
-        label = "Approved letter" if live_case else "Approved letter | Simulation only"
-        lines.extend(("", label, *letter.splitlines()))
+        lines.extend(("", "Approved letter | Simulation only", *letter.splitlines()))
     private = known_values(case, known_pii, letter=letter)
     clean = [redact_text(line, private) for line in lines]
     assert_no_private_values("\n".join(clean), private)
