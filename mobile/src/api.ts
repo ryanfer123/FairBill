@@ -111,15 +111,14 @@ export interface Case {
   receipts: Record<string, Receipt>;
 }
 
-export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8765';
 const hostedApi: string | undefined = Constants.expoConfig?.extra?.fairbillHostedApi;
+const localDevApi: string | undefined = Constants.expoConfig?.extra?.fairbillLocalApi;
+const networkError = 'FairBill could not reach its server. Check your internet connection and try again.';
 export const hostedBuild = !!hostedApi && !cloudBuild;
 const INVITE_KEY = 'fairbill_tester_invite';
 const TOKEN_KEY = 'fairbill_installation';
-const ENDPOINT_KEY = 'fairbill_endpoint';
 const CASE_KEY = 'fairbill_last_case';
 let tokenPromise: Promise<string> | undefined;
-let endpointPromise: Promise<string> | undefined;
 let backendPromise: Promise<Backend> | undefined;
 
 export interface Backend {
@@ -152,30 +151,13 @@ export async function headers(): Promise<Record<string, string>> {
   return result;
 }
 
-export function endpoint() {
-  if (hostedApi) return Promise.resolve(hostedApi);
-  endpointPromise ??= SecureStore.getItemAsync(ENDPOINT_KEY).then((value) => value || DEFAULT_ENDPOINT);
-  return endpointPromise;
+export async function endpoint() {
+  const configured = hostedApi ?? localDevApi;
+  if (!configured) throw new Error('FairBill is missing its server configuration.');
+  return configured;
 }
 
-function validEndpoint(raw: string) {
-  const value = raw.trim().replace(/\/$/, '');
-  const match = /^https?:\/\/([a-zA-Z0-9.-]+)(:\d{1,5})?$/.exec(value);
-  if (!match) throw new Error('Use a local address such as http://192.168.1.5:8765.');
-  const host = match[1] ?? '';
-  const octets = host.split('.').map(Number);
-  const [first, second] = octets;
-  const privateIP = octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
-    && (first === 127 || first === 10 || (first === 192 && second === 168)
-      || (first === 172 && typeof second === 'number' && second >= 16 && second <= 31));
-  if (!privateIP && host !== 'localhost' && !host.endsWith('.local')) {
-    throw new Error('Choose a loopback or private network address.');
-  }
-  return value;
-}
-
-async function discover(base: string): Promise<Backend> {
-  const origin = hostedApi ?? validEndpoint(base);
+async function discover(origin: string): Promise<Backend> {
   const signal = new AbortController();
   const timer = setTimeout(() => signal.abort(), cloudBuild ? 65000 : 5000);
   try {
@@ -185,15 +167,14 @@ async function discover(base: string): Promise<Backend> {
     const result: Partial<Omit<V1['Health'], 'profile'>> & { profile?: string } = await response.json();
     if (!response.ok || result.status !== 'ok'
       || (cloudBuild ? result.profile !== 'hosted' : result.demo !== 'synthetic' || (hostedBuild && result.profile !== 'fixtures'))) {
-      throw new Error('FairBill demo service did not respond.');
+      throw new Error('FairBill server health check failed.');
     }
     return {
       origin, prefix, profile: cloudBuild ? 'hosted' : result.profile === 'fixtures' ? 'fixtures' : 'local',
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {
-    throw new Error(hostedApi ? 'FairBill could not reach its server. Check your network connection and retry.'
-      : 'FairBill could not reach the laptop API. Start the demo server, then check USB forwarding or the local Wi-Fi address.');
+    throw new Error(networkError);
   } finally {
     clearTimeout(timer);
   }
@@ -216,16 +197,6 @@ export function getBackend() {
 export async function apiUrl(path: string) {
   const backend = await getBackend();
   return `${backend.origin}${backend.prefix}${path}`;
-}
-
-export async function configureEndpoint(raw: string) {
-  if (hostedApi) throw new Error('This build uses its configured FairBill server.');
-  const base = validEndpoint(raw);
-  const backend = await discover(base);
-  await SecureStore.setItemAsync(ENDPOINT_KEY, base);
-  endpointPromise = Promise.resolve(base);
-  backendPromise = Promise.resolve(backend);
-  return base;
 }
 
 export async function configureInvite(raw: string) {
@@ -288,8 +259,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   } catch (error) {
     if (error instanceof ApiError) throw error;
     backendPromise = undefined;
-    throw new Error(hostedApi ? 'FairBill could not reach its server. Check your network connection and retry.'
-      : 'FairBill could not reach the laptop API. Start the demo server, check USB forwarding or the local Wi-Fi address in Settings, then retry.');
+    throw new Error(networkError);
   } finally {
     clearTimeout(timer);
   }

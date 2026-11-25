@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { AppIcon } from './icons';
 import { useState, type ReactNode } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Action, Draft, Receipt } from './api';
@@ -10,7 +10,7 @@ const speakerNames = { system: 'Call status', patient: 'Patient', advocate: 'Adv
 function Turn({ speaker, patient, children }: { speaker: string; patient?: boolean; children: ReactNode }) {
   return <View style={[styles.turn, patient && styles.patient]}>
     <View style={ui.row}>
-      <Feather name={patient ? 'user' : 'message-circle'} size={15} color={color.forest} />
+      <AppIcon name={patient ? 'user' : 'message-circle'} size={15} color={color.primary} />
       <Text style={ui.label}>{speaker}</Text>
     </View>
     <Text style={ui.body}>{children}</Text>
@@ -87,7 +87,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
         : activeCall && receipt ? <Transcript draft={draft} receipt={receipt} /> : <>
           <Card tone="tonal">
             <View style={ui.row}>
-              <Feather name={call ? 'phone-call' : 'mail'} size={22} color={color.forest} />
+              <AppIcon name={call ? 'phone-call' : 'mail'} size={22} color={color.primary} />
               <View style={ui.grow}>
                 <SectionHeader>{call ? 'Review the call plan' : 'Review the exact letter'}</SectionHeader>
                 <Text style={ui.small}>Revision {draft.revision} · {draft.mode} draft</Text>
@@ -145,7 +145,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
 
 const styles = StyleSheet.create({
   turn: { padding: 15, borderRadius: 16, borderWidth: 1, borderColor: color.line, backgroundColor: color.card, gap: 6 },
-  patient: { marginLeft: 22, borderColor: 'transparent', backgroundColor: color.pale },
+  patient: { marginLeft: 22, borderColor: 'transparent', backgroundColor: color.secondaryContainer },
   exact: { color: color.ink },
   editor: { minHeight: 200 },
 });

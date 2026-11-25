@@ -1,9 +1,9 @@
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text } from 'react-native';
-import { forgetCase, request } from './api';
-import { accountUser, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
-import { Button, Card, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
+import { configureInvite, forgetCase, hostedBuild, request } from './api';
+import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
 
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
 
@@ -13,6 +13,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(restoring);
+  const [settings, setSettings] = useState(false);
   const pending = useRef(false);
 
   async function run(action: () => Promise<unknown>) {
@@ -52,7 +53,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   return <Screen>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        <Mark size={48} />
+        <View style={ui.between}><Mark size={48} /><IconButton label="Settings" icon="settings" onPress={() => setSettings(true)} /></View>
         <Text accessibilityRole="header" style={ui.title}>FairBill</Text>
         <Text style={ui.body}>Sign in to review a bill and pick up where you left off on another device.</Text>
         {error ? <Message text={error} onClose={() => setError('')} /> : null}
@@ -76,28 +77,27 @@ export function SignIn({ restoring }: { restoring: boolean }) {
         {privacyUrl && <Button label="Privacy notice" tone="ghost" onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
       </ScrollView>
     </KeyboardAvoidingView>
+    {settings && <AccountSettings onClose={() => setSettings(false)} />}
   </Screen>;
 }
 
-export function AccountSettings({ onClose }: { onClose: () => void }) {
-  const [confirm, setConfirm] = useState(false);
+const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', delete: 'Delete your account', invite: 'Tester access' };
+
+export function AccountSettings({ onClose, onInvite }: { onClose: () => void; onInvite?: () => void }) {
+  const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
   const [confirmation, setConfirmation] = useState('');
+  const [invite, setInvite] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pending = useRef(false);
+  const user = accountUser();
 
-  async function endSession(deleteAccount: boolean) {
+  async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
     setError('');
-    try {
-      if (deleteAccount) {
-        await forgetCase();
-        await request<void>('/account', { method: 'DELETE' });
-      }
-      await signOutAccount(deleteAccount);
-    } catch (cause) {
+    try { await action(); } catch (cause) {
       setError((cause as Error).message);
     } finally {
       pending.current = false;
@@ -105,23 +105,79 @@ export function AccountSettings({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return <Sheet title={confirm ? 'Delete your account' : 'Your account'} onClose={() => { if (!busy) onClose(); }}>
-    <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+  async function endSession(deleteAccount: boolean) {
+    if (deleteAccount) {
+      await forgetCase();
+      await request<void>('/account', { method: 'DELETE' });
+    }
+    await signOutAccount(deleteAccount);
+  }
+
+  function show(next: keyof typeof panelTitles) {
+    setError('');
+    setConfirmation('');
+    setPanel(next);
+  }
+
+  return <Sheet title={panelTitles[panel]} onClose={() => { if (!busy) onClose(); }}>
+    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView key={panel} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       {error ? <Message text={error} /> : null}
-      {confirm ? <Card>
+      {panel === 'delete' && <Card>
         <Text style={ui.body}>This permanently deletes your account, saved cases and uploaded bills.</Text>
         <Input label="Type DELETE to confirm" accessibilityLabel="Type DELETE to confirm" value={confirmation}
           onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} editable={!busy} />
         <Button label="Permanently delete account" icon="trash-2" busy={busy} disabled={confirmation !== 'DELETE'}
-          onPress={() => void endSession(true)} />
-        <Button label="Cancel" tone="ghost" disabled={busy} onPress={() => { setConfirm(false); setConfirmation(''); }} />
-      </Card> : <>
-        <Text style={ui.body}>{accountUser()?.email}</Text>
-        {privacyUrl && <Button label="Privacy notice" tone="ghost" disabled={busy}
-          onPress={() => void Linking.openURL(privacyUrl).catch(() => setError('Could not open the privacy notice.'))} />}
-        <Button label="Sign out" icon="log-out" busy={busy} onPress={() => void endSession(false)} />
-        <Button label="Delete account" icon="trash-2" tone="ghost" disabled={busy} onPress={() => setConfirm(true)} />
+          onPress={() => void run(() => endSession(true))} />
+      </Card>}
+      {panel === 'main' && <>
+        {user && <Card>
+          <SectionHeader>Account</SectionHeader>
+          {!!user.email && <Text style={ui.body}>{user.email}</Text>}
+          <Button label="Sign out" icon="log-out" tone="ghost" busy={busy} onPress={() => void run(() => endSession(false))} />
+        </Card>}
+        <Card>
+          <SectionHeader>Support</SectionHeader>
+          <Button label="Help with a bill" icon="help-circle" tone="ghost" disabled={busy} onPress={() => show('help')} />
+          <Button label="About FairBill" icon="file-text" tone="ghost" disabled={busy} onPress={() => show('about')} />
+          {hostedBuild && <Button label="Tester access" icon="key" tone="ghost" disabled={busy} onPress={() => show('invite')} />}
+        </Card>
+        {(privacyUrl || user) && <Card>
+          <SectionHeader>Privacy and data</SectionHeader>
+          {privacyUrl && <Button label="Privacy notice" icon="shield" tone="ghost" disabled={busy}
+            onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
+          {user && <Button label="Delete account" icon="trash-2" tone="destructive" disabled={busy} onPress={() => show('delete')} />}
+        </Card>}
       </>}
+      {panel === 'help' && <Card>
+        <View style={ui.stack}>
+          <Text style={ui.label}>Which bill should I add?</Text>
+          <Text style={ui.body}>Use an itemised hospital bill with a charge on each line. Keep every page in frame if you scan it.</Text>
+        </View>
+        <Divider />
+        <View style={ui.stack}>
+          <Text style={ui.label}>How do I check a finding?</Text>
+          <Text style={ui.body}>Confirm the extracted lines, run the review, and tap a finding to open its source.</Text>
+        </View>
+        {cloudBuild && <><Divider /><Text style={ui.body}>FairBill uses the internet to sign in, save cases, and review documents.</Text></>}
+      </Card>}
+      {panel === 'about' && <Card>
+        <Mark size={44} />
+        <SectionHeader>FairBill</SectionHeader>
+        <Text style={ui.small}>Version {Constants.expoConfig?.version ?? '0.1.0'}</Text>
+        <Text style={ui.body}>Review hospital charges and collect the evidence you want to share with billing.</Text>
+      </Card>}
+      {panel === 'invite' && <Card>
+        <Input label="Tester invite code" accessibilityLabel="Tester invite code" value={invite} onChangeText={setInvite}
+          autoCapitalize="none" secureTextEntry editable={!busy} />
+        <Button label="Verify invite" icon="check" busy={busy} onPress={() => void run(async () => {
+          await configureInvite(invite);
+          onInvite?.();
+          onClose();
+        })} />
+      </Card>}
+      {panel !== 'main' && <Button label={panel === 'delete' ? 'Cancel' : 'Back to settings'} tone="ghost" disabled={busy} onPress={() => show('main')} />}
     </ScrollView>
+    </KeyboardAvoidingView>
   </Sheet>;
 }

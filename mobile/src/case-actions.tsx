@@ -1,21 +1,21 @@
-import { Feather } from '@expo/vector-icons';
+import { AppIcon, type IconName } from './icons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case } from './api';
 import { Card, Divider, color, ui } from './ui';
 
-type Icon = React.ComponentProps<typeof Feather>['name'];
+type Icon = IconName;
 
 function ActionRow({ title, label, detail, icon, busy, disabled, onPress }:
   { title: string; label: string; detail: string; icon: Icon; busy: boolean; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={detail}
     accessibilityState={{ busy, disabled }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-    <View style={styles.icon}><Feather name={icon} size={20} color={color.forest} /></View>
+    <View style={styles.icon}><AppIcon name={icon} size={20} color={color.primary} /></View>
     <View style={ui.grow}>
       <Text style={ui.label}>{title}</Text>
       <Text style={ui.small}>{detail}</Text>
     </View>
-    {busy ? <ActivityIndicator color={color.forest} /> : <Feather name="chevron-right" size={20} color={color.forest} />}
+    {busy ? <ActivityIndicator color={color.primary} /> : <AppIcon name="chevron-right" size={20} color={color.primary} />}
   </Pressable>;
 }
 
@@ -34,8 +34,7 @@ export function CaseActions({ data, busy, live, prepare, preview }:
   return <>
     <View style={ui.stack}>
       <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
-      <Text style={ui.body}>{live ? 'Draft a message or prepare for a call with the billing desk.'
-        : `Choose a next step for revision ${data.revision}. Letter and call actions are simulated.`}</Text>
+      {!live && <Text style={ui.small}>Letter sending and calls are simulated in this case.</Text>}
     </View>
     <Card>
       <ActionRow title="Clarification letter" label="Draft clarification letter" icon="mail"
@@ -46,13 +45,13 @@ export function CaseActions({ data, busy, live, prepare, preview }:
     </Card>
     <Card tone="tonal">
       <ActionRow title="Redacted evidence packet" label="Preview evidence packet" icon="share-2"
-        detail="Preview the source excerpts and case history before sharing." disabled={!!busy} busy={busy === 'preview'} onPress={preview} />
+        detail="Review the findings and source references before sharing." disabled={!!busy} busy={busy === 'preview'} onPress={preview} />
     </Card>
   </>;
 }
 
 const styles = StyleSheet.create({
   row: { minHeight: 64, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 6 },
-  icon: { backgroundColor: color.pale, borderRadius: 12, padding: 10 },
+  icon: { backgroundColor: color.secondaryContainer, borderRadius: 12, padding: 10 },
   pressed: { opacity: 0.7 },
 });

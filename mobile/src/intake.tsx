@@ -1,9 +1,11 @@
-import { Feather } from '@expo/vector-icons';
+import { AppIcon } from './icons';
 import { cloudBuild } from './cloud-auth';
 import { pickDocument, type CaptureMethod, type PickedDocument } from './document-picker';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
+import { CaptureOptions } from './capture-options';
+import { Disclosure } from './disclosure';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
 export function Intake({ busy, startKind, onClose, onPaste, onFile }:
@@ -12,19 +14,19 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   const [kind, setKind] = useState<Kind>(startKind);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
-  const [picking, setPicking] = useState(false);
-  const disabled = picking || busy;
+  const [picking, setPicking] = useState<CaptureMethod | null>(null);
+  const disabled = picking !== null || busy;
 
   async function pick(method: CaptureMethod) {
     setError('');
-    setPicking(true);
+    setPicking(method);
     try {
       const asset = await pickDocument(method);
       if (asset) await onFile(kind, asset);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
-      setPicking(false);
+      setPicking(null);
     }
   }
 
@@ -52,25 +54,12 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
             <Pressable key={value} accessibilityRole="radio" accessibilityLabel={KINDS[value]} accessibilityState={{ checked: value === kind, disabled }}
               disabled={disabled} onPress={() => setKind(value)}
               style={[ui.row, styles.option, value === kind && styles.selected]}>
-              <Feather name={value === kind ? 'check-circle' : 'circle'} size={18} color={color.forest} />
+              <AppIcon name={value === kind ? 'check-circle' : 'circle'} size={18} color={color.primary} />
               <Text style={ui.label}>{KINDS[value]}</Text>
             </Pressable>
           ))}
         </Card>
-        <Card tone="tonal">
-          <View style={ui.row}>
-            <Feather name="maximize" size={24} color={color.forest} />
-            <View style={ui.grow}>
-              <SectionHeader>Scan or import</SectionHeader>
-              <Text style={ui.small}>Use clear lighting and include the full page.</Text>
-            </View>
-          </View>
-          <Button label="Take a photo" icon="camera" busy={picking} disabled={busy} onPress={() => void pick('camera')} />
-          <View style={ui.row}>
-            <View style={ui.grow}><Button label="Choose photo" icon="image" tone="light" disabled={disabled} onPress={() => void pick('photo')} /></View>
-            <View style={ui.grow}><Button label="Choose file" icon="folder" tone="light" disabled={disabled} onPress={() => void pick('file')} /></View>
-          </View>
-        </Card>
+        <CaptureOptions pending={picking ?? undefined} disabled={disabled} onChoose={(method) => void pick(method)} />
         <Card>
           <SectionHeader>Paste document text</SectionHeader>
           <Input value={body} onChangeText={setBody} label="Document text"
@@ -226,7 +215,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
             <Text style={ui.body}>{readOnly ? 'Compare the supplied rows with the document.' : 'Open a source line to see the extracted text, then correct anything that was misread.'}</Text>
           </View>
           <View style={styles.readSummary}>
-            <Feather name="file-text" size={20} color={color.forest} />
+            <AppIcon name="file-text" size={20} color={color.primary} />
             <View style={ui.grow}>
               <Text style={ui.label}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
               <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
@@ -240,7 +229,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
             <Text selectable style={ui.small}>{page.split('\n').map((line, i) => `${i + 1}  ${line}`).join('\n') || 'No text found'}</Text>
           </View>)}
           {doc.notes.length > 0 && <View style={styles.extractionNotice}>
-            <Feather name="alert-circle" size={18} color={color.amber} />
+            <AppIcon name="alert-circle" size={18} color={color.onTertiaryContainer} />
             <View style={[ui.grow, ui.stack]}>
               <Text style={ui.label}>Check the extraction</Text>
               {doc.notes.slice(0, source ? undefined : 4).map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
@@ -267,23 +256,17 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
               onPress={() => setRows((current) => current.map((item) => item.id === row.id
                 ? { ...item, received: item.received === false ? null : false } : item))}
               style={[ui.row, { minHeight: 44 }]}>
-              <Feather name={row.received === false ? 'check-square' : 'square'} size={17} color={color.ink} />
+              <AppIcon name={row.received === false ? 'check-square' : 'square'} size={17} color={color.ink} />
               <Text style={ui.small}>I did not receive this service</Text>
             </Pressable>}
             {!!row.reference && <Badge>{row.reference}</Badge>}
-            <Pressable accessibilityRole="button" accessibilityLabel={`Source for ${row.description}, page ${row.page}, line ${row.line}`}
-              accessibilityState={{ expanded: openLine === row.id }}
-              onPress={() => setOpenLine(openLine === row.id ? null : row.id)}
-              style={({ pressed }) => [styles.sourceLink, pressed && { opacity: 0.7 }]}>
-              <Feather name="file-text" size={15} color={color.forest} />
-              <Text style={[ui.small, styles.sourceLabel]}>Page {row.page}, line {row.line}</Text>
-              <Feather name={openLine === row.id ? 'chevron-up' : 'chevron-down'} size={16} color={color.forest} />
-            </Pressable>
-            {openLine === row.id && <View style={styles.excerpt}>
+            <Disclosure label={`Page ${row.page}, line ${row.line}`}
+              accessibilityLabel={`Source for ${row.description}, page ${row.page}, line ${row.line}`}
+              open={openLine === row.id} onToggle={() => setOpenLine(openLine === row.id ? null : row.id)}>
               <Text style={ui.kicker}>Extracted text</Text>
               <Text selectable style={ui.body}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
                 || 'No extracted text at this position.'}</Text>
-            </View>}
+            </Disclosure>
             {editing?.id === row.id && editor}
           </View>)}
           </View>}
@@ -303,12 +286,8 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
 }
 
 const styles = StyleSheet.create({
-  readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.pale, borderRadius: 16, padding: 12 },
-  extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.sand, borderRadius: 12, padding: 12 },
-  sourceLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7,
-    minHeight: 44, borderWidth: 1, borderColor: color.line, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
-  sourceLabel: { color: color.forest, flexShrink: 1 },
-  excerpt: { backgroundColor: color.panel, borderRadius: 10, gap: 5, padding: 12 },
+  readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.secondaryContainer, borderRadius: 16, padding: 12 },
+  extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.tertiaryContainer, borderRadius: 12, padding: 12 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
-  selected: { backgroundColor: color.pale },
+  selected: { backgroundColor: color.secondaryContainer },
 });

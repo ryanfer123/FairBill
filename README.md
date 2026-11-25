@@ -2,22 +2,21 @@
 
 FairBill helps patients trace hospital charges and insurance deductions to the records that support them. Team Honey Potato built this India-first Android prototype for the AgenticX Agentic AI track. The demo uses fictional documents and simulated outreach.
 
-## Run the Android demo
+## Run FairBill on Android
 
-You need the APK in `artifacts/FairBill-Android.apk`, an Android arm64 phone or emulator, and a laptop running the local API. First-time setup needs internet, Python 3.13, and `uv`. Install Tesseract with English data for photo OCR.
+Install the hosted APK on an Android arm64 phone or emulator, connect to the internet, and sign in with your email. FairBill connects to its HTTPS service automatically.
+
+The sample case uses fictional bills and simulated outreach. The hosted app also supports uploading a bill to a signed-in account. Read [the privacy notice](https://fairbill-api.onrender.com/privacy) before uploading a bill.
+
+## Local development
+
+For a synthetic development build, install Python 3.13, `uv`, and Tesseract with English data. Start the test API with `./scripts/run-demo.sh`. Build with the explicit development flag and forward the fixed port over USB.
 
 ```sh
-./scripts/run-demo.sh
-```
-
-Connect the phone with USB debugging enabled, then run these commands in another terminal from this directory. Once dependencies are installed, the bundled investigation, OCR, simulated outreach, and PDF export work without venue internet.
-
-```sh
+FAIRBILL_LOCAL_DEV=1 ./scripts/build-android.sh
 adb install -r artifacts/FairBill-Android.apk
 adb reverse tcp:8765 tcp:8765
 ```
-
-With Wi-Fi instead of USB, run `FAIRBILL_BIND=0.0.0.0 ./scripts/run-demo.sh` on a trusted private network and enter the laptop’s private address and port in the app’s connection settings. Use synthetic material on both connections. The APK is signed for local testing.
 
 ## Walk through the case
 
@@ -30,7 +29,7 @@ The [demo folder](demo/) contains editable-in-app source fixtures as printable P
 
 ## Build and test
 
-Set `ANDROID_HOME` to your SDK, install NDK 27.2.12479018, and use Java 17. The build needs Node 22.13+ and installs the Expo packages from the lockfile.
+Set `ANDROID_HOME` to your SDK, install NDK 27.2.12479018, and use Java 17. The build needs Node 22.13+ and installs the Expo packages from the lockfile. Export `FAIRBILL_SUPABASE_PUBLISHABLE_KEY` for the hosted build.
 
 ```sh
 ./scripts/build-android.sh
@@ -38,12 +37,12 @@ Set `ANDROID_HOME` to your SDK, install NDK 27.2.12479018, and use Java 17. The 
 (cd server && .venv/bin/pytest -q)
 ```
 
-The optional Gemini path reads `GEMINI_API_KEY` and `FAIRBILL_GEMINI_MODEL` from the local server environment. It receives a small set of structured facts about the unedited bundled case. Offline mode runs the same checks and uses a fixed draft template. The app labels the mode in use. The backend computes figures in integer paise and holds the authoritative case revision, drafts, approvals, and simulated receipts. Local case data is in `.local/fairbill.sqlite3`.
+The optional Gemini path reads `GEMINI_API_KEY` and `FAIRBILL_GEMINI_MODEL` from the local server environment. It receives a small set of structured facts about the unedited bundled case. The fixed-template path runs the same checks. The backend computes figures in integer paise and holds the authoritative case revision, drafts, approvals, and simulated receipts. Local case data is in `.local/fairbill.sqlite3`.
 
 Workflow inspiration from [BetterBill](https://github.com/matmanna/betterbill). FairBill's interface, implementation, synthetic documents, and test results are separate.
 
 ## Versioned backend
 
-The phone demo keeps its existing local connection settings. The versioned API is served under `/v1`. Use `/v1/health` to check the active profile, database, planner mode and OCR. Open the sample investigation to create an install-scoped case using the bundled fixtures.
+The versioned API is served under `/v1`. Use `/v1/health` to check the active profile, database, planner mode and OCR. The hosted service stores cases under the signed-in account. The sample investigation uses bundled fixtures.
 
 See the [backend architecture](docs/ARCHITECTURE.md), [V1 OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). Use `make eval` to regenerate the synthetic evaluation. The hosted closed-test profile serves the bundled synthetic flow over a configured HTTPS endpoint.

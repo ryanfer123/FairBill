@@ -5,7 +5,8 @@ import { endpoint, hostedBuild, testEndpoint } from './api';
 import { cloudBuild } from './cloud-auth';
 import { Badge, color } from './ui';
 
-export function ConnectionStatus({ mode, refresh = 0 }: { mode?: string | null; refresh?: number }) {
+export function ConnectionStatus({ refresh = 0, problemsOnly = false }:
+  { refresh?: number; problemsOnly?: boolean }) {
   const service = cloudBuild ? 'FairBill server' : hostedBuild ? 'Test server' : 'Local API';
   const [status, setStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking');
 
@@ -32,11 +33,12 @@ export function ConnectionStatus({ mode, refresh = 0 }: { mode?: string | null; 
     return () => { active = false; clearInterval(timer); subscription.remove(); };
   }, [refresh]));
 
+  if (problemsOnly && status !== 'unavailable') return null;
+
   return <View accessibilityLiveRegion="polite" style={styles.strip}>
     <Badge tone={status === 'unavailable' ? 'amber' : 'neutral'}>
       {status === 'connected' ? `${service} connected` : status === 'unavailable' ? `${service} unavailable` : 'Checking connection'}
     </Badge>
-    <Badge tone="neutral">{mode === 'Gemini' ? 'Gemini planner' : mode ? 'Offline planner' : 'Planner pending'}</Badge>
   </View>;
 }
 
