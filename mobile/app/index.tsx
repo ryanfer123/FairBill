@@ -226,7 +226,7 @@ export default function Home() {
             </View>
             <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
           </View>
-          <Text style={styles.scanHint}>Start with the page that lists each service and its charge.</Text>
+          <Text style={styles.scanHint}>{Platform.OS === 'android' ? 'Hold the itemised bill steady with all four corners in view for auto capture.' : 'Start with the page that lists each service and its charge.'}</Text>
           <TouchableRipple accessibilityRole="button" accessibilityState={{ disabled: !!busy, busy: busy === 'camera' }}
             disabled={!!busy} style={styles.scanAction} onPress={hostedBuild ? () => setDestination('settings') : () => void start('camera')}>
             <View style={styles.scanButton}>
