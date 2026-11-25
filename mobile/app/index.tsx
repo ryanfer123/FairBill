@@ -1,9 +1,10 @@
+import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { AppIcon, type IconName } from '../src/icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { I18nManager, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CaseList } from '../src/cases';
-import { ActivityIndicator, BottomNavigation, TouchableRipple } from 'react-native-paper';
+import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
 import { AccountSettings } from '../src/account';
@@ -17,8 +18,40 @@ const destinations = [
   { key: 'check', title: 'New check', icon: 'receipt' },
   { key: 'settings', title: 'Settings', icon: 'settings' },
 ] as const;
-const navigation = { index: 1, routes: [...destinations] };
-const noBarInsets = { bottom: 0, left: 0, right: 0 };
+type Destination = typeof destinations[number]['key'];
+
+function TabDock({ current, busy, onSelect }: { current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
+  const [width, setWidth] = useState(0);
+  const [typing, setTyping] = useState(() => Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const segment = width / destinations.length;
+  const offset = destinations.findIndex(tab => tab.key === current) * segment * (I18nManager.isRTL ? -1 : 1);
+  const slide = useAnimatedStyle(() => ({
+    transform: [{ translateX: withTiming(offset, { duration: 180, reduceMotion: ReduceMotion.System }) }],
+  }));
+  if (typing) return null;
+  return <View style={styles.dock}>
+    <View style={styles.tabTrack} onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
+      {width > 0 && <Animated.View pointerEvents="none" style={[styles.selection, { width: segment }, slide]} />}
+      {destinations.map(tab => {
+        const selected = tab.key === current;
+        const tint = selected ? color.onPrimaryContainer : color.paper;
+        return <TouchableRipple key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
+          accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
+          rippleColor={selected ? color.primaryContainer : '#467562'} style={styles.tab}>
+          <View style={styles.tabContents}>
+            <AppIcon name={tab.icon} color={tint} size={20} />
+            <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>
+          </View>
+        </TouchableRipple>;
+      })}
+    </View>
+  </View>;
+}
 
 function CaseLink({ title, label, detail, amount, progress, icon, disabled, pending = false, featured = false, onPress }:
   { title: string; label: string; detail?: string; amount?: string; progress?: number; icon: IconName;
@@ -233,19 +266,13 @@ export default function Home() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Sheet>}
-      <BottomNavigation.Bar navigationState={{ ...navigation, index: destinations.findIndex((route) => route.key === destination) }} safeAreaInsets={noBarInsets}
-        keyboardHidesNavigationBar getAccessibilityLabel={({ route }) => route.title}
-        activeIndicatorStyle={styles.navIndicator}
-        activeColor={color.onSecondaryContainer} inactiveColor={color.muted}
-        renderIcon={({ route, color: tint }) => <AppIcon name={route.icon} size={24} color={tint} />}
-        onTabPress={({ route, preventDefault }) => {
-          if (busy) { preventDefault(); return; }
-          if (route.key === 'cases' && !versioned) {
+      <TabDock current={destination} busy={!!busy} onSelect={(tab) => {
+          if (tab === 'cases' && !versioned) {
             if (latest) open(latest);
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
             return;
           }
-          setDestination(route.key);
+          setDestination(tab);
         }} />
     </Screen>
   );
@@ -280,5 +307,12 @@ const styles = StyleSheet.create({
   caseAmount: { fontSize: 24, lineHeight: 30 },
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  navIndicator: { width: 56, height: 32, borderRadius: 16 },
+  dock: { alignSelf: 'center', width: '92%', maxWidth: 410, marginTop: 6, marginBottom: 8,
+    padding: 5, backgroundColor: color.onPrimaryContainer, borderRadius: 34, elevation: 5,
+    shadowColor: color.ink, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, shadowOpacity: 0.17 },
+  tabTrack: { flexDirection: 'row', position: 'relative' },
+  selection: { position: 'absolute', start: 0, top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
+  tab: { flex: 1, minHeight: 49, borderRadius: 28, overflow: 'hidden' },
+  tabContents: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 4 },
+  tabText: { textAlign: 'center', fontFamily: font.semibold, fontSize: 13 },
 });
