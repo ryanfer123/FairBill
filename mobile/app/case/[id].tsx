@@ -5,6 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
+import { EvidenceDocuments } from '../../src/evidence-documents';
+import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
@@ -38,6 +40,7 @@ export default function CaseScreen() {
   const [tab, setTab] = useState<Tab>('Review');
   const [overlay, setOverlay] = useState<Overlay>();
   const [directed, setDirected] = useState(false);
+  const [revealedRevision, setRevealedRevision] = useState<number>();
 
   useEffect(() => {
     if (!data || directed) return;
@@ -99,14 +102,15 @@ export default function CaseScreen() {
 
   const revision = data.revision;
   const ready = revision === data.investigated_revision;
-  const activeTab = !ready && tab === 'Act' ? 'Review' : tab;
+  const canAct = ready && (!cloudBuild || !data.sample);
+  const activeTab = !canAct && tab === 'Act' ? 'Review' : tab;
   const pending = data.documents.find((doc) => !doc.confirmed);
   const hasBill = data.documents.some((doc) => doc.kind === 'invoice');
   const hasInvoice = data.documents.some((doc) => doc.kind === 'invoice' && doc.confirmed);
   const hasSettlement = data.documents.some((doc) => doc.kind === 'settlement' && doc.confirmed);
   const billingFindings = data.findings.filter((item) => item.check !== 'settlement');
   const insuranceFindings = data.findings.filter((item) => item.check === 'settlement');
-  const canAddOrder = data.sample && !data.documents.some((doc) => doc.id === 'second-order');
+  const canAddOrder = !cloudBuild && data.sample && !data.documents.some((doc) => doc.id === 'second-order');
   const reviewing = overlay?.type === 'review' ? data.documents.find((doc) => doc.id === overlay.id) : undefined;
   const action = overlay?.type === 'action' ? overlay.action : null;
   const draft = action ? data.drafts[action] : undefined;
@@ -115,7 +119,8 @@ export default function CaseScreen() {
 
   async function run() {
     try {
-      await update('investigate', '/investigate', { revision });
+      const next = await update('investigate', '/investigate', { revision });
+      setRevealedRevision(next.revision);
       setTab('Review');
     } catch (cause) { report(cause); }
   }
@@ -205,8 +210,8 @@ export default function CaseScreen() {
     <ConnectionStatus problemsOnly />
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}
       contentContainerStyle={styles.tabs} accessibilityRole="tablist">
-      {((ready ? ['Review', 'Evidence', 'Timeline', 'Act'] : ['Review', 'Evidence', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={name}
-        accessibilityState={{ selected: activeTab === name }} onPress={() => setTab(name)}
+      {((canAct ? ['Review', 'Evidence', 'Timeline', 'Act'] : ['Review', 'Evidence', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={name}
+        accessibilityState={{ selected: activeTab === name }} onPress={() => { setRevealedRevision(undefined); setTab(name); }}
         style={[styles.tab, compact && styles.compactTab, name === activeTab && styles.tabActive]}>
         <Text style={[styles.tabLabel, name === activeTab && styles.tabLabelActive]}>{name}</Text>
       </TouchableRipple>)}
@@ -214,7 +219,7 @@ export default function CaseScreen() {
     <ScrollView key={activeTab === 'Review' ? `review-${revision}` : activeTab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       {error && !overlay ? <Message text={error} onClose={() => setError('')} /> : null}
       {activeTab === 'Review' && <>
-        {ready ? <ReviewHeadline data={data} /> : <>
+        {ready ? <ReviewHeadline data={data} animate={revealedRevision === revision} /> : <>
           <Text accessibilityRole="header" style={ui.title}>Case review</Text>
           <View style={ui.card}>
             <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
@@ -228,15 +233,16 @@ export default function CaseScreen() {
                 : canAddEvidence && <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
           </View>
         </>}
+        {ready && <ReviewChange data={data} onEvidence={openEvidence} />}
+        <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {ready && <>
+          <SectionHeader>Questions to ask billing</SectionHeader>
           {billingFindings.filter((finding) => finding.status !== 'withdrawn').map((finding) => <FindingCard key={finding.id} finding={finding} onPress={openEvidence} />)}
           {!billingFindings.some((finding) => finding.status === 'active') &&
             <Text style={ui.body}>No open billing questions in the confirmed lines.</Text>}
-          <ReviewChange data={data} onEvidence={openEvidence} />
           {billingFindings.filter((finding) => finding.status === 'withdrawn').map((finding) =>
             <FindingCard key={finding.id} finding={finding} onPress={openEvidence} />)}
         </>}
-        <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {ready && <>
           {canAddOrder && <Card tone="tonal">
             <View style={ui.row}>
@@ -255,7 +261,7 @@ export default function CaseScreen() {
             : 'Add a settlement statement to check deductions.'}</Text>}
           {live && indiaReview && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
             onPress={() => setOverlay({ type: 'india-review' })} />}
-          {versioned && <Card tone="tonal">
+          {versioned && (!cloudBuild || !data.sample) && <Card tone="tonal">
             <SectionHeader>Help with paying</SectionHeader>
             <Text style={ui.body}>{live ? 'Find the published assistance process and prepare questions for your hospital.'
               : 'Check the fictional assistance policy and see which clauses apply to the example.'}</Text>
@@ -264,39 +270,16 @@ export default function CaseScreen() {
           </Card>}
         </>}
       </>}
-      {activeTab === 'Act' && ready && <CaseActions data={data} busy={busy} live={live}
+      {activeTab === 'Act' && canAct && <CaseActions data={data} busy={busy} live={live}
         prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
       {activeTab === 'Evidence' && <>
         <Text accessibilityRole="header" style={ui.title}>Evidence</Text>
-        {data.documents.length > 0 && <Text style={ui.small}>{data.documents.length} {data.documents.length === 1 ? 'document' : 'documents'} · {data.documents.filter((doc) => doc.confirmed).length} confirmed</Text>}
-        {data.documents.length > 0 ? <Card>
-          {data.documents.map((doc, index) => <View key={doc.id}>
-            {index > 0 && <Divider />}
-            <TouchableRipple accessibilityRole="button" accessibilityLabel={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}
-              accessibilityHint={doc.confirmed ? 'Confirmed. Opens document lines.' : 'Needs review. Opens document lines.'}
-              accessibilityState={{ disabled: !!busy }} disabled={!!busy}
-              onPress={() => setOverlay({ type: 'review', id: doc.id })}>
-              <View style={[ui.between, styles.documentRow]}>
-                <View style={styles.pagePreview} importantForAccessibility="no">
-                  {doc.pages[0]?.split(/\r?\n/).filter(Boolean).slice(0, 4).map((line, index) =>
-                    <View key={index} style={[styles.pageLine, { width: `${Math.min(100, Math.max(32, line.length * 2))}%` }]} />)}
-                </View>
-                <View style={ui.grow}>
-                  <Text style={ui.label}>{doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}</Text>
-                  {!doc.confirmed && <Badge tone="amber">Needs review</Badge>}
-                  {doc.id === 'second-order' && ready && data.findings.some((finding) => finding.status === 'withdrawn'
-                    && finding.evidence.some((source) => source.document_id === doc.id && source.relation === 'contradicts')) &&
-                    <Text style={[ui.small, styles.explainsChange]}>Explains the repeat charge</Text>}
-                </View>
-                <AppIcon name="chevron-right" color={color.muted} size={18} />
-              </View>
-            </TouchableRipple>
-          </View>)}
-        </Card> : <EmptyState>No documents in this case yet.</EmptyState>}
+        <EvidenceDocuments data={data} busy={!!busy} onOpen={(documentId, rowId) =>
+          setOverlay({ type: 'review', id: documentId, rowId })} />
         {canAddEvidence && <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />}
       </>}
       {activeTab === 'Timeline' && <>
-        <Text style={ui.title}>Timeline</Text>
+        <View style={ui.between}><Text accessibilityRole="header" style={ui.title}>Timeline</Text><Illustration name="history" /></View>
         <Timeline data={data} onRevision={(entry) => setOverlay({ type: 'revision', revision: entry })} />
       </>}
     </ScrollView>
@@ -344,7 +327,7 @@ export default function CaseScreen() {
       <ScrollView contentContainerStyle={ui.content}>
         <Card tone="tonal">
           <View style={ui.row}>
-            <AppIcon name="shield" size={20} color={color.primary} />
+            <Illustration name="packet" size={56} />
             <SectionHeader>Redactions</SectionHeader>
           </View>
           <Text style={ui.body}>{live
@@ -357,7 +340,7 @@ export default function CaseScreen() {
           {overlay.lines.slice(1).join('\n').split(/\n{2,}/).filter((section) => section.trim()).map((section, index) =>
             <View key={index} style={ui.stack}>
               <Divider />
-              <Text selectable style={ui.body}>{section}</Text>
+              <Text selectable style={[ui.body, styles.paperCopy]}>{section}</Text>
             </View>
           )}
         </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
@@ -371,11 +354,7 @@ export default function CaseScreen() {
 
 const styles = StyleSheet.create({
   toolbar: { paddingHorizontal: 16, paddingVertical: 6 },
-  pagePreview: { width: 30, height: 40, borderRadius: 3, borderWidth: 1, borderColor: color.line,
-    backgroundColor: color.paper, gap: 4, justifyContent: 'center', padding: 5 },
-  pageLine: { height: 1, backgroundColor: color.muted },
-  explainsChange: { color: color.primary },
-  documentRow: { minHeight: 64, paddingVertical: 8 },
+  paperCopy: { color: color.ink },
   tabBar: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: color.line },
   tabs: { flexGrow: 1, flexDirection: 'row', paddingHorizontal: 8 },
   tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 8,

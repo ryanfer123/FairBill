@@ -3,7 +3,7 @@ import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button as MaterialButton, Divider as MaterialDivider, IconButton as MaterialIconButton, ProgressBar, Surface, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import { Illustration } from './illustrations';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { color, radius, ui } from './theme';
@@ -53,14 +53,7 @@ export function LoadingState({ label }: { label: string }) {
 export type Icon = IconName;
 
 export function Mark({ size = 36 }: { size?: number }) {
-  return (
-    <View style={[styles.mark, { width: size, height: size, borderRadius: size / 3 }]}>
-      <Svg viewBox="0 0 28 28" width={size * 0.74} height={size * 0.74} accessible={false}>
-        <Path d="M6 4.5h16v19l-4-2.1-4 2.1-4-2.1-4 2.1z" fill="none" stroke={color.onPrimary} strokeWidth={1.65} strokeLinejoin="round" />
-        <Path d="m10 13 2.6 2.6 5.3-5.3" fill="none" stroke={color.onPrimary} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" />
-      </Svg>
-    </View>
-  );
+  return <Illustration name="corrected" size={size} />;
 }
 
 export function Button({ label, icon, onPress, busy = false, disabled = false, tone = 'primary' }:
@@ -127,7 +120,6 @@ export function Sheet({ title, children, onClose, bottom = false }:
 }
 
 export const styles = StyleSheet.create({
-  mark: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
   tonal: { backgroundColor: color.surfaceContainer, borderColor: 'transparent' },
   buttonContent: { minHeight: 48 },
   buttonText: { fontFamily: font.semibold, fontSize: 14, textAlign: 'center' },

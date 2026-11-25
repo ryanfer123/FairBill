@@ -1,3 +1,7 @@
+import * as SecureStore from 'expo-secure-store';
+import Animated from 'react-native-reanimated';
+import { Illustration } from './illustrations';
+import { surfaceReveal } from './motion';
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
@@ -6,6 +10,12 @@ import { configureInvite, forgetCase, hostedBuild, request } from './api';
 import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
 
+const welcomeSteps = [
+  { title: 'Welcome to FairBill', body: 'Check hospital bills against your records.', art: 'welcome' },
+  { title: 'Follow the evidence', body: 'Open a billing question to see the document and exact line behind it.', art: 'evidence' },
+  { title: 'You stay in control', body: 'Review the exact letter or call script before deciding what to share.', art: 'letter' },
+] as const;
+const welcomeKey = 'fairbill_welcome_seen';
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
 
 export function SignIn({ restoring }: { restoring: boolean }) {
@@ -16,6 +26,8 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   const [busy, setBusy] = useState(restoring);
   const [settings, setSettings] = useState(false);
   const pending = useRef(false);
+  const [welcome, setWelcome] = useState<number | null>(null);
+  const [welcomeReady, setWelcomeReady] = useState(false);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -43,6 +55,22 @@ export function SignIn({ restoring }: { restoring: boolean }) {
     return () => listener.remove();
   }, [restoring]);
 
+  useEffect(() => {
+    if (restoring) return;
+    let active = true;
+    void SecureStore.getItemAsync(welcomeKey).then((seen) => {
+      if (active && !seen) setWelcome(0);
+    }).catch(() => undefined).finally(() => {
+      if (active) setWelcomeReady(true);
+    });
+    return () => { active = false; };
+  }, [restoring]);
+
+  function finishWelcome() {
+    setWelcome(null);
+    void SecureStore.setItemAsync(welcomeKey, 'yes').catch(() => undefined);
+  }
+
   async function send() {
     const value = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error('Enter a valid email address.');
@@ -51,12 +79,40 @@ export function SignIn({ restoring }: { restoring: boolean }) {
     setDestination(value);
   }
 
+  if (!restoring && !welcomeReady) return <Screen><View style={ui.content}><Mark size={42} /></View></Screen>;
+
+  if (!restoring && welcome !== null) {
+    const step = welcomeSteps[welcome]!;
+    const last = welcome === welcomeSteps.length - 1;
+    return <Screen><ScrollView contentContainerStyle={[ui.content, { flexGrow: 1 }]} keyboardShouldPersistTaps="handled">
+      <View style={ui.between}>
+        <View style={ui.row}><Mark /><Text style={ui.label}>FairBill</Text></View>
+        <Button label="Skip" tone="ghost" onPress={finishWelcome} />
+      </View>
+      <Animated.View key={welcome} entering={surfaceReveal} style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+        <Illustration name={step.art} size={164} />
+        <Text accessibilityRole="header" style={[ui.title, { textAlign: 'center' }]}>{step.title}</Text>
+        <Text style={[ui.body, { textAlign: 'center' }]}>{step.body}</Text>
+      </Animated.View>
+      <Text accessibilityLiveRegion="polite" style={[ui.small, { textAlign: 'center' }]}>Step {welcome + 1} of {welcomeSteps.length}</Text>
+      <Button label={last ? 'Get started' : 'Continue'} icon="arrow-right" onPress={() => {
+        if (last) finishWelcome(); else setWelcome(welcome + 1);
+      }} />
+      {welcome > 0 && <Button label="Back" tone="ghost" onPress={() => setWelcome(welcome - 1)} />}
+    </ScrollView></Screen>;
+  }
+
   return <Screen>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.between}><Mark size={48} /><IconButton label="Settings" icon="settings" onPress={() => setSettings(true)} /></View>
-        <Text accessibilityRole="header" style={ui.title}>FairBill</Text>
-        <Text style={ui.body}>Sign in to review a bill and pick up where you left off on another device.</Text>
+        <View style={ui.between}>
+          <View style={[ui.grow, ui.stack]}>
+            <Text accessibilityRole="header" style={ui.title}>Sign in</Text>
+            <Text style={ui.body}>Continue your bill reviews with an email code or sign-in link.</Text>
+          </View>
+          <Illustration name="signin" size={62} />
+        </View>
         {error ? <Message text={error} onClose={() => setError('')} /> : null}
         {restoring ? <Button label="Restore session" icon="refresh-cw" busy={busy} onPress={() => void run(restoreAccount)} /> : <Card>
           <SectionHeader>{destination ? 'Check your email' : 'Sign in with email'}</SectionHeader>
@@ -84,7 +140,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
 
 const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
-export function AccountSettings({ onClose, onInvite }: { onClose: () => void; onInvite?: () => void }) {
+export function AccountSettings({ onClose, onInvite, embedded = false }: { onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
   const [confirmation, setConfirmation] = useState('');
   const [invite, setInvite] = useState('');
@@ -120,8 +176,7 @@ export function AccountSettings({ onClose, onInvite }: { onClose: () => void; on
     setPanel(next);
   }
 
-  return <Sheet title={panelTitles[panel]} onClose={() => { if (!busy) onClose(); }}>
-    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const content = <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView key={panel} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       {error ? <Message text={error} /> : null}
       {panel === 'delete' && <Card>
@@ -132,6 +187,13 @@ export function AccountSettings({ onClose, onInvite }: { onClose: () => void; on
           onPress={() => void run(() => endSession(true))} />
       </Card>}
       {panel === 'main' && <>
+        <View style={ui.between}>
+          <View style={[ui.grow, ui.stack]}>
+            {embedded && <Text accessibilityRole="header" style={ui.title}>Settings</Text>}
+            <Text style={ui.body}>Manage your account, privacy, and service status.</Text>
+          </View>
+          <Illustration name="settings" size={54} />
+        </View>
         {user && <Card>
           <SectionHeader>Account</SectionHeader>
           {!!user.email && <Text style={ui.body}>{user.email}</Text>}
@@ -181,6 +243,11 @@ export function AccountSettings({ onClose, onInvite }: { onClose: () => void; on
       </Card>}
       {panel !== 'main' && <Button label={panel === 'delete' ? 'Cancel' : 'Back to settings'} tone="ghost" disabled={busy} onPress={() => show('main')} />}
     </ScrollView>
-    </KeyboardAvoidingView>
-  </Sheet>;
+    </KeyboardAvoidingView>;
+
+  if (embedded && panel === 'main') return content;
+  return <Sheet title={panelTitles[panel]} onClose={() => {
+    if (busy) return;
+    if (embedded) show('main'); else onClose();
+  }}>{content}</Sheet>;
 }

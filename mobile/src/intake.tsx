@@ -1,3 +1,4 @@
+import { Illustration } from './illustrations';
 import { AppIcon } from './icons';
 import { cloudBuild } from './cloud-auth';
 import { pickDocument, type CaptureMethod, type PickedDocument } from './document-picker';
@@ -217,7 +218,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
             <Text style={ui.body}>{readOnly ? 'Compare the supplied rows with the document.' : 'Open a source line to see the extracted text, then correct anything that was misread.'}</Text>
           </View>
           <View style={styles.readSummary}>
-            <AppIcon name="file-text" size={20} color={color.primary} />
+            <Illustration name="confirm" size={40} />
             <View style={ui.grow}>
               <Text style={ui.label}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
               <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
@@ -294,7 +295,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
 
 const styles = StyleSheet.create({
   readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.secondaryContainer, borderRadius: 16, padding: 12 },
-  highlight: { padding: 12, backgroundColor: color.secondaryContainer, borderRadius: 8 },
+  highlight: { padding: 12, backgroundColor: color.tertiaryContainer, borderRadius: 8 },
   extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.tertiaryContainer, borderRadius: 12, padding: 12 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
   selected: { backgroundColor: color.secondaryContainer },

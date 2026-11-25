@@ -1,7 +1,9 @@
+import { Illustration } from './illustrations';
+import { font } from './typography';
 import { AppIcon, type IconName } from './icons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case } from './api';
-import { Badge, Divider, color, ui } from './ui';
+import { Badge, Button, Divider, color, ui } from './ui';
 
 type Icon = IconName;
 
@@ -43,9 +45,12 @@ export function CaseActions({ data, busy, live, prepare, preview }:
     ...(live ? [] : [{ label: 'Sent', done: letterSent }]),
   ];
   return <>
-    <View style={ui.stack}>
-      <Text accessibilityRole="header" style={ui.heading}>Act on your findings</Text>
-      {!live && <Badge tone="amber">Simulated outreach</Badge>}
+    <View style={ui.between}>
+      <View style={[ui.grow, ui.stack]}>
+        <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
+        {!live && <Badge tone="amber">Simulated outreach</Badge>}
+      </View>
+      <Illustration name="letter" size={58} />
     </View>
     <View style={styles.actionList}>
       <ActionRow title="1. Clarification letter" label="Draft clarification letter" icon="mail"
@@ -56,6 +61,11 @@ export function CaseActions({ data, busy, live, prepare, preview }:
           <Text style={ui.small}>{step.label} · {step.done ? 'Complete' : 'Pending'}</Text>
         </View>)}
       </View>
+      {letter.draft && <View style={styles.preview}>
+        <Text style={ui.kicker}>Letter excerpt</Text>
+        <Text numberOfLines={3} style={styles.paperCopy}>{letter.draft.text}</Text>
+        <Button label="Review exact letter" icon="file-text" tone="ghost" disabled={!!busy} onPress={() => prepare('letter')} />
+      </View>}
       <Divider />
       <ActionRow title={live ? '2. Billing call script' : '2. Three-way call'} label={live ? 'Review billing call script' : 'Review three-way call plan'} icon="phone-call"
         detail={callState} disabled={!!busy} busy={busy === 'draft-call'} onPress={() => prepare('call')} />
@@ -67,6 +77,9 @@ export function CaseActions({ data, busy, live, prepare, preview }:
 }
 
 const styles = StyleSheet.create({
+  preview: { backgroundColor: color.card, borderWidth: StyleSheet.hairlineWidth,
+    borderColor: color.line, borderRadius: 12, padding: 14, marginBottom: 12, gap: 8 },
+  paperCopy: { color: color.ink, fontFamily: font.editorial, fontSize: 19, lineHeight: 24 },
   actionList: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   steps: { paddingLeft: 52, paddingBottom: 14, gap: 5 },
   row: { minHeight: 64, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 6 },

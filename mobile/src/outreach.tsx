@@ -1,6 +1,8 @@
+import { Illustration } from './illustrations';
+import { font } from './typography';
 import { AppIcon } from './icons';
 import { useState, type ReactNode } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Action, Draft, Receipt } from './api';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, Input, Message, SectionHeader, Sheet, color, ui } from './ui';
 
@@ -21,6 +23,13 @@ function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
   const pending = receipt.state === 'awaiting_identity';
   const failed = receipt.outcome === 'identity_failed';
   return <View style={ui.stack}>
+    {pending && <View style={styles.identity}>
+      <Illustration name="identity" size={52} />
+      <View style={[ui.grow, ui.stack]}>
+        <Text style={ui.label}>Verify your identity with billing</Text>
+        <Text style={ui.small}>The advocate waits until you confirm this step.</Text>
+      </View>
+    </View>}
     <SectionHeader>Call transcript</SectionHeader>
     <Badge tone={pending || failed ? 'amber' : 'green'}>
       {failed ? 'Ended before verification' : receipt.state === 'completed' ? 'Simulation complete' : pending ? 'Identity verification required' : 'Identity verified'}
@@ -80,6 +89,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
   }
 
   return <Sheet title={call ? live ? 'Billing call script' : 'Three-way call plan' : 'Clarification letter'} onClose={onClose}>
+    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
       {!live && <Badge tone="amber">Simulated outreach</Badge>}
       {error ? <Message text={error} onClose={onDismissError} /> : null}
@@ -88,7 +98,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
         : activeCall && receipt ? <Transcript draft={draft} receipt={receipt} /> : <>
           <Card tone="tonal">
             <View style={ui.row}>
-              <AppIcon name={call ? 'phone-call' : 'mail'} size={22} color={color.primary} />
+              <Illustration name={call ? 'identity' : 'letter'} size={42} />
               <View style={ui.grow}>
                 <SectionHeader>{call ? 'Review the call plan' : 'Review the exact letter'}</SectionHeader>
                 <Text style={ui.small}>{receipt ? 'Sent' : approved ? 'Approved' : 'Draft'}</Text>
@@ -98,7 +108,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
           <Card>
             {editing ? <Input value={text} onChangeText={setText} label="Exact letter text"
               accessibilityLabel="Exact letter text" multiline maxLength={18000} style={styles.editor} />
-              : <Text selectable style={[ui.body, styles.exact]}>{draft.text}</Text>}
+              : <Text selectable style={[ui.body, styles.exact, !call && styles.letter]}>{draft.text}</Text>}
             {onEdit && !receipt && !editing && <>
               <Divider />
               <Button label="Edit letter" icon="edit-2" tone="ghost" disabled={!!busy}
@@ -139,12 +149,15 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
               onPress={() => onSimulate('finish')} />
           </>}
     </ActionBar>}
+    </KeyboardAvoidingView>
   </Sheet>;
 }
 
 const styles = StyleSheet.create({
   turn: { padding: 15, borderRadius: 16, borderWidth: 1, borderColor: color.line, backgroundColor: color.card, gap: 6 },
   patient: { marginLeft: 22, borderColor: 'transparent', backgroundColor: color.secondaryContainer },
+  identity: { ...ui.row, padding: 12, borderRadius: 16, backgroundColor: color.tertiaryContainer },
+  letter: { fontFamily: font.editorial, fontSize: 20, lineHeight: 26 },
   exact: { color: color.ink },
   editor: { minHeight: 200 },
 });

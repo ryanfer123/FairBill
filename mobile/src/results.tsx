@@ -1,4 +1,7 @@
 import { AppIcon } from './icons';
+import Animated from 'react-native-reanimated';
+import { Illustration } from './illustrations';
+import { surfaceReveal } from './motion';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Case, Finding, History, KINDS, Source, money } from './api';
@@ -70,7 +73,12 @@ function LedgerLine({ entry, subtract = false, supportingText, onEvidence }:
       <Text selectable style={[ui.money, styles.value]}>{amount}</Text>
     </View>
     {!!supportingText && <Text style={ui.small}>{supportingText}</Text>}
-    {entry.amount !== null && <SourceChips evidence={entry.evidence} onPress={(selected) => onEvidence({ ...entry, selected })} />}
+    {entry.amount !== null && entry.evidence.length > 0 && <Pressable accessibilityRole="button"
+      accessibilityLabel={`View sources for ${entry.title}`} onPress={() => onEvidence(entry)} style={styles.ledgerSource}>
+      <AppIcon name="file-text" size={14} color={color.primary} />
+      <Text style={styles.chipLabel}>{entry.evidence.length === 1 ? sourceLabel(entry.evidence[0]!)
+        : `${entry.evidence.length} sources`}</Text>
+    </Pressable>}
   </View>;
 }
 
@@ -87,15 +95,25 @@ function invoiceSources(data: Case): Source[] {
 
 const conditionalTitle = 'Total if the questions are resolved';
 
-export function ReviewHeadline({ data }: { data: Case }) {
+export function ReviewHeadline({ data, animate }: { data: Case; animate: boolean }) {
   const amount = data.scenario?.adjustments;
-  return <View style={styles.reviewHeadline}>
-    <Text accessibilityRole="header" style={ui.small}>Case review</Text>
-    {amount != null && amount > 0 ? <>
-      <Text selectable style={[ui.money, styles.headline]}>{money(amount)}</Text>
-      <Text style={ui.heading}>To ask billing about</Text>
-    </> : <Text style={ui.heading}>Billing questions</Text>}
-  </View>;
+  const active = data.findings.filter((finding) => finding.check !== 'settlement' && finding.status === 'active');
+  const sources = unique(active.flatMap((finding) => finding.evidence)).length;
+  return <Animated.View entering={animate ? surfaceReveal : undefined} style={styles.reviewHeadline}>
+    <View style={ui.between}>
+      <View style={ui.grow}>
+        <Text accessibilityRole="header" style={styles.summaryLabel}>{amount != null && amount > 0
+          ? 'Worth asking billing about' : 'Case review'}</Text>
+        {amount != null && amount > 0 ? <Text selectable style={[ui.money, styles.headline]}>{money(amount)}</Text>
+          : <Text style={ui.heading}>Billing questions</Text>}
+      </View>
+      <Illustration name="balance" size={58} />
+    </View>
+    <View style={styles.metrics}>
+      <Text style={ui.small}><Text style={styles.metricValue}>{active.length}</Text> {active.length === 1 ? 'active question' : 'active questions'}</Text>
+      <Text style={ui.small}><Text style={styles.metricValue}>{sources}</Text> {sources === 1 ? 'source' : 'sources'}</Text>
+    </View>
+  </Animated.View>;
 }
 
 export function ScenarioCard({ data, stale, onEvidence }:
@@ -109,7 +127,7 @@ export function ScenarioCard({ data, stale, onEvidence }:
     ? 'The invoice total and itemised lines need to be reconciled.'
     : 'This estimate assumes billing agrees with every question included in the calculation.';
   return <View style={styles.ledger}>
-    <SectionHeader>{stale ? 'Previous calculation' : 'Bill calculation'}</SectionHeader>
+    <SectionHeader>{stale ? 'Previous calculation' : 'Bill summary'}</SectionHeader>
     <LedgerLine onEvidence={onEvidence} entry={{
       title: 'Billed', amount: scenario.billed, explanation: 'Total from the confirmed hospital invoice.', evidence: invoices,
     }} />
@@ -130,6 +148,9 @@ export function ScenarioCard({ data, stale, onEvidence }:
         evidence: scenario.sources?.unresolved_deduction ?? unique(data.findings.filter((finding) =>
           finding.check === 'settlement' && finding.status === 'active').flatMap((finding) => finding.evidence)),
       }} />}
+    <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={styles.perforation}>
+      {Array.from({ length: 12 }, (_, index) => <View key={index} style={styles.perforationHole} />)}
+    </View>
   </View>;
 }
 
@@ -159,6 +180,7 @@ export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (en
   if (!first) return null;
   return <View style={styles.withdrawal}>
     <View style={ui.between}>
+      <Illustration name="corrected" size={36} />
       <Text style={[ui.label, ui.grow]}>{withdrawn.length} {withdrawn.length === 1 ? 'question' : 'questions'} withdrawn</Text>
       {movement !== null && movement !== 0 && <Text style={[ui.money, styles.value]}>{signedMoney(movement)}</Text>}
     </View>
@@ -207,8 +229,8 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
   return <Sheet title="Linked evidence" onClose={onClose} bottom>
     <ScrollView contentContainerStyle={ui.content}>
       <Card tone="tonal">
+        <View style={ui.between}><View style={ui.grow}><SectionHeader>{entry.title}</SectionHeader></View><Illustration name="evidence" size={42} /></View>
         {entry.status === 'withdrawn' && <Badge tone="neutral">Finding withdrawn</Badge>}
-        <SectionHeader>{entry.title}</SectionHeader>
         {entry.amount !== null && <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>}
         {entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
         <Text style={ui.body}>{entry.explanation}</Text>
@@ -223,7 +245,7 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
           {source.basis === 'patient_confirmed' ? ' · Patient-edited row' : ''}</Text>
         <Disclosure label={opened === index ? 'Hide source line' : 'View source line'} open={opened === index}
           onToggle={() => setOpened(opened === index ? null : index)}>
-          <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          <Text selectable style={styles.excerpt}>{source.quote || 'No source excerpt is available for this row.'}</Text>
           <Text selectable style={styles.hash}>Source fingerprint {source.sha256.slice(0, 12)}</Text>
           {canOpenSource(source) && <Button label="Open document at this line" icon="file-text" tone="ghost" onPress={() => onSource(source)} />}
         </Disclosure>
@@ -311,9 +333,19 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: color.primary },
   currentDot: { backgroundColor: color.primary },
   railLine: { width: 1, flex: 1, backgroundColor: color.line, marginBottom: -10 },
-  reviewHeadline: { gap: 3, paddingBottom: 12 },
+  reviewHeadline: { gap: 10, padding: 16, backgroundColor: color.tertiaryContainer, borderRadius: 16 },
+  summaryLabel: { ...ui.label, color: color.onTertiaryContainer },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 4, borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: color.outline, paddingTop: 9 },
+  metricValue: { ...ui.money, color: color.onTertiaryContainer },
   headline: { color: color.question, fontSize: 36, lineHeight: 44, letterSpacing: -1 },
-  ledger: { gap: 8, paddingTop: 12 },
+  ledger: { gap: 4, padding: 14, paddingBottom: 0, backgroundColor: color.card, borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: color.line },
+  ledgerSource: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, gap: 6 },
+  perforation: { flexDirection: 'row', justifyContent: 'space-between' },
+  perforationHole: { width: 8, height: 5, borderTopLeftRadius: 5, borderTopRightRadius: 5, backgroundColor: color.paper },
+  excerpt: { ...ui.body, fontFamily: font.mono, fontSize: 13, lineHeight: 20, padding: 10,
+    borderRadius: 8, backgroundColor: color.surfaceContainer },
   ledgerLine: { gap: 6, paddingVertical: 10, borderTopColor: color.line, borderTopWidth: StyleSheet.hairlineWidth },
   finding: { gap: 4, paddingTop: 10, borderTopColor: color.line, borderTopWidth: StyleSheet.hairlineWidth },
   withdrawnFinding: { backgroundColor: color.surfaceContainer, paddingHorizontal: 12, paddingBottom: 10 },

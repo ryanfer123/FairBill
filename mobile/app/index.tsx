@@ -1,4 +1,5 @@
 import { AppIcon, type IconName } from '../src/icons';
+import { Illustration } from '../src/illustrations';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14,17 +15,17 @@ import { Button, Card, Divider, Input, Mark, Message, Screen, SectionHeader, She
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
-  { key: 'check', title: 'New check', icon: 'plus' },
+  { key: 'check', title: 'New check', icon: 'receipt' },
   { key: 'settings', title: 'Settings', icon: 'settings' },
 ] as const;
 const navigation = { index: 1, routes: [...destinations] };
 const noBarInsets = { bottom: 0, left: 0, right: 0 };
 
-function CaseLink({ title, label, detail, amount, icon, disabled, pending = false, featured = false, onPress }:
-  { title: string; label: string; detail?: string; amount?: string; icon: IconName;
+function CaseLink({ title, label, detail, amount, progress, icon, disabled, pending = false, featured = false, onPress }:
+  { title: string; label: string; detail?: string; amount?: string; progress?: number; icon: IconName;
     disabled: boolean; pending?: boolean; featured?: boolean; onPress: () => void }) {
   return <TouchableRipple accessibilityRole="button" accessibilityLabel={title === label ? label : `${title}. ${label}`}
-    accessibilityHint={[detail, amount].filter(Boolean).join('. ') || undefined}
+    accessibilityHint={[detail, amount, progress != null ? `${progress} of 3 review steps complete` : null].filter(Boolean).join('. ') || undefined}
     accessibilityState={{ disabled, busy: pending }} disabled={disabled} onPress={onPress}>
     <View style={[styles.caseRow, featured && styles.featuredRow]}>
       <View style={[styles.rowIcon, featured && styles.featuredIcon]}>
@@ -34,6 +35,9 @@ function CaseLink({ title, label, detail, amount, icon, disabled, pending = fals
         <Text style={ui.label}>{title}</Text>
         {!!detail && <Text style={ui.small}>{detail}</Text>}
         {!!amount && <Text style={[ui.money, styles.caseAmount]}>{amount}</Text>}
+        {progress != null && <View style={styles.progress} importantForAccessibility="no-hide-descendants">
+          {[0, 1, 2].map((step) => <View key={step} style={[styles.progressPart, step < progress && styles.progressComplete]} />)}
+        </View>}
       </View>
       {pending ? <ActivityIndicator size="small" color={color.primary} /> : <AppIcon name="chevron-right" size={18} color={color.muted} />}
     </View>
@@ -49,10 +53,9 @@ export default function Home() {
   const importing = useRef(false);
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
-  const [settings, setSettings] = useState(false);
+  const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
   const [connectionRevision, setConnectionRevision] = useState(0);
   const [versioned, setVersioned] = useState(cloudBuild);
-  const [browse, setBrowse] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -134,7 +137,11 @@ export default function Home() {
   }
 
   const reviewed = recent && recent.investigated_revision === recent.revision;
+  const hasInvoice = recent?.documents.some((document) => document.kind === 'invoice');
+  const allConfirmed = hasInvoice && recent?.documents.every((document) => document.confirmed);
+  const progress = !recent ? undefined : reviewed ? 3 : allConfirmed ? 2 : hasInvoice ? 1 : 0;
   const conditionalAmount = reviewed ? recent?.scenario?.conditional : undefined;
+  const activeQuestions = reviewed ? recent?.findings.filter((finding) => finding.check !== 'settlement' && finding.status === 'active').length : undefined;
   const recentDetail = conditionalAmount != null ? 'Conditional total'
     : reviewed ? 'Review complete'
     : recent?.documents.some((document) => !document.confirmed) ? 'Confirm document lines'
@@ -144,39 +151,56 @@ export default function Home() {
   return (
     <Screen>
       <View style={[ui.between, styles.appBar]}>
-        <View style={ui.row}><Mark size={34} /><Text style={styles.brand}>FairBill</Text></View>
+        <View style={ui.row}><Mark size={36} /><Text style={styles.brand}>FairBill</Text></View>
+        <Text style={ui.small}>INR · ₹</Text>
       </View>
-      <ScrollView style={ui.grow} contentContainerStyle={[ui.content, styles.homeContent]}>
+      {destination === 'check' && <ScrollView style={ui.grow} contentContainerStyle={[ui.content, styles.homeContent]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
         <View style={styles.intro}>
-          <Text accessibilityRole="header" style={[ui.heading, styles.headline]}>Check a hospital bill</Text>
-          <Text style={ui.body}>Don’t pay what you don’t owe.</Text>
-          {!cloudBuild && <>
-            <Button label="Try the sample case" icon="arrow-right" busy={busy === 'sample'} disabled={!!busy} onPress={() => void start('sample')} />
-            <Text style={ui.small}>Use fictional documents in this build.</Text>
-          </>}
-        </View>
-        {hostedBuild ? <Button label="Open tester settings" icon="key" tone="ghost" onPress={() => setSettings(true)} />
-          : <View style={styles.caseList}>
-            <CaseLink title="Scan a bill" label="Scan a bill" icon="camera" disabled={!!busy}
-              pending={busy === 'camera'} onPress={() => void start('camera')} />
-            <Divider />
-            <CaseLink title="Upload a file" label="Upload a file" detail="PDF or photo" icon="upload" disabled={!!busy}
-              onPress={() => chooseCapture('upload')} />
-            <Divider />
-            <CaseLink title="Paste text" label="Paste text" icon="file-text" disabled={!!busy}
-              onPress={() => chooseCapture('paste')} />
+          <View style={[ui.between, styles.hero]}>
+            <View style={[ui.grow, ui.stack]}>
+              <Text accessibilityRole="header" accessibilityLabel="Check a hospital bill" style={ui.title}>
+                Don’t pay what you <Text style={styles.heroAccent}>don’t owe.</Text>
+              </Text>
+              <Text style={ui.body}>Check hospital bills against your records.</Text>
+            </View>
+            <Illustration name="receipt" size={80} />
+          </View>
+          {hostedBuild ? <Button label="Open tester settings" icon="key" tone="ghost" onPress={() => setDestination('settings')} />
+            : <View style={styles.captureActions}>
+              <View style={styles.captureButton}><Button label="Scan a bill" icon="camera" busy={busy === 'camera'}
+                disabled={!!busy} onPress={() => void start('camera')} /></View>
+              <View style={styles.captureButton}><Button label="Upload a file" icon="upload" tone="ghost"
+                disabled={!!busy} onPress={() => chooseCapture('upload')} /></View>
+            </View>}
+          {!hostedBuild && <View style={styles.pasteRow}>
+            <Button label="Paste text" icon="file-text" tone="light" disabled={!!busy} onPress={() => chooseCapture('paste')} />
           </View>}
+        </View>
         {!!latest && <View style={ui.stack}>
-          <SectionHeader>Recent case</SectionHeader>
+          <SectionHeader>{recent && !reviewed ? 'Needs your attention' : 'Recent case'}</SectionHeader>
           <View style={styles.recentCase}>
-            <CaseLink title={recent?.sample ? 'Sample investigation' : 'Continue your case'} label="Resume last case"
+            <CaseLink title={recent?.sample ? 'Sample investigation' : 'Hospital bill'} label="Resume last case"
               featured icon="receipt" disabled={!!busy} onPress={() => open(latest)}
-              detail={recentDetail} amount={conditionalAmount != null ? money(conditionalAmount) : undefined} />
+              progress={progress} detail={activeQuestions ? `${recentDetail} · ${activeQuestions} ${activeQuestions === 1 ? 'question' : 'questions'}` : recentDetail}
+              amount={conditionalAmount != null ? money(conditionalAmount) : undefined} />
           </View>
         </View>}
+        {!cloudBuild && <View style={styles.sample}>
+          <CaseLink title="Try the sample case" label="Try the sample case" icon="arrow-right" pending={busy === 'sample'}
+            detail="Follow a fictional bill from questions to evidence." disabled={!!busy} onPress={() => void start('sample')} />
+        </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
-      </ScrollView>
+      </ScrollView>}
+      {destination === 'cases' && <CaseList onOpen={(id) => {
+        void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
+          setDestination('check'); setError(cause.message);
+        });
+      }} />}
+      {destination === 'settings' && <AccountSettings embedded onClose={() => setDestination('check')} onInvite={() => {
+        setConnectionRevision((value) => value + 1);
+        setError('');
+      }} />}
       {capture && <Sheet title={capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
         if (importing.current) return;
         setCapture(null);
@@ -204,45 +228,45 @@ export default function Home() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Sheet>}
-      <BottomNavigation.Bar navigationState={{ ...navigation, index: browse ? 0 : settings ? 2 : 1 }} safeAreaInsets={noBarInsets}
+      <BottomNavigation.Bar navigationState={{ ...navigation, index: destinations.findIndex((route) => route.key === destination) }} safeAreaInsets={noBarInsets}
         keyboardHidesNavigationBar getAccessibilityLabel={({ route }) => route.title}
         activeIndicatorStyle={styles.navIndicator}
         activeColor={color.onSecondaryContainer} inactiveColor={color.muted}
         renderIcon={({ route, color: tint }) => <AppIcon name={route.icon} size={24} color={tint} />}
         onTabPress={({ route, preventDefault }) => {
           if (busy) { preventDefault(); return; }
-          if (route.key === 'cases') {
-            if (versioned) setBrowse(true);
-            else if (latest) open(latest);
+          if (route.key === 'cases' && !versioned) {
+            if (latest) open(latest);
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
+            return;
           }
-          if (route.key === 'settings') setSettings(true);
+          setDestination(route.key);
         }} />
-      {browse && versioned && <CaseList onClose={() => setBrowse(false)} onOpen={(id) => {
-        setBrowse(false);
-        void rememberCase(id).then(() => open(id)).catch((cause: Error) => setError(cause.message));
-      }} />}
-      {settings && <AccountSettings onClose={() => setSettings(false)} onInvite={() => {
-        setConnectionRevision((value) => value + 1);
-        setError('');
-      }} />}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  appBar: { paddingHorizontal: 16, paddingVertical: 6 },
-  brand: { fontFamily: font.bold, fontSize: 23, letterSpacing: -0.6, color: color.ink },
+  appBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
+  brand: { fontFamily: font.display, fontSize: 27, letterSpacing: -0.6, color: color.ink },
   homeContent: { gap: 20, paddingTop: 16 },
   intro: { gap: 9 },
-  headline: { fontSize: 26, lineHeight: 32 },
-  recentCase: { borderRadius: 20, backgroundColor: color.card, borderWidth: 1, borderColor: color.line, overflow: 'hidden' },
+  hero: { alignItems: 'flex-start', paddingTop: 6, paddingBottom: 6 },
+  heroAccent: { color: color.primary },
+  captureActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  captureButton: { flexGrow: 1, flexBasis: 140, minWidth: 0 },
+  pasteRow: { alignSelf: 'flex-start' },
+  sample: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
+  recentCase: { borderRadius: 16, backgroundColor: color.card, borderWidth: 1, borderColor: color.line, overflow: 'hidden' },
   caseList: { borderRadius: 20, backgroundColor: color.surfaceContainer, overflow: 'hidden' },
   caseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 62 },
   featuredRow: { paddingVertical: 16 },
   rowIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   featuredIcon: { backgroundColor: color.secondaryContainer },
   rowDescription: { gap: 2 },
+  progress: { flexDirection: 'row', gap: 3, maxWidth: 100, marginTop: 4 },
+  progressPart: { flex: 1, height: 4, borderRadius: 2, backgroundColor: color.line },
+  progressComplete: { backgroundColor: color.primary },
   caseAmount: { fontSize: 24, lineHeight: 30 },
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
