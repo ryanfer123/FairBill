@@ -9,6 +9,11 @@
     "android": {
       "package": "dev.honeypotato.fairbill",
       "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#1F5C4A",
+        "foregroundImage": "./assets/launcher/foreground.png",
+        "monochromeImage": "./assets/launcher/monochrome.png"
+      },
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
