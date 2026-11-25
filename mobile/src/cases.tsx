@@ -1,6 +1,7 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { cloudBuild } from './cloud-auth';
 import { request, type CasePage } from './api';
 import { Button, Card, EmptyState, LoadingState, Message, Sheet, color, ui } from './ui';
 
@@ -31,14 +32,14 @@ export function CaseList({ onOpen, onClose }: { onOpen: (id: string) => void; on
         <AppIcon name="file-text" size={20} color={color.primary} />
         <View style={ui.grow}>
           <Text style={ui.label}>{item.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
-          <Text style={ui.small}>Revision {item.revision} · {item.investigated_revision === item.revision ? 'Investigated' : 'Needs review'}</Text>
+          <Text style={ui.small}>Revision {item.revision} · {item.investigated_revision === item.revision ? 'Review complete' : 'Needs review'}</Text>
         </View>
         <AppIcon name="chevron-right" size={18} color={color.primary} />
       </Pressable>)}
       {busy ? <LoadingState label="Loading cases" />
         : !error && !cases.length && <EmptyState>Open the sample or create a case to get started.</EmptyState>}
       {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
-      {!busy && !!cases.length && <Card><Text style={ui.small}>Cases shown here belong to this installation.</Text></Card>}
+      {!busy && !!cases.length && <Card><Text style={ui.small}>{cloudBuild ? 'Cases saved to your FairBill account.' : 'Cases saved to this installation.'}</Text></Card>}
     </ScrollView>
   </Sheet>;
 }

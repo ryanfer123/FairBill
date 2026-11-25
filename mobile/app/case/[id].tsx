@@ -3,45 +3,35 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
 import { CaseActions } from '../../src/case-actions';
-import { Assistance } from '../../src/assistance';
+import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
-import { Action, ApiError, Case, History, KINDS, Kind, Row, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
 import { documentForm } from '../../src/document-picker';
 import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
-import { Evidence, type EvidenceView, FindingCard, RevisionComparison, ScenarioCard, Timeline } from '../../src/results';
+import { Evidence, type EvidenceView, FindingCard, ReviewChange, ReviewHeadline, RevisionComparison, ScenarioCard, Timeline, revisionTitle } from '../../src/results';
 import { font } from '../../src/typography';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
-type Overlay = { type: 'intake' } | { type: 'review'; id: string } | { type: 'evidence'; entry: EvidenceView; returnTo?: History }
-  | { type: 'india-review' } | { type: 'assistance' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
-type Tab = 'Review' | 'Documents' | 'Timeline' | 'Actions';
+type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
+type Overlay = { type: 'intake' } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
+  | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
+type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
-function ReviewProgress({ stage }: { stage: 0 | 1 | 2 }) {
-  const labels = ['Add bill', 'Confirm lines', 'Run checks'];
-  return <View accessible accessibilityLabel={`Current step. ${labels[stage]}`} style={styles.progress}>
-    {labels.map((label, index) => <View key={label} style={styles.progressStep}>
-      <View style={[styles.progressLine, index <= stage && styles.progressActive]} />
-      <View style={styles.progressLabel}>
-        {index < stage && <AppIcon name="check" size={13} color={color.primary} />}
-        {index === stage && <View style={styles.progressDot} />}
-        <Text style={[ui.kicker, index === stage && styles.progressCurrent]}>{label}</Text>
-      </View>
-    </View>)}
-  </View>;
-}
-
 export default function CaseScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width / fontScale < 335;
   const params = useLocalSearchParams<{ id: string; document?: string; section?: string }>();
   const id = typeof params.id === 'string' && caseID.test(params.id) ? params.id : '';
   const [data, setData] = useState<Case>();
   const [versioned, setVersioned] = useState(false);
+  const [indiaReview, setIndiaReview] = useState(false);
   const [busy, setBusy] = useState('');
   const working = useRef(false);
   const [error, setError] = useState('');
@@ -57,7 +47,7 @@ export default function CaseScreen() {
     } else if (params.section === 'aid' && versioned && data.investigated_revision === data.revision) {
       setOverlay({ type: 'assistance' });
     } else if (params.section === 'act' && data.investigated_revision === data.revision) {
-      setTab('Actions');
+      setTab('Act');
     }
   }, [data, directed, params.document, params.section, versioned]);
 
@@ -67,6 +57,7 @@ export default function CaseScreen() {
     try {
       const [snapshot, backend] = await Promise.all([getCase(id), getBackend()]);
       setVersioned(backend.prefix === '/v1');
+      setIndiaReview(backend.indiaReview === true);
       setData(snapshot);
     } catch (cause) { setError((cause as Error).message); }
   }, [id]);
@@ -108,7 +99,7 @@ export default function CaseScreen() {
 
   const revision = data.revision;
   const ready = revision === data.investigated_revision;
-  const activeTab = !ready && tab === 'Actions' ? 'Review' : tab;
+  const activeTab = !ready && tab === 'Act' ? 'Review' : tab;
   const pending = data.documents.find((doc) => !doc.confirmed);
   const hasBill = data.documents.some((doc) => doc.kind === 'invoice');
   const hasInvoice = data.documents.some((doc) => doc.kind === 'invoice' && doc.confirmed);
@@ -199,42 +190,52 @@ export default function CaseScreen() {
   }
 
   const live = cloudBuild && !data.sample;
+  const canAddEvidence = !hostedBuild && !(cloudBuild && data.sample);
+  const sourceDocument = (source: Source) => data.documents.find((doc) => doc.id === source.document_id
+    && doc.sha256 === source.sha256 && doc.rows.some((row) =>
+      row.id === source.row_id && row.page === source.page && row.line === source.line));
   const openEvidence = (entry: EvidenceView) => setOverlay({ type: 'evidence', entry });
   const addEvidence = () => setOverlay({ type: 'intake' });
   return <Screen>
     <View style={[ui.between, styles.toolbar]}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => { if (!busy) router.back(); }} />
-      <View style={ui.grow}>
-        <Text style={ui.heading}>{data.sample ? 'Sample investigation' : 'Hospital bill case'}</Text>
-        {data.sample && <Text style={ui.kicker}>Fictional case</Text>}
-      </View>
-      {!hostedBuild && <IconButton label="Add evidence" icon="plus" onPress={() => { if (!busy) addEvidence(); }} />}
+      <Text accessibilityRole="header" style={[ui.label, ui.grow]}>{data.sample ? 'Sample case' : 'Hospital bill'}</Text>
+      {canAddEvidence && !compact && <Button label="Add evidence" icon="plus" tone="ghost" disabled={!!busy} onPress={addEvidence} />}
     </View>
     <ConnectionStatus problemsOnly />
-    <View style={styles.tabs} accessibilityRole="tablist">
-      {((ready ? ['Review', 'Documents', 'Timeline', 'Actions'] : ['Review', 'Documents', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={name}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}
+      contentContainerStyle={styles.tabs} accessibilityRole="tablist">
+      {((ready ? ['Review', 'Evidence', 'Timeline', 'Act'] : ['Review', 'Evidence', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={name}
         accessibilityState={{ selected: activeTab === name }} onPress={() => setTab(name)}
-        style={[styles.tab, name === activeTab && styles.tabActive]}>
+        style={[styles.tab, compact && styles.compactTab, name === activeTab && styles.tabActive]}>
         <Text style={[styles.tabLabel, name === activeTab && styles.tabLabelActive]}>{name}</Text>
       </TouchableRipple>)}
-    </View>
-    <ScrollView key={activeTab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+    </ScrollView>
+    <ScrollView key={activeTab === 'Review' ? `review-${revision}` : activeTab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       {error && !overlay ? <Message text={error} onClose={() => setError('')} /> : null}
       {activeTab === 'Review' && <>
-        <View style={ui.between}>
-          <Text accessibilityRole="header" style={[ui.title, ui.grow]}>Case review</Text>
-          <Badge tone="neutral">Revision {revision}</Badge>
-        </View>
-        {!ready && <><ReviewProgress stage={!hasBill ? 0 : pending ? 1 : 2} /><View style={ui.card}>
-          <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
-          <Text style={ui.body}>{pending ? 'Review the source and confirm the extracted rows.' : hasInvoice
-            ? 'Check the confirmed documents for billing questions and insurance deductions.'
-            : 'Scan a printed invoice, import a file, or paste the text to start.'}</Text>
-          {pending ? <Button label="Review document" icon="arrow-right" onPress={() => setOverlay({ type: 'review', id: pending.id })} />
-            : hasInvoice ? <Button label={data.history.length ? 'Re-run investigation' : 'Run investigation'} icon="search"
-              busy={busy === 'investigate'} disabled={!!busy} onPress={() => void run()} />
-              : <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
-        </View></>}
+        {ready ? <ReviewHeadline data={data} /> : <>
+          <Text accessibilityRole="header" style={ui.title}>Case review</Text>
+          <View style={ui.card}>
+            <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
+            <Text style={ui.body}>{pending ? 'Review the source and confirm the extracted rows.' : hasInvoice
+              ? 'Check the confirmed documents for billing questions and insurance deductions.'
+              : 'Scan a printed invoice, import a file, or paste the text to start.'}</Text>
+            {pending ? <Button label="Review document" icon="arrow-right" disabled={!!busy}
+                onPress={() => setOverlay({ type: 'review', id: pending.id })} />
+              : hasInvoice ? <Button label={data.history.length ? 'Re-run investigation' : 'Run investigation'} icon="search"
+                busy={busy === 'investigate'} disabled={!!busy} onPress={() => void run()} />
+                : canAddEvidence && <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
+          </View>
+        </>}
+        {ready && <>
+          {billingFindings.filter((finding) => finding.status !== 'withdrawn').map((finding) => <FindingCard key={finding.id} finding={finding} onPress={openEvidence} />)}
+          {!billingFindings.some((finding) => finding.status === 'active') &&
+            <Text style={ui.body}>No open billing questions in the confirmed lines.</Text>}
+          <ReviewChange data={data} onEvidence={openEvidence} />
+          {billingFindings.filter((finding) => finding.status === 'withdrawn').map((finding) =>
+            <FindingCard key={finding.id} finding={finding} onPress={openEvidence} />)}
+        </>}
         <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
         {ready && <>
           {canAddOrder && <Card tone="tonal">
@@ -246,17 +247,13 @@ export default function CaseScreen() {
             <Button label="Add second lab order" icon="plus" tone="ghost" busy={busy === 'sample-order'} disabled={!!busy}
               onPress={() => { void update('sample-order', '/documents/sample-order', { revision }).then(reviewNew).catch(report); }} />
           </Card>}
-          <SectionHeader>Billing questions</SectionHeader>
-          {billingFindings.map((finding) => <FindingCard key={finding.id} finding={finding}
-            onPress={openEvidence} />)}
-          {!billingFindings.length && <Text style={ui.body}>No billing questions were flagged in the confirmed lines.</Text>}
           <SectionHeader>Insurance review</SectionHeader>
           {insuranceFindings.map((finding) => <FindingCard key={finding.id} finding={finding}
             onPress={openEvidence} />)}
           {!insuranceFindings.length && <Text style={ui.body}>{hasSettlement
             ? 'No deductions were flagged in the confirmed statement.'
             : 'Add a settlement statement to check deductions.'}</Text>}
-          {live && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
+          {live && indiaReview && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
             onPress={() => setOverlay({ type: 'india-review' })} />}
           {versioned && <Card tone="tonal">
             <SectionHeader>Help with paying</SectionHeader>
@@ -267,10 +264,11 @@ export default function CaseScreen() {
           </Card>}
         </>}
       </>}
-      {activeTab === 'Actions' && ready && <CaseActions data={data} busy={busy} live={live}
+      {activeTab === 'Act' && ready && <CaseActions data={data} busy={busy} live={live}
         prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
-      {activeTab === 'Documents' && <>
-        <Text accessibilityRole="header" style={ui.title}>Documents</Text>
+      {activeTab === 'Evidence' && <>
+        <Text accessibilityRole="header" style={ui.title}>Evidence</Text>
+        {data.documents.length > 0 && <Text style={ui.small}>{data.documents.length} {data.documents.length === 1 ? 'document' : 'documents'} · {data.documents.filter((doc) => doc.confirmed).length} confirmed</Text>}
         {data.documents.length > 0 ? <Card>
           {data.documents.map((doc, index) => <View key={doc.id}>
             {index > 0 && <Divider />}
@@ -279,38 +277,49 @@ export default function CaseScreen() {
               accessibilityState={{ disabled: !!busy }} disabled={!!busy}
               onPress={() => setOverlay({ type: 'review', id: doc.id })}>
               <View style={[ui.between, styles.documentRow]}>
-                <AppIcon name="file-text" size={22} color={color.primary} />
+                <View style={styles.pagePreview} importantForAccessibility="no">
+                  {doc.pages[0]?.split(/\r?\n/).filter(Boolean).slice(0, 4).map((line, index) =>
+                    <View key={index} style={[styles.pageLine, { width: `${Math.min(100, Math.max(32, line.length * 2))}%` }]} />)}
+                </View>
                 <View style={ui.grow}>
                   <Text style={ui.label}>{doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]}</Text>
-                  <Text style={ui.small}>{doc.rows.length} {doc.rows.length === 1 ? 'line' : 'lines'} · {doc.confirmed ? 'Confirmed' : 'Needs review'}</Text>
+                  {!doc.confirmed && <Badge tone="amber">Needs review</Badge>}
+                  {doc.id === 'second-order' && ready && data.findings.some((finding) => finding.status === 'withdrawn'
+                    && finding.evidence.some((source) => source.document_id === doc.id && source.relation === 'contradicts')) &&
+                    <Text style={[ui.small, styles.explainsChange]}>Explains the repeat charge</Text>}
                 </View>
                 <AppIcon name="chevron-right" color={color.muted} size={18} />
               </View>
             </TouchableRipple>
           </View>)}
         </Card> : <EmptyState>No documents in this case yet.</EmptyState>}
-        {!hostedBuild && <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />}
+        {canAddEvidence && <Button label="Add evidence" icon="plus" onPress={addEvidence} disabled={!!busy} />}
       </>}
       {activeTab === 'Timeline' && <>
         <Text style={ui.title}>Timeline</Text>
         <Timeline data={data} onRevision={(entry) => setOverlay({ type: 'revision', revision: entry })} />
       </>}
     </ScrollView>
-    {!hostedBuild && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
+    {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
       onPaste={async (kind: Kind, text: string) => reviewNew(await update('import', '/documents/text', { kind, text, revision }))}
       onFile={async (kind, asset) => {
         reviewNew(await update('import', '/documents/file', documentForm(kind, revision, asset)));
       }} />}
-    {reviewing && <Review key={reviewing.id} doc={reviewing} readOnly={hostedBuild} busy={!!busy} onClose={close} onConfirm={confirm}
+    {reviewing && overlay?.type === 'review' && <Review key={reviewing.id} doc={reviewing}
+      initialRowId={overlay.rowId} readOnly={hostedBuild || !!overlay.returnTo || (cloudBuild && data.sample)} busy={!!busy}
+      onClose={() => { if (overlay.returnTo) setOverlay(overlay.returnTo); else close(); }} onConfirm={confirm}
       onDiscard={async () => {
         await update('discard', `/documents/${reviewing.id}/discard`, { revision });
         setOverlay(undefined);
       }} />}
-    {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onClose={() => {
+    {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onSource={(source) => {
+      const doc = sourceDocument(source);
+      if (doc) setOverlay({ type: 'review', id: doc.id, rowId: source.row_id, returnTo: overlay });
+    }} canOpenSource={(source) => !!sourceDocument(source)} onClose={() => {
       if (overlay.returnTo) setOverlay({ type: 'revision', revision: overlay.returnTo });
       else close();
     }} />}
-    {overlay?.type === 'revision' && <Sheet title={`Revision ${overlay.revision.revision}`} onClose={close}>
+    {overlay?.type === 'revision' && <Sheet title={revisionTitle(data, overlay.revision)} onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
         <RevisionComparison data={data} item={overlay.revision} />
         {overlay.revision.findings.map((finding) => <FindingCard key={finding.id} finding={finding}
@@ -318,7 +327,8 @@ export default function CaseScreen() {
       </ScrollView>
     </Sheet>}
     {live && overlay?.type === 'india-review' && <IndiaReview data={data} initial="tariff" onClose={close} />}
-    {overlay?.type === 'assistance' && (live ? <IndiaReview data={data} initial="aid" onClose={close} />
+    {overlay?.type === 'assistance' && (live ? (indiaReview ? <IndiaReview data={data} initial="aid" onClose={close} />
+      : <AssistanceSources onClose={close} />)
       : <Assistance caseId={id} revision={revision} onClose={close} />)}
     {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy} live={live}
       error={error} onDismissError={() => setError('')} onClose={close}
@@ -358,18 +368,17 @@ export default function CaseScreen() {
 }
 
 const styles = StyleSheet.create({
-  toolbar: { paddingHorizontal: 20, paddingVertical: 9 },
-  progress: { flexDirection: 'row', gap: 8 },
-  progressStep: { flex: 1, gap: 6 },
-  progressLine: { height: 3, borderRadius: 3, backgroundColor: color.line },
-  progressActive: { backgroundColor: color.primary },
-  progressLabel: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
-  progressCurrent: { color: color.primary },
-  progressDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.primary },
+  toolbar: { paddingHorizontal: 16, paddingVertical: 6 },
+  pagePreview: { width: 30, height: 40, borderRadius: 3, borderWidth: 1, borderColor: color.line,
+    backgroundColor: color.paper, gap: 4, justifyContent: 'center', padding: 5 },
+  pageLine: { height: 1, backgroundColor: color.muted },
+  explainsChange: { color: color.primary },
   documentRow: { minHeight: 64, paddingVertical: 8 },
-  tabs: { flexDirection: 'row', paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: color.line },
+  tabBar: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: color.line },
+  tabs: { flexGrow: 1, flexDirection: 'row', paddingHorizontal: 8 },
   tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 8,
     paddingHorizontal: 3, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  compactTab: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', paddingHorizontal: 12 },
   tabActive: { borderBottomColor: color.primary },
   tabLabel: { color: color.muted, fontFamily: font.medium, fontSize: 14, lineHeight: 20, letterSpacing: 0.1, textAlign: 'center' },
   tabLabelActive: { color: color.ink },

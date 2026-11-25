@@ -107,7 +107,7 @@ def mutate(owner, case_id, key, reason, data, apply, *, persist=None):
 
 
 @app.get("/health", response_model=m.Health, responses={503: {"model": m.Health}})
-def health():
+def health(response: Response):
     current = profile()
     configured = current != "fixtures" or bool(os.getenv("FAIRBILL_INVITE_CODE"))
     try:
@@ -123,6 +123,8 @@ def health():
     }
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
+    if current == "hosted":
+        response.headers["X-FairBill-Features"] = "india-review"
     return health_result
 
 

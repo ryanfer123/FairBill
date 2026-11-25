@@ -1,7 +1,7 @@
 import { AppIcon, type IconName } from './icons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case } from './api';
-import { Card, Divider, color, ui } from './ui';
+import { Badge, Divider, color, ui } from './ui';
 
 type Icon = IconName;
 
@@ -21,36 +21,54 @@ function ActionRow({ title, label, detail, icon, busy, disabled, onPress }:
 
 function outreachStatus(data: Case, action: Action) {
   const draft = data.drafts[action];
-  if (!draft) return action === 'letter' ? 'Prepare a written request for billing.' : 'Review the script before starting.';
-  const receipt = data.receipts[`${draft.revision}:${action}:${draft.hash}`];
-  if (receipt?.outcome === 'identity_failed') return 'Ended before identity verification.';
-  if (receipt?.state === 'completed') return action === 'letter' ? 'Simulated send complete.' : 'Simulated call complete.';
-  if (receipt) return receipt.state === 'awaiting_identity' ? 'Waiting for identity verification.' : 'Call in progress.';
-  return data.approvals[action]?.hash === draft.hash ? 'Approved wording.' : 'Draft ready for approval.';
+  const approved = !!draft && data.approvals[action]?.hash === draft.hash;
+  const receipt = draft ? data.receipts[`${draft.revision}:${action}:${draft.hash}`] : undefined;
+  return { draft, approved, receipt };
 }
 
 export function CaseActions({ data, busy, live, prepare, preview }:
   { data: Case; busy: string; live: boolean; prepare: (action: Action) => void; preview: () => void }) {
+  const letter = outreachStatus(data, 'letter');
+  const call = outreachStatus(data, 'call');
+  const letterSent = letter.receipt?.state === 'completed';
+  const letterState = letterSent ? 'Sent' : letter.approved ? 'Approved' : letter.draft ? 'Draft' : 'Ready to draft';
+  const callState = call.receipt?.outcome === 'identity_failed' ? 'Ended before identity verification'
+    : call.receipt?.state === 'completed' ? 'Call complete'
+    : call.receipt?.state === 'awaiting_identity' ? 'Identity verification required'
+    : call.receipt ? 'Call in progress'
+    : call.approved ? 'Approved' : call.draft ? 'Draft' : 'Ready to prepare';
+  const letterSteps = [
+    { label: 'Drafted', done: !!letter.draft },
+    { label: 'Exact wording approved', done: letter.approved },
+    ...(live ? [] : [{ label: 'Sent', done: letterSent }]),
+  ];
   return <>
     <View style={ui.stack}>
-      <Text accessibilityRole="header" style={ui.title}>Act on your findings</Text>
-      {!live && <Text style={ui.small}>Letter sending and calls are simulated in this case.</Text>}
+      <Text accessibilityRole="header" style={ui.heading}>Act on your findings</Text>
+      {!live && <Badge tone="amber">Simulated outreach</Badge>}
     </View>
-    <Card>
-      <ActionRow title="Clarification letter" label="Draft clarification letter" icon="mail"
-        detail={outreachStatus(data, 'letter')} disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => prepare('letter')} />
+    <View style={styles.actionList}>
+      <ActionRow title="1. Clarification letter" label="Draft clarification letter" icon="mail"
+        detail={letterState} disabled={!!busy} busy={busy === 'draft-letter'} onPress={() => prepare('letter')} />
+      <View style={styles.steps}>
+        {letterSteps.map((step) => <View style={ui.row} key={step.label}>
+          <AppIcon name={step.done ? 'check-circle' : 'square'} size={16} color={step.done ? color.primary : color.muted} />
+          <Text style={ui.small}>{step.label} · {step.done ? 'Complete' : 'Pending'}</Text>
+        </View>)}
+      </View>
       <Divider />
-      <ActionRow title={live ? 'Billing call script' : 'Three-way call'} label={live ? 'Review billing call script' : 'Review three-way call plan'} icon="phone-call"
-        detail={outreachStatus(data, 'call')} disabled={!!busy} busy={busy === 'draft-call'} onPress={() => prepare('call')} />
-    </Card>
-    <Card tone="tonal">
-      <ActionRow title="Redacted evidence packet" label="Preview evidence packet" icon="share-2"
-        detail="Review the findings and source references before sharing." disabled={!!busy} busy={busy === 'preview'} onPress={preview} />
-    </Card>
+      <ActionRow title={live ? '2. Billing call script' : '2. Three-way call'} label={live ? 'Review billing call script' : 'Review three-way call plan'} icon="phone-call"
+        detail={callState} disabled={!!busy} busy={busy === 'draft-call'} onPress={() => prepare('call')} />
+      <Divider />
+      <ActionRow title="3. Redacted evidence packet" label="Preview evidence packet" icon="share-2"
+        detail="Preview the redactions before sharing." disabled={!!busy} busy={busy === 'preview'} onPress={preview} />
+    </View>
   </>;
 }
 
 const styles = StyleSheet.create({
+  actionList: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
+  steps: { paddingLeft: 52, paddingBottom: 14, gap: 5 },
   row: { minHeight: 64, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 6 },
   icon: { backgroundColor: color.secondaryContainer, borderRadius: 12, padding: 10 },
   pressed: { opacity: 0.7 },

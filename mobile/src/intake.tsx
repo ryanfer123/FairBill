@@ -105,12 +105,12 @@ function editable(row: Row): EditFields {
   };
 }
 
-export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = false }:
+export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId, readOnly = false }:
   { doc: Document; busy: boolean; onClose: () => void; onConfirm: (rows: Row[]) => Promise<void>;
-    onDiscard: () => Promise<void>; readOnly?: boolean }) {
+    onDiscard: () => Promise<void>; initialRowId?: string; readOnly?: boolean }) {
   const [rows, setRows] = useState(doc.rows);
   const [source, setSource] = useState(false);
-  const [openLine, setOpenLine] = useState<string | null>(null);
+  const [openLine, setOpenLine] = useState<string | null>(initialRowId ?? null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [fields, setFields] = useState<EditFields | null>(null);
   const [error, setError] = useState('');
@@ -207,11 +207,13 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
     <Button label="Cancel row edit" tone="ghost" onPress={cancelEdit} />
   </View> : null;
 
-  return <Sheet title={KINDS[doc.kind]} onClose={close}>
+  const selectedRow = rows.find((row) => row.id === initialRowId);
+
+  return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
           <View style={ui.stack}>
-            <Text accessibilityRole="header" style={ui.title}>Confirm document lines</Text>
+            <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : 'Confirm document lines'}</Text>
             <Text style={ui.body}>{readOnly ? 'Compare the supplied rows with the document.' : 'Open a source line to see the extracted text, then correct anything that was misread.'}</Text>
           </View>
           <View style={styles.readSummary}>
@@ -237,6 +239,11 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
             </View>
           </View>}
           {!rows.length && !editing && <EmptyState>No rows were extracted. Add a row using the source text.</EmptyState>}
+          {selectedRow && <View style={[ui.stack, styles.highlight]}>
+            <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
+            <Text selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1]
+              || 'No extracted text at this position.'}</Text>
+          </View>}
           {rows.length > 0 && <View style={ui.card}>
           {rows.map((row, index) => <View key={row.id} style={ui.stack}>
             {index > 0 && <Divider />}
@@ -287,6 +294,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, readOnly = fa
 
 const styles = StyleSheet.create({
   readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.secondaryContainer, borderRadius: 16, padding: 12 },
+  highlight: { padding: 12, backgroundColor: color.secondaryContainer, borderRadius: 8 },
   extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.tertiaryContainer, borderRadius: 12, padding: 12 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
   selected: { backgroundColor: color.secondaryContainer },

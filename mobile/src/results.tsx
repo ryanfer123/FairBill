@@ -1,12 +1,10 @@
 import { AppIcon } from './icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { Case, Finding, History, KINDS, Source, money } from './api';
 import { Disclosure } from './disclosure';
-import { revisionReveal } from './motion';
 import { font } from './typography';
-import { Badge, Card, Divider, EmptyState, SectionHeader, Sheet, color, ui } from './ui';
+import { Badge, Button, Card, Divider, EmptyState, SectionHeader, Sheet, color, ui } from './ui';
 
 const RELATION: Record<Source['relation'], string> = {
   supports: 'Supports the question', contradicts: 'Challenges the question',
@@ -42,20 +40,17 @@ function unique(sources: Source[]) {
   return [...new Map(sources.map((source) => [sourceKey(source), source])).values()];
 }
 
+const sourceNames: Record<Source['document_kind'], string> = {
+  invoice: 'Invoice', policy: 'Policy', settlement: 'Settlement', service_record: 'Service record',
+};
+
 function sourceLabel(source: Source) {
-  return source.document_kind === 'policy'
-    ? `Policy clause · p.${source.page}`
-    : `${KINDS[source.document_kind]} · p.${source.page}`;
+  const name = source.document_id === 'second-order' ? 'Second lab order' : sourceNames[source.document_kind];
+  return `${name} p.${source.page} · l.${source.line}`;
 }
 
-function SourceChips({ evidence, onPress, compact = false }:
-  { evidence: Source[]; onPress: (index?: number) => void; compact?: boolean }) {
-  if (compact && evidence.length > 1) return <View style={styles.chips}>
-    <Pressable accessibilityRole="button" onPress={() => onPress()} style={styles.chip}>
-      <AppIcon name="file-text" size={14} color={color.primary} />
-      <Text style={[ui.small, styles.chipLabel]}>View {evidence.length} sources</Text>
-    </Pressable>
-  </View>;
+function SourceChips({ evidence, onPress }: { evidence: Source[]; onPress: (index: number) => void }) {
+  if (!evidence.length) return null;
   return <View style={styles.chips}>
     {evidence.map((source, index) => <Pressable key={sourceKey(source)} accessibilityRole="button"
       accessibilityLabel={`View ${KINDS[source.document_kind]}, page ${source.page}, line ${source.line}`}
@@ -68,22 +63,15 @@ function SourceChips({ evidence, onPress, compact = false }:
 
 function LedgerLine({ entry, subtract = false, supportingText, onEvidence }:
   { entry: EvidenceView; subtract?: boolean; supportingText?: string; onEvidence: (entry: EvidenceView) => void }) {
-  const sourced = entry.amount !== null && entry.evidence.length > 0;
   const amount = subtract && entry.amount !== null ? money(-entry.amount) : money(entry.amount);
-  const sourceCount = sourced ? `${entry.evidence.length} ${entry.evidence.length === 1 ? 'source' : 'sources'}` : '';
-  const content = <>
-    <View style={ui.grow}>
-      <Text style={ui.label}>{entry.title}</Text>
-      {!!(supportingText || sourceCount) && <Text style={ui.small}>{supportingText || sourceCount}</Text>}
+  return <View style={styles.ledgerLine}>
+    <View style={ui.between}>
+      <Text style={[ui.label, ui.grow]}>{entry.title}</Text>
+      <Text selectable style={[ui.money, styles.value]}>{amount}</Text>
     </View>
-    <Text style={[ui.money, styles.value]}>{amount}</Text>
-    {sourced && <AppIcon name="chevron-right" size={17} color={color.primary} />}
-  </>;
-  return sourced ? <Pressable accessibilityRole="button"
-    accessibilityLabel={`${entry.title}, ${amount}. View sources`} accessibilityHint={supportingText}
-    onPress={() => onEvidence(entry)} style={({ pressed }) => [styles.ledgerLine, pressed && styles.ledgerPressed]}>
-    {content}
-  </Pressable> : <View style={styles.ledgerLine}>{content}</View>;
+    {!!supportingText && <Text style={ui.small}>{supportingText}</Text>}
+    {entry.amount !== null && <SourceChips evidence={entry.evidence} onPress={(selected) => onEvidence({ ...entry, selected })} />}
+  </View>;
 }
 
 function invoiceSources(data: Case): Source[] {
@@ -97,74 +85,96 @@ function invoiceSources(data: Case): Source[] {
     })) : []);
 }
 
+const conditionalTitle = 'Total if the questions are resolved';
+
+export function ReviewHeadline({ data }: { data: Case }) {
+  const amount = data.scenario?.adjustments;
+  return <View style={styles.reviewHeadline}>
+    <Text accessibilityRole="header" style={ui.small}>Case review</Text>
+    {amount != null && amount > 0 ? <>
+      <Text selectable style={[ui.money, styles.headline]}>{money(amount)}</Text>
+      <Text style={ui.heading}>To ask billing about</Text>
+    </> : <Text style={ui.heading}>Billing questions</Text>}
+  </View>;
+}
+
 export function ScenarioCard({ data, stale, onEvidence }:
   { data: Case; stale: boolean; onEvidence: (entry: EvidenceView) => void }) {
   const scenario = data.scenario;
   if (!scenario) return null;
-  const previous = data.history.at(-2);
-  const revised = !stale && !!previous && previous.scenario.conditional !== scenario.conditional;
   const invoices = scenario.sources?.billed ?? (stale ? [] : invoiceSources(data));
   const adjustments = data.findings.filter((finding) => scenario.included.includes(finding.id));
   const adjustmentSources = scenario.sources?.adjustments ?? unique(adjustments.flatMap((finding) => finding.evidence));
-  const explanation = scenario.reconciled
-    ? 'This total applies if the listed billing adjustments are supported.'
-    : 'The invoice and its itemised lines need reconciliation.';
-  const conditional: EvidenceView = {
-    title: 'Conditional invoice', amount: scenario.conditional, explanation,
-    rule: 'Invoice total and supported billing adjustments',
-    evidence: scenario.sources?.conditional ?? unique([...invoices, ...adjustmentSources]),
-  };
-  return <>
-    <View style={styles.ledger}>
-      <View style={styles.ledgerHead}>
-        <View style={ui.between}>
-          <Text style={[styles.ledgerLabel, ui.grow]}>{conditional.title}</Text>
-          <AppIcon name="receipt" size={23} color={color.inversePrimary} />
-        </View>
-        {stale && <View style={styles.previousTag}><Text style={styles.previousTagText}>Previous review</Text></View>}
-        <Animated.View key={`${data.investigated_revision}:${conditional.amount}`} entering={revised ? revisionReveal : undefined}>
-          <Text selectable style={[ui.money, styles.headline]}>{money(conditional.amount)}</Text>
-        </Animated.View>
-        <Text style={styles.ledgerCopy}>{explanation}</Text>
-        {!!previous && previous.scenario.conditional !== scenario.conditional &&
-          <Text style={styles.ledgerCopy}>Revised from <Text style={styles.previousAmount}>{money(previous.scenario.conditional)}</Text></Text>}
-        {conditional.amount !== null && conditional.evidence.length > 0 && <Pressable
-          accessibilityRole="button" onPress={() => onEvidence(conditional)} style={({ pressed }) =>
-            [styles.ledgerSource, pressed && { opacity: 0.8 }]}>
-          <AppIcon name="layers" size={16} color={color.inversePrimary} />
-          <Text style={[styles.ledgerSourceText, ui.grow]}>
-            View calculation · {conditional.evidence.length} {conditional.evidence.length === 1 ? 'source' : 'sources'}
-          </Text>
-          <AppIcon name="arrow-up-right" size={16} color={color.inversePrimary} />
-        </Pressable>}
-      </View>
-      <View style={styles.ledgerDetails}>
-        <LedgerLine onEvidence={onEvidence} entry={{
-          title: 'Original invoice', amount: scenario.billed, explanation: 'Total from the confirmed hospital invoice.', evidence: invoices,
-        }} />
-        <View style={ui.divider} />
-        <LedgerLine onEvidence={onEvidence} subtract entry={{
-          title: 'Conditional adjustments', amount: scenario.adjustments, explanation: 'Billing questions included in this calculation.',
-          rule: [...new Set(adjustments.map((finding) => RULES[finding.check]).filter(Boolean))].join(' · '),
-          evidence: adjustmentSources,
-        }} />
-      </View>
-    </View>
-    {scenario.unresolved_deduction !== null && scenario.unresolved_deduction > 0 && <View style={styles.separateDeduction}>
-      <LedgerLine onEvidence={onEvidence} supportingText="Outside the invoice total" entry={{
-        title: 'Separate insurance deduction', amount: scenario.unresolved_deduction,
-        explanation: 'This deduction is reported separately from the conditional invoice.',
+  const explanation = !scenario.reconciled
+    ? 'The invoice total and itemised lines need to be reconciled.'
+    : 'This estimate assumes billing agrees with every question included in the calculation.';
+  return <View style={styles.ledger}>
+    <SectionHeader>{stale ? 'Previous calculation' : 'Bill calculation'}</SectionHeader>
+    <LedgerLine onEvidence={onEvidence} entry={{
+      title: 'Billed', amount: scenario.billed, explanation: 'Total from the confirmed hospital invoice.', evidence: invoices,
+    }} />
+    <LedgerLine onEvidence={onEvidence} subtract entry={{
+      title: 'Questions to ask billing', amount: scenario.adjustments, explanation: 'Billing questions included in this calculation.',
+      rule: [...new Set(adjustments.map((finding) => RULES[finding.check]).filter(Boolean))].join(' · '),
+      evidence: adjustmentSources,
+    }} />
+    <LedgerLine onEvidence={onEvidence} supportingText={explanation} entry={{
+      title: conditionalTitle, amount: scenario.conditional, explanation,
+      rule: 'Invoice total and supported billing adjustments',
+      evidence: scenario.sources?.conditional ?? unique([...invoices, ...adjustmentSources]),
+    }} />
+    {scenario.unresolved_deduction !== null && scenario.unresolved_deduction > 0 &&
+      <LedgerLine onEvidence={onEvidence} supportingText="Kept separate from the bill calculation." entry={{
+        title: 'Insurance deduction', amount: scenario.unresolved_deduction,
+        explanation: 'This deduction appears on the insurance settlement statement.',
         evidence: scenario.sources?.unresolved_deduction ?? unique(data.findings.filter((finding) =>
           finding.check === 'settlement' && finding.status === 'active').flatMap((finding) => finding.evidence)),
-      }} />
-    </View>}
-  </>;
+      }} />}
+  </View>;
+}
+
+function revisionChange(data: Case, item: History) {
+  const previous = data.history[data.history.findIndex((revision) => revision.revision === item.revision) - 1];
+  const before = new Map(previous?.findings.map((finding) => [finding.id, finding]));
+  const withdrawn = item.findings.filter((finding) =>
+    finding.status === 'withdrawn' && before.get(finding.id)?.status === 'active');
+  const oldTotal = previous?.scenario.conditional;
+  const total = item.scenario.conditional;
+  const movement = oldTotal == null || total == null ? null : total - oldTotal;
+  const secondOrder = withdrawn.some((finding) => finding.check === 'duplicates'
+    && finding.evidence.some((source) => source.document_id === 'second-order' && source.relation === 'contradicts'));
+  return { previous, withdrawn, movement, secondOrder };
+}
+
+function signedMoney(amount: number) {
+  return amount > 0 ? `+${money(amount)}` : money(amount);
+}
+
+export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (entry: EvidenceView) => void }) {
+  const item = data.history.at(-1);
+  if (!item) return null;
+  const { withdrawn, movement, secondOrder } = revisionChange(data, item);
+  const [first] = withdrawn;
+  const evidence = unique(withdrawn.flatMap((finding) => finding.evidence));
+  if (!first) return null;
+  return <View style={styles.withdrawal}>
+    <View style={ui.between}>
+      <Text style={[ui.label, ui.grow]}>{withdrawn.length} {withdrawn.length === 1 ? 'question' : 'questions'} withdrawn</Text>
+      {movement !== null && movement !== 0 && <Text style={[ui.money, styles.value]}>{signedMoney(movement)}</Text>}
+    </View>
+    <Text style={ui.body}>{secondOrder ? 'The second lab order explains the repeat test.' : first.explanation}
+      {movement !== null && movement !== 0 ? ' This changed the conditional total.' : ''}</Text>
+    <SourceChips evidence={evidence} onPress={(selected) => onEvidence({
+      title: 'Why the questions were withdrawn', explanation: withdrawn.map((finding) => finding.explanation).join(' '),
+      amount: null, status: 'withdrawn', evidence, selected,
+    })} />
+  </View>;
 }
 
 export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (entry: EvidenceView) => void }) {
   const withdrawn = finding.status === 'withdrawn';
   const entry: EvidenceView = { ...finding, rule: RULES[finding.check], evidence: unique(finding.evidence) };
-  return <Card>
+  return <View style={[styles.finding, withdrawn && styles.withdrawnFinding]}>
     <View style={ui.row}>
       <AppIcon name={withdrawn ? 'check-circle' : finding.status === 'linked' ? 'link' : 'help-circle'} size={16} color={color.primary} />
       <Badge tone={withdrawn ? 'neutral' : finding.status === 'linked' ? 'green' : 'amber'}>
@@ -178,13 +188,16 @@ export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (
       {finding.amount !== null && <Text style={[ui.money, styles.value]}>{money(finding.amount)}</Text>}
       <AppIcon name="arrow-up-right" size={17} color={color.primary} />
     </Pressable>
+    {entry.rule && <Text style={ui.small}>{entry.rule}</Text>}
     <Text style={ui.body}>{finding.explanation}</Text>
-    <SourceChips evidence={entry.evidence} compact onPress={(selected) => onPress({ ...entry, selected })} />
-  </Card>;
+    <SourceChips evidence={entry.evidence} onPress={(selected) => onPress({ ...entry, selected })} />
+  </View>;
 }
 
-export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () => void }) {
-  const [opened, setOpened] = useState<number | null>(entry.selected ?? null);
+export function Evidence({ entry, canOpenSource, onSource, onClose }:
+  { entry: EvidenceView; canOpenSource: (source: Source) => boolean;
+    onSource: (source: Source) => void; onClose: () => void }) {
+  const [opened, setOpened] = useState<number | null>(entry.selected ?? 0);
   const order = entry.evidence.map((source, index) => ({ source, index }));
   const selected = entry.selected;
   if (selected !== undefined) {
@@ -212,6 +225,7 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
           onToggle={() => setOpened(opened === index ? null : index)}>
           <Text selectable style={ui.body}>{source.quote || 'No source excerpt is available for this row.'}</Text>
           <Text selectable style={styles.hash}>Source fingerprint {source.sha256.slice(0, 12)}</Text>
+          {canOpenSource(source) && <Button label="Open document at this line" icon="file-text" tone="ghost" onPress={() => onSource(source)} />}
         </Disclosure>
       </Card>)}
       {!entry.evidence.length && <EmptyState>No source excerpts are available for this finding.</EmptyState>}
@@ -220,7 +234,7 @@ export function Evidence({ entry, onClose }: { entry: EvidenceView; onClose: () 
 }
 
 export function RevisionComparison({ data, item }: { data: Case; item: History }) {
-  const previous = data.history[data.history.findIndex((revision) => revision.revision === item.revision) - 1];
+  const { previous, movement } = revisionChange(data, item);
   const oldFindings = new Map(previous?.findings.map((finding) => [finding.id, finding]));
   const changed = item.findings.filter((finding) => {
     const before = oldFindings.get(finding.id);
@@ -234,11 +248,12 @@ export function RevisionComparison({ data, item }: { data: Case; item: History }
     && event.revision <= item.revision && event.title === 'Document added');
 
   return <View style={ui.stack}>
-    <Text style={ui.small}>Conditional invoice</Text>
+    <Text style={ui.small}>Conditional total</Text>
     <View style={styles.comparison}>
       {previous && <><Text style={ui.money}>{money(previous.scenario.conditional)}</Text>
         <AppIcon name="arrow-right" size={15} color={color.muted} /></>}
       <Text style={[ui.money, styles.value]}>{money(item.scenario.conditional)}</Text>
+      {movement !== null && movement !== 0 && <Text style={ui.money}>({signedMoney(movement)})</Text>}
     </View>
     {addedSources.map((source) => <Text key={source.document_id} style={ui.small}>
       Evidence linked · {source.document_id === 'second-order' ? 'Second lab order' : KINDS[source.document_kind]}
@@ -248,6 +263,13 @@ export function RevisionComparison({ data, item }: { data: Case; item: History }
       {finding.status === 'withdrawn' ? 'Withdrawn' : finding.status === 'linked' ? 'Clause linked' : 'Updated'} · {finding.title}
     </Text>)}
   </View>;
+}
+
+export function revisionTitle(data: Case, item: History) {
+  const { previous, withdrawn, secondOrder } = revisionChange(data, item);
+  if (secondOrder) return 'Second lab order reviewed';
+  if (withdrawn.length) return 'Billing questions withdrawn';
+  return previous ? 'Billing review updated' : 'First billing review';
 }
 
 export function Timeline({ data, onRevision }: { data: Case; onRevision: (revision: History) => void }) {
@@ -262,7 +284,8 @@ export function Timeline({ data, onRevision }: { data: Case; onRevision: (revisi
         </View>
         <Pressable accessibilityRole="button" onPress={() => onRevision(item)} style={[ui.card, ui.grow]}>
           <View style={ui.between}>
-            <Text style={[ui.label, ui.grow]}>Revision {item.revision}</Text>
+            <View style={ui.grow}><Text style={ui.label}>{revisionTitle(data, item)}</Text>
+              <Text style={ui.small}>Revision {item.revision}</Text></View>
             {index === 0 && <Badge>Latest</Badge>}
             <AppIcon name="chevron-right" color={color.primary} size={17} />
           </View>
@@ -288,23 +311,15 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: color.primary },
   currentDot: { backgroundColor: color.primary },
   railLine: { width: 1, flex: 1, backgroundColor: color.line, marginBottom: -10 },
-  ledger: { borderRadius: 22, borderWidth: 1, borderColor: color.line, overflow: 'hidden', backgroundColor: color.card },
-  separateDeduction: { borderRadius: 16, backgroundColor: color.surfaceContainer, paddingHorizontal: 16, paddingVertical: 4 },
-  ledgerHead: { backgroundColor: color.inverseSurface, padding: 18, gap: 8 },
-  ledgerLabel: { color: color.inverseOnSurface, fontFamily: font.semibold, fontSize: 16 },
-  headline: { color: color.inverseOnSurface, fontSize: 41, lineHeight: 49, letterSpacing: -1.6 },
-  ledgerCopy: { color: color.inverseOnSurface, fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
-  previousAmount: { fontVariant: ['tabular-nums'], color: color.inverseOnSurface, fontFamily: font.bold },
-  previousTag: { alignSelf: 'flex-start', backgroundColor: color.tertiaryContainer, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8 },
-  previousTagText: { color: color.onTertiaryContainer, fontSize: 12, fontWeight: '600' },
-  ledgerSource: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
-    marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.inversePrimary },
-  ledgerSourceText: { color: color.inverseOnSurface, fontFamily: font.semibold, fontSize: 14 },
-  ledgerDetails: { paddingHorizontal: 16, paddingVertical: 4 },
-  ledgerLine: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 55, paddingVertical: 9 },
-  ledgerPressed: { opacity: 0.65 },
+  reviewHeadline: { gap: 3, paddingBottom: 12 },
+  headline: { color: color.question, fontSize: 36, lineHeight: 44, letterSpacing: -1 },
+  ledger: { gap: 8, paddingTop: 12 },
+  ledgerLine: { gap: 6, paddingVertical: 10, borderTopColor: color.line, borderTopWidth: StyleSheet.hairlineWidth },
+  finding: { gap: 4, paddingTop: 10, borderTopColor: color.line, borderTopWidth: StyleSheet.hairlineWidth },
+  withdrawnFinding: { backgroundColor: color.surfaceContainer, paddingHorizontal: 12, paddingBottom: 10 },
+  withdrawal: { backgroundColor: color.secondaryContainer, borderRadius: 12, padding: 14, gap: 6 },
   hash: { color: color.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
-  value: { fontSize: 17, maxWidth: '56%', flexShrink: 1 },
+  value: { fontSize: 17, maxWidth: '56%', flexShrink: 1, textAlign: 'right' },
   comparison: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   findingHeading: { minHeight: 44 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
