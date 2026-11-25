@@ -1,8 +1,6 @@
 # FairBill artwork
 
-FairBill uses Phosphor Duotone vectors from the collection listed in [Framer Marketplace](https://www.framer.com/marketplace/vectors/phosphor-duotone/). The native bundle contains the original SVG markup for 44 selected icons from [Phosphor Icons Core at revision 2b75f3a](https://github.com/phosphor-icons/core/tree/2b75f3ad12b420c9504ef05df8d2564a28f8500e/assets/duotone). FairBill applies its own colors at render time. The [MIT license](phosphor-icons.txt) accompanies the artwork.
-
-The Framer Gallery listing for [Billow](https://www.framer.com/community/gallery/) informed the emphasis on invoice content and the dominant amount in the summary.
+FairBill’s native illustrations and 24-unit outline icons are original project artwork. The receipt and check motifs carry across the app, with vector geometry that scales without raster assets.
 
 ## Typography and motion
 

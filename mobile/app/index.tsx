@@ -15,7 +15,7 @@ import { Button, Card, Divider, Input, Mark, Message, Screen, SectionHeader, She
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
-  { key: 'check', title: 'New check', icon: 'plus' },
+  { key: 'check', title: 'New check', icon: 'receipt' },
   { key: 'settings', title: 'Settings', icon: 'settings' },
 ] as const;
 const navigation = { index: 1, routes: [...destinations] };
