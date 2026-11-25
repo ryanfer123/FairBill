@@ -2,7 +2,7 @@ import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-nati
 import { AppIcon, type IconName } from '../src/icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
@@ -43,14 +43,14 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
       {destinations.map(tab => {
         const selected = tab.key === current;
         const tint = selected ? color.onPrimaryContainer : color.paper;
-        return <TouchableRipple key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
+        return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
           accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
-          rippleColor={selected ? color.primaryContainer : '#467562'} style={styles.tab}>
-          <View style={styles.tabContents}>
+          style={styles.tab}>
+          {({ pressed }) => <View style={[styles.tabContents, pressed && styles.tabPressed]}>
             <AppIcon name={tab.icon} color={tint} size={20} />
             {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
-          </View>
-        </TouchableRipple>;
+          </View>}
+        </Pressable>;
       })}
     </View>
   </Animated.View>;
@@ -331,5 +331,6 @@ const styles = StyleSheet.create({
   selection: { position: 'absolute', width: '33.333333%', top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
   tab: { flex: 1, minHeight: 49, borderRadius: 28, overflow: 'hidden' },
   tabContents: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 4 },
+  tabPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   tabText: { textAlign: 'center', fontFamily: font.semibold, fontSize: 13 },
 });
