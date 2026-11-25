@@ -1,0 +1,16 @@
+<p>Verify the email address you use for FairBill to permanently delete your account, cases and uploaded originals.</p>
+<form id="email-form">
+  <label for="email">Email address</label>
+  <input id="email" type="email" autocomplete="email" required maxlength="320">
+  <button type="submit">Send verification email</button>
+</form>
+<form id="delete-form" hidden>
+  <label for="code">Email code</label>
+  <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]{6,10}" required>
+  <label for="confirmation">Type DELETE to confirm</label>
+  <input id="confirmation" maxlength="6" pattern="DELETE" required>
+  <button type="submit">Permanently delete account</button>
+  <button type="button" id="restart">Use a different email</button>
+</form>
+<p id="status" role="status" aria-live="polite"></p>
+<p><a href="/privacy">Privacy notice</a></p>

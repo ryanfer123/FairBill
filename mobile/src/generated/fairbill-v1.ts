@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Account */
+        delete: operations["delete_account_account_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases": {
         parameters: {
             query?: never;
@@ -295,6 +312,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/india-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** India Review */
+        post: operations["india_review_cases__case_id__india_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/investigate": {
         parameters: {
             query?: never;
@@ -401,6 +435,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AidInput */
+        AidInput: {
+            /** Category */
+            category: ("NC" | "C" | "B" | "A" | "D" | "FN") | ("BP" | "F");
+            /**
+             * Hospital
+             * @constant
+             */
+            hospital: "tmh-parel";
+            /** Invoice Id */
+            invoice_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            review: "aid";
+            /** Revision */
+            revision: number;
+        };
         /** Approval */
         Approval: {
             /**
@@ -786,12 +839,38 @@ export interface components {
              * Profile
              * @enum {string}
              */
-            profile: "local" | "fixtures";
+            profile: "local" | "fixtures" | "hosted";
             /**
              * Status
              * @enum {string}
              */
             status: "ok" | "degraded";
+        };
+        /** InsuranceInput */
+        InsuranceInput: {
+            /**
+             * Confirmed Applicability
+             * @constant
+             */
+            confirmed_applicability: true;
+            /** Invoice Id */
+            invoice_id: string;
+            /** Policy Id */
+            policy_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            review: "insurance";
+            /** Revision */
+            revision: number;
+            /** Settlement Id */
+            settlement_id: string;
+            /**
+             * Uin
+             * @enum {string}
+             */
+            uin: "NIAHLIP25040V082425" | "NIAHLIP25040V102425";
         };
         /** Investigation */
         Investigation: {
@@ -862,6 +941,15 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** PilotReview */
+        PilotReview: {
+            /** Findings */
+            findings: components["schemas"]["ReferenceFinding"][];
+            /** Note */
+            note: string;
+            /** Revision */
+            revision: number;
+        };
         /** Receipt */
         Receipt: {
             /**
@@ -908,6 +996,35 @@ export interface components {
             received: boolean | null;
             /** Revision */
             revision: number;
+        };
+        /** RecordLine */
+        RecordLine: {
+            /** Document Id */
+            document_id: string;
+            /** Line */
+            line: number;
+            /** Page */
+            page: number;
+            /** Quote */
+            quote: string;
+        };
+        /** ReferenceFinding */
+        ReferenceFinding: {
+            /** Billed Paise */
+            billed_paise?: number | null;
+            /** Citation */
+            citation: string;
+            /** Detail */
+            detail: string;
+            /** Difference Paise */
+            difference_paise?: number | null;
+            record?: components["schemas"]["RecordLine"] | null;
+            /** Reference Paise */
+            reference_paise?: number | null;
+            /** Source Url */
+            source_url: string;
+            /** Title */
+            title: string;
         };
         /** Scenario */
         Scenario: {
@@ -970,6 +1087,33 @@ export interface components {
             /** Sha256 */
             sha256: string;
         };
+        /** TariffInput */
+        TariffInput: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "NC" | "C" | "B" | "A" | "D" | "FN";
+            /**
+             * Confirmed Applicability
+             * @constant
+             */
+            confirmed_applicability: true;
+            /**
+             * Edition
+             * @constant
+             */
+            edition: "tmh-parel-2026-11-01-v6";
+            /** Invoice Id */
+            invoice_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            review: "tariff";
+            /** Revision */
+            revision: number;
+        };
         /** Turn */
         Turn: {
             /** At */
@@ -1002,6 +1146,107 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    delete_account_account_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-FairBill-Invite"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     list_cases_cases_get: {
         parameters: {
             query?: {
@@ -2992,6 +3237,115 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Flag"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    india_review_cases__case_id__india_review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-FairBill-Invite"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TariffInput"] | components["schemas"]["AidInput"] | components["schemas"]["InsuranceInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotReview"];
                 };
             };
             /** @description Bad Request */

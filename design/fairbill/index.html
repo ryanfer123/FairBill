@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FairBill · Mobile design prototype</title>
+<style>
+/* Subset of Google Material Icons, Apache 2.0. https://github.com/google/material-design-icons */
+@font-face{font-family:FairBillSymbols;src:url(data:font/ttf;base64,AAEAAAAPAIAAAwBwR0RFRgASABIAAAoMAAAAFkdQT1MAGQAMAAAKJAAAABBHU1VCbIx0hQAACjQAAAAaT1MvMuryBh4AAAdgAAAAYGNtYXBLPDMcAAAHwAAAAKRjdnQgABEBRAAACGQAAAAEZ2FzcP//AAMAAAoEAAAACGdseWaX9uVQAAAA/AAABZhoZWFkGOu4UgAABtwAAAA2aGhlYQQBAgEAAAc8AAAAJGhtdHgFDAKdAAAHFAAAAChsb2NhC0UM2wAABrQAAAAobWF4cABtAdAAAAaUAAAAIG5hbWUcFTXoAAAIaAAAAXpwb3N0/4YAMgAACeQAAAAgAAEAQABAAcABwAAcAAAlMhYVFRQjIiY1NDMzMhYVFBcWBwcWFzc2MzIXFgGrCQwVldYZSgkMDAQJKS5lIQYJBQIkuAwJShnWlRUMCSckDQkkYDEqBgEMAAADACsAVQHVAasAAgAHABcAAAE3IQE1BycVATIWFREUBiMhIiY1ETQ2MwEAq/6qAVarqwFWERkZEf6qERkZEQEVa/8A1Wpq1QErGhH/ABEaGhEBABEaAAIAQABAAcABwAAEABQAADcHIScHFxQGIyEiJjURNDYzITIWFbVKASpgStUaEf7WERoaEQEqERrgYIBgNREaGhEBKhEaGhEAAAMAKwBVAdUB1QAHABsAIwAANjI2NCYiBhQTMxczMhYVERQGIyEiJjURNDYzMxY0NjIWFAYi1Fg/P1g/K4AnRBEZGRH+qhEZGRFEIyg4KCg4lT9YPz9YAQEqGhH/ABEaGhEBABEaxzgoKDgoAAEAVQBVAasBqwAIAAABFSEXByc3FwcBq/78dx6rqx53ARUqeB6rqx54AAEASQBrAcABiQAFAAA3NxcBJzfA4h7/AHcep+Ie/wB3HgABALcAgAFVAYAABQAAExcHJzcn1YCAHmJiAYCAgB5iYgAAAQBrAGsBlQGVAAsAAAEHFwcnByc3JzcXNwGVd3ced3ced3ced3cBd3d3Hnd3Hnd3Hnd3AAEAgAC3AYABVQAFAAABFwcnBycBAIAeYmIeAVWAHmJiHgABAIAAqwGAAUkABQAAARcHJzcXAWIegIAeYgFJHoCAHmIAAwBVANUBqwErAAcADwAXAAASMhYUBiImNDYyFhQGIiY0JjIWFAYiJjTvIhoaIhqaIhoaIhrmIhoaIhoBKxoiGhoiGhoiGhoiGhoiGhoiAAAEAFUAKwGrAdUAAgAGAAoAGAAAATMnFzUjFRc1IxUTFxEUBiMhIiY1EzQ2MwEVdnZAqqqqgIAaEf8AERoBGREBQHXgKytVKysBVYD/ABEZGREBVhEZAAIAKwA5AdUBwAAYAC0AACU+AzU0JiMiBgcjJiYjIgYVFB4CFxcTMhYVFA4CBwcnLgI1NDYzMhc2AQIwLjYVKyAZKwgoCCsZICsVNi4wAmAyQxY7MDUfH0U9NEMyOiYmdCssPC4WICocFhYcKiAWLjwsKwIBTkQxHTdELjAcGz4+VCcxRC0tAAACAC0AKwHTAdUABwA/AAA2MjY0JiIGFDcXFgcHBicnBgcHBiMjIicnJicHBicnJjc3JjQ3JyY3NzYXFzY3NzYzMzIXFxYXNzYXFxYHBxYU4T4sLD4s6i0HBSsECTUVDwgCCFYIAggTETUJBCsFBy0BAS0HBSsECTUVDwgCCFYIAggTETUJBCsFBy0BtSw+LCw+CiMFCUoHAxUPBjgJCTgIDRUDB0oJBSMHHAcjBQlKBwMVDwY4CQk4CA0VAwdKCQUjBxwABABVAGsBqwGVAAMABwALAA8AABMhFSEVNSEVNRUhNRcVIzVVAVb+qgFW/qrW1gGVKqsrK4ArK6sqKgAABAArACsB1QHVABMAGwAjACcAABIyFhUUBhUjND4CNTQmIgYVIzQWMjY0JiIGFBIyFhQGIiY0FzUzFd1GMkAqFBgUGiIaKg+MZWWMZVOwfX2wfcAqAYAyIxs5FxchDxYOERkZESP5ZYxlZYwBG32wfX2w2CsrAAIAKwBAAdUBwAANABYAABMRMxUjIiY1ETQ2MzMVFxcHJzcjNTMnVaurERkZEatramoeN9nZNwGV/tYrGhEBKhEaKyprax83KjgAAgBVABUBqwHrAAgAIAAAAQcnFSM1Byc3FxUUBiMhIiY1NTQ2MzMVIxUhNSM1MzIWAVUeIioiHlWrGRL/ABIZGRJAQAEAQEASGQGVHiLu7iIeVsDrEhkZEusRGSrr6yoZAAABAAAAEwGfABgAAAAAAAIAAAABAAEAAABAAC4AAAAAAAAAAAAsAFcAewCxAMYA1wDoAQIBEwEkAUwBdwG7Ah0COwJ2ApsCzAABAAAAAQRa/G4wKl8PPPUACQIAAAAAANikoTcAAAAA3yrRxP/+//0CAQIDAAAACAACAAAAAAAAAgAAEQBAACsAQAArAFUASQC3AGsAgACAAFUAVQArAC0AVQArACsAVQABAAACAAAAAAACAP/+//8CAQABAAAAAAAAAAAAAAAAAAAAAQAEAgABkAAFAAABTAFmAAAARwFMAWYAAAD1ABkAhAAAAgAFAwAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAIDgsOm6AgAAAAAAAgAAAAAAAAEAAAAAAAAAAAAAACAAKwAAAAIAAAADAAAAFAADAAEAAAAUAAQAkAAAACAAIAAEAADgsODh4/TkEuXE5crlz+XT5rjoc+h+6Ljo0uj96br//wAA4LDg4eP05BLlxOXK5czl0+a46HPofui46NLo/em6//8fUR8hHA8b8hpBGjwaOxo4GVoXmRePF1YXPRcTFlcAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABEBRAAAAAcAWgADAAEECQAAAGAAAAADAAEECQABABwAYAADAAEECQACAA4AfAADAAEECQADAFIAigADAAEECQAEABwAYAADAAEECQAFABoA3AADAAEECQAGACoA9gBDAG8AcAB5AHIAaQBnAGgAdAAgADIAMAAxADgAIABHAG8AbwBnAGwAZQAsACAASQBuAGMALgAgAEEAbABsACAAUgBpAGcAaAB0AHMAIABSAGUAcwBlAHIAdgBlAGQALgBNAGEAdABlAHIAaQBhAGwAIABJAGMAbwBuAHMAUgBlAGcAdQBsAGEAcgBGAG8AbgB0AEYAbwByAGcAZQAgADIALgAwACAAOgAgAE0AYQB0AGUAcgBpAGEAbAAgAEkAYwBvAG4AcwAgADoAIAA1AC0AMwAtADIAMAAxADkAVgBlAHIAcwBpAG8AbgAgADEALgAwADEANwBNAGEAdABlAHIAaQBhAGwASQBjAG8AbgBzAC0AUgBlAGcAdQBsAGEAcgAAAAMAAAAAAAD/gwAyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//8AAgABAAAADAAAAAAAAAACAAEAAQARAAIAAAABAAAACgAMAA4AAAAAAAAAAQAAAAoAFgAYAAFsYXRuAAgAAAAAAAAAAAAA) format("truetype");font-display:block}
+.symbol{font-family:FairBillSymbols;font-weight:400;display:inline-block;line-height:1}
+:root{font-family:Arial,sans-serif;color:#192a25;background:#e5e9e2;font-synthesis:none;--desk:#192a25;--desk-soft:#4b5d54;--desk-rule:#bdc9bf}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--focus,#165c9e);outline-offset:2px}
+button:active:not(:disabled){opacity:.82}
+.studio{min-height:100dvh;display:grid;grid-template-columns:minmax(220px,270px) minmax(425px,1fr) minmax(230px,310px);max-width:1472px;margin:auto}
+.index,.notes{padding:32px 24px}
+.index{border-right:1px solid var(--desk-rule)}
+.notes{border-left:1px solid var(--desk-rule);align-content:center}
+@media(min-width:1051px) and (min-height:720px){.studio{height:100dvh}.index,.notes{overflow:auto}}
+.index h1{font-size:31px;margin:7px 0 20px;letter-spacing:-.055em}
+.studio-label,.sequence,.section-label{font-family:ui-monospace,monospace;text-transform:uppercase;font-size:11px;letter-spacing:.095em;font-weight:700}
+.studio-label,.sequence{color:var(--desk-soft)}
+.index h2{font-size:11px;text-transform:uppercase;letter-spacing:.10em;margin:15px 0 6px;color:var(--desk-soft)}
+.jump{display:block;text-align:left;width:100%;border:0;background:transparent;color:var(--desk);min-height:36px;border-radius:7px;padding:6px 9px;font-size:13px}
+.jump:hover{background:#d8e3d9}
+.jump[aria-current=page]{background:#193f34;color:#f6fcf7}
+.stage{padding:24px 18px;display:grid;justify-items:center;align-content:start;gap:12px;min-width:0}
+.stage-tools{width:min(100%,404px);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--desk-soft)}
+.stage-tools button{border:1px solid #74877b;border-radius:20px;min-height:34px;padding:0 13px;background:transparent;color:var(--desk);font-weight:700}
+.notes h2{font-size:28px;letter-spacing:-.04em;margin:12px 0}
+.notes p,.notes li{font-size:14px;line-height:1.55;color:var(--desk-soft)}
+.notes ul{padding-left:17px}
+.notes li+li{margin-top:10px}
+.notes hr{border:0;border-top:1px solid var(--desk-rule);margin:18px 0}
+.link-out{color:#174639;text-underline-offset:3px;font-size:13px;font-weight:bold}
+.phone{--canvas:#f6f6ef;--paper:#fffef8;--surface:#ebeee5;--ink:#1b2923;--muted:#4a5d51;--line:#c5cdc3;--strong-line:#75887b;--primary:#164c3d;--on-primary:#fffdf5;--tonal:#d9ecde;--on-tonal:#244839;--hero:#153c32;--hero-ink:#f3f8e9;--hero-muted:#c6dcca;--amber:#7b401b;--amber-bg:#fae7d6;--error:#812d2b;--error-bg:#fce6e0;--focus:#145ead;--rule:rgba(207,231,213,.23);color:var(--ink);background:var(--canvas);width:min(100%,404px);height:min(822px,calc(100dvh - 94px));min-height:630px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;border:1px solid #85928a;border-radius:28px;overflow:hidden;box-shadow:0 15px 34px #233d2526;position:relative}
+.phone.dark{color-scheme:dark;--canvas:#15201b;--paper:#1d2b23;--surface:#28392f;--ink:#edf4e8;--muted:#bccdbf;--line:#4a6253;--strong-line:#8da697;--primary:#b5dfc5;--on-primary:#163428;--tonal:#294b3d;--on-tonal:#d1eddb;--hero:#244e40;--hero-ink:#f1fae9;--hero-muted:#d0e5d5;--amber:#ffd5b5;--amber-bg:#593b29;--error:#ffd0c8;--error-bg:#562d29;--focus:#a4ccff}
+.appbar{padding:8px 16px;min-height:62px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.appbar .name{font-size:20px;font-weight:750;letter-spacing:-.045em;margin-right:auto}
+.mark{width:32px;height:32px;border-radius:9px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-size:20px;font-weight:bold;flex:none}
+.iconbtn{width:44px;height:44px;border:0;border-radius:50%;background:var(--surface);color:var(--ink);font-size:20px;flex:none;display:grid;place-items:center}
+.avatar{font-size:13px;font-weight:700}
+.scroll{overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:21px 18px 20px;outline-offset:-3px}
+.scroll>*+*{margin-top:15px}
+.scroll h1,.scroll h2,.scroll h3,.scroll p{margin:0}
+.scroll h1{font-size:34px;line-height:1.02;letter-spacing:-.055em;overflow-wrap:anywhere}
+.scroll h2{font-size:20px;line-height:1.18;letter-spacing:-.03em}
+.scroll h3{font-size:15px;line-height:1.25}
+.scroll p,.hint{line-height:1.44;color:var(--muted);font-size:14px}
+.heading{display:grid;gap:10px}
+.section-label{color:var(--muted)}
+.hero{position:relative;isolation:isolate;border-radius:23px;padding:22px 18px;background:var(--hero);color:var(--hero-ink);display:grid;gap:12px;overflow:hidden}
+.hero .section-label,.hero p{color:var(--hero-muted)}
+.hero p{max-width:28ch}
+.hero:after{content:'';width:115px;position:absolute;inset:0 0 0 auto;background:repeating-linear-gradient(0deg,transparent 0 19px,var(--rule) 19px 20px);mask-image:linear-gradient(90deg,transparent 4%,#000 94%);pointer-events:none;z-index:-1}
+.amount{font-variant-numeric:tabular-nums;font-weight:750}
+.hero .amount{font-size:clamp(32px,11vw,48px);letter-spacing:-.07em;line-height:1}
+.hero .amount+small{font-size:13px;color:var(--hero-muted)}
+.hero .btn{background:var(--hero-ink);color:var(--hero);justify-self:start}
+.group,.card,.notice{border-radius:16px}
+.card,.group{border:1px solid var(--line);background:var(--paper)}
+.card{padding:15px;display:grid;gap:10px}
+.panel{padding:4px 0;display:grid;gap:10px}
+.notice{background:var(--surface);padding:12px 14px;border-left:3px solid var(--strong-line);display:grid;gap:4px}
+.notice.warn{background:var(--amber-bg);border-color:var(--amber)}
+.notice.bad{background:var(--error-bg);border-color:var(--error)}
+.notice b{font-size:13px}
+.notice.warn p,.notice.warn b{color:var(--amber)}
+.notice.bad p,.notice.bad b{color:var(--error)}
+.row{width:100%;color:var(--ink);border:0;background:transparent;min-height:64px;padding:11px 13px;display:flex;gap:12px;align-items:center;text-align:left;border-radius:14px}
+.row+.row{border-top:1px solid var(--line);border-radius:0}
+button.row:hover{background:var(--surface)}
+.row-label{display:grid;gap:4px;flex:1;min-width:0;overflow-wrap:anywhere}
+.row small,.footnote{font-size:12px;line-height:1.35;color:var(--muted)}
+.row b{font-size:14px}
+.key{width:34px;height:34px;display:grid;place-items:center;background:var(--tonal);color:var(--on-tonal);border-radius:10px;flex:none;font-size:17px;font-weight:700}
+.chev{color:var(--primary);font-size:22px;flex:none}
+.btn{border:1px solid transparent;border-radius:24px;padding:10px 16px;min-height:47px;background:var(--primary);color:var(--on-primary);font-weight:700;font-size:14px;text-align:center}
+.btn.secondary{color:var(--primary);background:var(--tonal)}
+.btn.outline{color:var(--primary);background:transparent;border-color:var(--strong-line)}
+.btn.danger{background:var(--error);color:var(--canvas)}
+.btn:disabled{opacity:.48}
+.button-stack,.fields{display:grid;gap:9px}
+.footer{padding:10px 16px 12px;background:var(--canvas);border-top:1px solid var(--line);display:grid;gap:8px}
+.bottom{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:7px 7px 10px}
+.bottom button,.rail button{border:0;color:var(--muted);background:transparent;padding:5px 2px;min-height:46px;font-size:12px;font-weight:700}
+.bottom button{display:grid;justify-items:center;gap:3px}
+.bottom .nav-icon{width:min(46px,100%);border-radius:16px;font-size:17px}
+.bottom button[aria-current=page]{color:var(--primary)}
+.bottom button[aria-current=page] .nav-icon{background:var(--tonal)}
+.rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;border-bottom:1px solid var(--line)}
+.rail button[aria-current=page]{color:var(--primary);box-shadow:inset 0 -3px var(--primary)}
+.tag{width:fit-content;background:var(--tonal);color:var(--on-tonal);font-size:11px;font-weight:700;padding:5px 8px;border-radius:7px;line-height:1.18}
+.tag.warn{background:var(--amber-bg);color:var(--amber)}
+.receipt{background:var(--paper);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.receipt .row{min-height:55px}
+.receipt .row:last-child{border-top:1px dashed var(--strong-line)}
+.receipt .amount{font-size:14px;white-space:nowrap}
+.receipt .row-label b{font-size:13px}
+.excerpt{margin:0;padding:12px;background:var(--surface);border-radius:9px;color:var(--ink);font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.fields label{font-weight:700;font-size:13px;display:grid;gap:6px}
+.fields input,.fields select,.fields textarea{min-width:0;width:100%;min-height:46px;background:var(--paper);color:var(--ink);border:1px solid var(--strong-line);border-radius:9px;padding:10px}
+.fields textarea{resize:vertical;min-height:123px;line-height:1.4}
+.fields .check{display:flex;align-items:center;min-height:44px;gap:9px}
+.fields input[type=checkbox]{width:20px;min-height:20px;margin:0}
+.paper-text{padding:16px;background:var(--paper);border:1px solid var(--line);border-radius:12px;display:grid;gap:10px}
+.paper-text p{color:var(--ink)}
+.steps{list-style:none;padding:0;margin-bottom:0;display:grid;gap:2px}
+.steps li{padding:10px 0;display:flex;gap:12px;align-items:center;font-size:14px}
+.steps li+li{border-top:1px solid var(--line)}
+.steps .key{width:28px;height:28px;font-size:13px}
+.option-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.waitline{height:4px;border-radius:9px;background:var(--tonal)}
+.waitline::before{content:'';display:block;width:48%;height:100%;border-radius:9px;background:var(--primary)}
+#announcer{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+@media(max-width:1050px){.studio{grid-template-columns:225px minmax(380px,1fr)}.notes{grid-column:1/-1;border-left:0;border-top:1px solid var(--desk-rule);padding-top:17px}}
+@media(max-width:680px){.studio{display:block}.index{padding:12px 14px;border-right:0;border-bottom:1px solid var(--desk-rule)}.index h1,.index>.studio-label,.index nav{display:none}.index label{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;font-size:13px;font-weight:bold}.index select{max-width:100%;min-height:38px;color:var(--desk);background:#f8faf3;border:1px solid #74877b;border-radius:8px;padding:4px}.stage{padding:8px 0 0;gap:7px}.stage-tools{width:100%;padding:0 14px}.phone{width:100%;height:max(510px,calc(100dvh - 113px));min-height:0;border-radius:0;border-left:0;border-right:0;box-shadow:none}.notes{padding:18px}.scroll h1{font-size:clamp(26px,8vw,34px)}}
+@media(min-width:681px){.index label{display:none}}
+@media(prefers-reduced-motion:no-preference){.btn,.row,.iconbtn{transition:opacity 110ms ease,background-color 110ms ease}}
+</style>
+</head>
+<body>
+<div class="studio">
+  <aside class="index">
+    <div class="studio-label">Mobile design prototype</div>
+    <h1>FairBill</h1>
+    <nav id="index" aria-label="Prototype screens"></nav>
+    <label>Prototype screen <select id="screen-select"></select></label>
+  </aside>
+  <section class="stage" aria-label="App preview">
+    <div class="stage-tools"><span>Interactive sample · No data sent</span><button type="button" id="theme" aria-pressed="false">Dark mode</button></div>
+    <div class="phone" id="phone"></div>
+    <div id="announcer" role="status"></div>
+  </section>
+  <aside class="notes" id="notes" aria-label="Design notes"></aside>
+</div>
+<script>
+'use strict';
+
+const groups = [
+  ['Start', ['home','capture','paste','reading','cases']],
+  ['Review', ['confirm','edit','queue','results','source','documents','timeline','revision']],
+  ['Get help', ['aid','aidResult','actions','letter','call','packet']],
+  ['Access', ['login','code','account','delete','connection']],
+];
+
+const names = {
+  home:'Check a bill', capture:'Import a document', paste:'Paste bill text', reading:'Reading and recovery', cases:'Your cases',
+  confirm:'Confirm extracted lines', edit:'Correct a line', queue:'Review checklist', results:'Bill findings', source:'Source evidence',
+  documents:'Case documents', timeline:'Case timeline', revision:'Previous revision', aid:'Financial assistance', aidResult:'Policy findings',
+  actions:'Case actions', letter:'Clarification letter', call:'Three-way call', packet:'Redacted packet', login:'Email sign-in',
+  code:'Verification code', account:'Account settings', delete:'Delete account', connection:'Connection settings',
+};
+
+const guide = {
+  home:['A clear place to start','One primary action starts the review. The recent case and sample remain one tap away.', 'The opening screen keeps the same visual identity as the findings, with a clear action in place of the amount.'],
+  capture:['Choose the right evidence','The document type sits above camera, photo and file choices. The device handles the actual picker.', 'End the chooser when a document is selected.'],
+  paste:['Give text room','A labelled, multiline field preserves punctuation and line breaks. The sample fills the field so the path is testable.'],
+  reading:['Wait with context','Keep the selected document in view. On failure, retain it and offer retry or another method.','The studio exposes both states.'],
+  cases:['Find work in progress','Each row shows what is left to do. Use the case title and state as the accessible name and description.'],
+  confirm:['Verify at the line','Keep the amount, units, edit action and source location together. Expand the extracted line inside its row.'],
+  edit:['Make one correction','Preserve the source position while the user edits parsed values. Save the row before confirming the document.'],
+  queue:['Show the next step','A three-step checklist makes unfinished work visible. An updated document requires the checks to run again.'],
+  results:['Put the amount in context','The conditional amount leads. The invoice, possible adjustment and insurer deduction each open independently.', 'Adding the second lab order updates the example from ₹1,55,400 to ₹1,56,300.'],
+  source:['Prove the number','Show which pages support or contradict a finding. Include the document name, page, line and exact extracted text.'],
+  documents:['Use document names','List the kind and review state. Bringing another record into the case returns to confirmation.'],
+  timeline:['Make changes traceable','Put the newest revision first. Separate revisions from activity so users can find an earlier decision.'],
+  revision:['Preserve the earlier answer','An earlier revision has its own amount and explanation. Its state stays visible while users compare it with current findings.'],
+  aid:['Explain the inputs','Income and household size sit together. The prototype identifies the policy as fictional before screening.'],
+  aidResult:['Make the policy inspectable','Show the policy clause directly on the result. Keep its applicability qualification beside the finding.'],
+  actions:['Separate three decisions','A letter request, a call plan and a shareable packet each have their own status and destination.'],
+  letter:['Approve exactly what is written','Editing and approving are distinct states. Editing after approval clears approval on the prototype.'],
+  call:['The patient verifies identity','The patient stays on the line. The advocate continues only after patient verification, or ends the call if verification fails.'],
+  packet:['Preview before sharing','Show what redaction removes and what is retained. Preview the packet before offering the native share action.'],
+  login:['One sign-in task at a time','Ask for an email, then navigate to a dedicated verification screen. The design uses a fictional address.'],
+  code:['Make retries recoverable','Use one code field so paste, autofill and screen readers work with the same control.'],
+  account:['Put account actions together','Keep sign-out separate from removal. The delete flow has a dedicated review step.'],
+  delete:['Make deletion deliberate','Explain the consequence before asking for the confirmation word. The prototype changes only local preview state.'],
+  connection:['Give failed connections a route back','Retain the entered address after a failed connection. Return to the bill after a successful test.'],
+};
+
+const sampleLine = 'CHARGE | L44 | Complete blood count | CBC | 2026-11-10 | 1 | 900 | 900';
+const letterText = 'Dear billing team,\n\nPlease review the ₹500 quantity discrepancy on the itemised invoice and explain the separate ₹12,000 insurance deduction.\n\nPlease send a written response with the supporting records.\n\nThank you.';
+const state = { page:'home', back:[], started:false, investigated:false, confirmed:false, revised:false, sourceOpen:false, sourceFrom:'results', sourceKey:'adjustment', kind:'Itemised invoice', paste:'', name:'Complete blood count', units:'1', received:true, error:false, approved:false, sent:false, editing:false, letter:letterText, call:0, email:'', signedIn:false, deleteWord:'', status:'' };
+const phone = document.getElementById('phone');
+const index = document.getElementById('index');
+const selector = document.getElementById('screen-select');
+const theme = document.getElementById('theme');
+const safe = (value) => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
+const amount = () => state.revised ? '₹1,56,300' : '₹1,55,400';
+const glyphs = {"▤": 59507, "▣": 58386, "▧": 58356, "≡": 59602, "✓": 58826, "?": 59645, "×": 58829, "…": 58835, "✉": 57569, "☎": 57520, "↗": 59064, "→": 59834, "⚙": 59576, "♡": 59518, "‹": 58820, "›": 58828, "⌄": 58831, "⌃": 58830};
+const symbol = (text) => glyphs[text] ? '<span class="symbol" aria-hidden="true">&#'+glyphs[text]+';</span>' : text;
+const icon = (text) => '<span class="key" aria-hidden="true">'+symbol(text)+'</span>';
+const tag = (text, warn=false) => '<span class="tag'+(warn?' warn':'')+'">'+text+'</span>';
+const heading = (label,title,description='') => '<div class="heading">'+(label?'<span class="section-label">'+label+'</span>':'')+'<h1 tabindex="-1">'+title+'</h1>'+(description?'<p>'+description+'</p>':'')+'</div>';
+const btn = (text,action,tone='',disabled=false) => '<button type="button" class="btn '+tone+'" data-action="'+action+'"'+(disabled?' disabled':'')+'>'+text+'</button>';
+const row = (glyph,title,detail,action,tail='') => {
+  const label = '<span class="row-label"><b>'+title+'</b>'+(detail?'<small>'+detail+'</small>':'')+'</span>';
+  return action ? '<button type="button" class="row" data-action="'+action+'">'+(glyph?icon(glyph):'')+label+tail+'<span class="chev" aria-hidden="true">'+symbol('›')+'</span></button>' :
+    '<div class="row">'+(glyph?icon(glyph):'')+label+tail+'</div>';
+};
+const notice = (title,text,tone='') => '<div class="notice '+tone+'"'+(tone==='bad'?' role="alert"':'')+'><b>'+title+'</b><p>'+text+'</p></div>';
+const group = (...items) => '<div class="group">'+items.join('')+'</div>';
+const card = (...items) => '<section class="card">'+items.join('')+'</section>';
+const excerpt = (text) => '<pre class="excerpt">'+safe(text)+'</pre>';
+const labelInput = (label,key,value='',opts='') => '<label>'+label+'<input data-field="'+key+'" value="'+safe(value)+'" '+opts+'></label>';
+const footer = (...items) => '<div class="footer">'+items.join('')+'</div>';
+const railPages = ['results','documents','timeline','actions'];
+const rail = () => '<nav class="rail" aria-label="Case sections">'+['Review','Documents','Timeline','Actions'].map((x,i)=>'<button type="button" data-action="'+railPages[i]+'"'+(state.page===railPages[i]?' aria-current="page"':'')+'>'+x+'</button>').join('')+'</nav>';
+const tabs = () => '<nav class="footer bottom" aria-label="Main view">'+[['▣','Check','home'],['≡','Proof','results'],['♡','Aid','aid'],['↗','Act','actions']].map(([glyph,label,id])=>'<button type="button" data-action="'+id+'"'+(state.page===id?' aria-current="page"':'')+'><span class="nav-icon" aria-hidden="true">'+symbol(glyph)+'</span>'+label+'</button>').join('')+'</nav>';
+const moneyRow = (title,detail,value,action='') => row('',title,detail,action,'<span class="amount">'+value+'</span>');
+const quoteRow = () => '<button type="button" class="row" aria-expanded="'+state.sourceOpen+'" data-action="toggle-source">'+icon('≡')+'<span class="row-label"><b>Page 2, line 3</b><small>'+(state.sourceOpen?'Hide extracted text':'Show extracted text')+'</small></span><span class="chev" aria-hidden="true">'+symbol(state.sourceOpen?'⌃':'⌄')+'</span></button>'+(state.sourceOpen?excerpt(sampleLine):'');
+const support = {
+  invoice:['Original invoice','Itemised invoice · page 1, line 8','TOTAL BILLED | INR 156800','The provider’s invoice lists the amount originally billed.'],
+  adjustment:['Conditional adjustment','Itemised invoice · page 2, line 5','CHARGE | IV medicine | quantity 2 | INR 1000','The medication record supports one unit. Ask billing to reconcile the difference.'],
+  insurer:['Separate insurer deduction','Insurance settlement · page 1, line 4','DEDUCTION | INR 12000 | policy clause not listed','Ask the insurer which policy clause applies to this deduction.'],
+  duplicate:['Blood count charge','Itemised invoice · page 2, line 3',sampleLine,'Two charges appear on the bill. Compare the related service records.'],
+  policy:['Financial assistance clause','Fictional hospital policy · page 1, line 4','Income at or below the sample threshold may be considered for assistance.','Ask the hospital which policy applies to your case.'],
+  previous:['Earlier blood count finding','First lab order · page 1, line 2','ORDER | O1 | Complete blood count | CBC | LAB-01','Only one service order was available in this revision.'],
+};
+
+const screens = {
+  home: () => [
+    '<section class="hero">'+heading('','Check a hospital bill','See what was charged and which records support your questions.')+btn('Add a bill','capture')+'</section>'+
+    '<div class="panel"><h2>Your case</h2>'+group(row('▤','Sample investigation',state.started ? (state.investigated?'Findings ready · '+amount():state.confirmed?'Ready to run checks':'Document lines need review'):'Follow an example from invoice to evidence',state.started?(state.investigated?'results':state.confirmed?'queue':'confirm'):'sample'))+'</div>'+
+    group(row('≡','Your cases','Open saved work','cases'))+
+    notice('Sample workspace','Use fictional documents while exploring this prototype.'),tabs()
+  ],
+  capture: () => [
+    heading('Add evidence','What are you adding?','Choose a document type to help FairBill read the right details.')+
+    '<div class="fields"><label>Document type<select data-field="kind">'+['Itemised invoice','Insurance settlement','Service record','Price reference','Assistance policy'].map(kind=>'<option'+(kind===state.kind?' selected':'')+'>'+kind+'</option>').join('')+'</select></label></div>'+
+    group(row('▣','Take a photo','Capture the whole page in good light.','read'),row('▧','Choose a photo','Select an image from your device.','read'),row('▤','Choose a PDF','Import a document from your files.','read'),row('≡','Paste text','Use text from an itemised document.','paste'))+
+    notice('Prototype','The import choices use a sample document.'),
+  ],
+  paste: () => [
+    heading('Add evidence','Paste document text','Keep the line breaks and include the charges and total.')+
+    '<div class="fields"><label>Document text<textarea data-field="paste" rows="7" placeholder="Paste itemised charges here">'+safe(state.paste)+'</textarea></label></div>'+
+    btn('Fill with sample text','fill-paste','outline'),
+    footer(btn('Review pasted text','read','',!state.paste.trim()))
+  ],
+  reading: () => [
+    heading('Document import',state.error?'We couldn’t read this document':'Reading your document',state.error?'You can try again or use a clearer photo or PDF.':'You’ll get a chance to check each extracted line.')+
+    card('<h2>'+safe(state.kind)+'</h2>',state.error?notice('Import interrupted','The sample document is still selected.','bad'):'<div class="waitline" role="progressbar" aria-label="Reading sample document"></div>')+
+    (state.error?btn('Choose another method','capture','outline'):btn('Preview import error','read-error','outline')),
+    footer(btn(state.error?'Retry import':'Open extracted lines','finish-read'))
+  ],
+  cases: () => [
+    heading('','Your cases','Pick up where you left off.')+
+    (state.started?group(row('▤','Sample investigation',state.investigated?'Findings ready · '+amount():state.confirmed?'Ready to run checks':'Document lines need review',state.investigated?'results':state.confirmed?'queue':'confirm')):notice('No saved cases','Add a bill or open the sample to start.')),
+    footer(btn(state.started?'Check another bill':'Open sample case',state.started?'capture':'sample'))
+  ],
+  confirm: () => [
+    heading('Document review','Confirm the extracted lines','Compare the values with the document before running checks.')+
+    notice(state.confirmed?'Confirmed':'Needs confirmation','Sample invoice · 1 extracted charge shown')+
+    card('<div class="section-label">Charge · CBC</div>','<h2>'+safe(state.name)+'</h2>','<p>'+safe(state.units)+' '+(state.units==='1'?'unit':'units')+' · <b class="amount">₹900</b>'+(state.received?'':' · Marked as not received')+'</p>',
+      btn('Edit charge','edit','outline'),quoteRow())+
+    btn('Review all documents','documents','outline'),
+    footer(btn('Confirm document lines','confirm-save'))
+  ],
+  edit: () => [
+    heading('Page 2, line 3','Correct the charge','The source location stays linked to this charge.')+
+    '<div class="fields">'+labelInput('Charge description','editName',state.name,'required')+labelInput('Quantity','editUnits',state.units,'type="number" min="1" inputmode="numeric" required')+
+    '<label class="check"><input type="checkbox" data-field="notReceived"'+(!state.received?' checked':'')+'>I did not receive this service</label></div>'+
+    card('<h2>Original extracted line</h2>',excerpt(sampleLine)),
+    footer(btn('Save correction','save-edit'))
+  ],
+  queue: () => [
+    heading('','Review checklist','FairBill checks the lines you confirm.')+
+    '<ol class="steps"><li>'+icon('✓')+'<span><b>Bill added</b><br><small class="footnote">Itemised invoice</small></span></li><li>'+icon(state.confirmed?'✓':'2')+'<span><b>Confirm document lines</b><br><small class="footnote">'+(state.confirmed?'Complete':'Needs your review')+'</small></span></li><li>'+icon('3')+'<span><b>Run bill checks</b><br><small class="footnote">Compare the bill and supporting records</small></span></li></ol>'+
+    (state.status?notice('Case updated',safe(state.status)):''),
+    footer(btn(state.confirmed?'Run bill checks':'Review document',state.confirmed?'check':'confirm'))
+  ],
+  results: () => [
+    rail()+heading('','Bill findings')+
+    '<section class="hero"><div class="section-label">Conditional invoice</div><div class="amount">'+amount()+'</div><small>'+ (state.revised?'Previously ₹1,55,400':'If the billing adjustments are supported')+'</small></section>'+
+    '<section class="receipt" aria-label="Invoice calculation">'+moneyRow('Original invoice','Itemised invoice','₹1,56,800','source-invoice')+
+    moneyRow('Conditional adjustments',state.revised?'One billing question':'Two billing questions',state.revised?'−₹500':'−₹1,400','source-adjustment')+
+    moneyRow('Separate insurer deduction','Outside the invoice calculation','₹12,000','source-insurer')+'</section>'+
+    '<div class="panel"><h2>Billing questions</h2>'+group(row(state.revised?'✓':'?','Repeated blood count charge',state.revised?'Withdrawn · Two orders account for the charges':'Review · Compare both charges with the service record','source-duplicate'),row('≡','Quantity needs clarification','Ask billing to reconcile the documented quantity','source-adjustment'))+'</div>'+
+    (!state.revised?btn('Add the sample’s second lab order','revise','outline'):''),
+    tabs()
+  ],
+  source: () => {
+    const [title,where,quote,explanation] = support[state.sourceKey];
+    const detail = state.sourceKey==='duplicate' && state.revised?'Both service orders support the repeated charges. FairBill withdrew the question.':explanation;
+    return [heading('Linked evidence',title,detail)+
+      card(tag(state.sourceKey==='duplicate'&&state.revised?'Comparison record':'Primary record'),'<h2>'+where+'</h2>',excerpt(quote))+
+      (state.sourceKey==='duplicate'?card(tag(state.revised?'Supports withdrawal':'Compare with invoice'),'<h2>'+(state.revised?'Second lab order':'First lab order')+' · page 1, line 2</h2>',excerpt(state.revised?'ORDER | O2 | Complete blood count order | CBC | LAB-02':'ORDER | O1 | Complete blood count order | CBC | LAB-01')):''),
+      footer(btn('Back to '+(names[state.sourceFrom]||'findings').toLowerCase(),'back','outline'))];
+  },
+  documents: () => [
+    rail()+heading('','Case documents','Open a record to inspect the lines FairBill used.')+
+    group(row('▤','Itemised invoice','Confirmed · 2 pages','confirm'),
+      row('▤','Insurance settlement','Confirmed · 1 page','source-insurer'),
+      row('▤','First lab order','Confirmed · 1 page','source-previous'),
+      ...(state.revised?[row('▤','Second lab order','Confirmed · 1 page','source-duplicate')]:[])),
+    footer(btn('Add supporting evidence','capture'))
+  ],
+  timeline: () => [
+    rail()+heading('','Case timeline','See how the findings changed when evidence arrived.')+
+    '<div class="panel"><h2>Revisions</h2>'+group(
+      ...(state.revised?[row('✓','Revision 5','Current · Second lab order added','results')]:[]),
+      row('≡','Revision 4',(state.revised?'Previous':'Current')+' · Conditional invoice ₹1,55,400','revision'))+'</div>'+
+    '<div class="panel"><h2>Activity</h2>'+group(row('✓',state.revised?'Bill checks rerun':'Bill checks completed',state.revised?'Duplicate finding withdrawn':'Two billing questions recorded'),row('▤','Document lines confirmed','Itemised invoice'))+'</div>',
+    tabs()
+  ],
+  revision: () => [
+    heading('','Revision 4','This is the evidence available at the time of the review.')+
+    card(tag(state.revised?'Previous revision':'Current revision'),'<h2>Conditional invoice <span class="amount">₹1,55,400</span></h2>','<p>The second lab order was unavailable during this review.</p>')+
+    group(row('?','Possible repeated charge','One order was linked to the two charges.','source-previous')),
+    footer(btn('Back to timeline','timeline','outline'))
+  ],
+  aid: () => [
+    heading('','Help with paying','Check what a hospital’s assistance policy asks for.')+
+    notice('Fictional policy','The example uses a fictional household and policy.','warn')+
+    '<div class="fields">'+labelInput('Annual household income in rupees','income',state.income||'','inputmode="numeric" placeholder="250000"')+labelInput('Household size','household',state.household||'','type="number" min="1" max="30" inputmode="numeric"')+'</div>'+
+    (state.error?notice('Check household details','Enter a numeric income and a household size from 1 to 30.','bad'):'')+
+    btn('Use sample household','fill-aid','outline'),
+    footer(btn('Check sample policy','aid-check'))
+  ],
+  aidResult: () => [
+    heading('Help with paying','Policy findings','Sample household of '+safe(state.household||'3')+' · Fictional hospital policy')+
+    card(tag('Review applicability',true),'<h2>Assistance may be available</h2>','<p>Ask billing which income rules apply and what documents are needed to apply.</p>',
+      btn('Read the policy clause','source-policy','outline')),
+    footer(btn('Back to assistance','aid','outline'))
+  ],
+  actions: () => [
+    rail()+heading('','Act on your findings','Review the wording or preview the records you want to share.')+
+    group(row('✉','Clarification letter',state.sent?'Simulated send complete':state.approved?'Exact wording approved':'Review and approve a written request','letter'),
+      row('☎','Three-way call',state.call===3?'Simulated call complete':state.call===4?'Ended before verification':state.call===1?'Waiting for patient verification':state.call===2?'Patient identity verified':'Review what the advocate will ask','call'),
+      row('↗','Redacted evidence packet','Preview what the PDF contains','packet'))+
+    notice('Simulated outreach','The prototype sends no messages and makes no calls.'),tabs()
+  ],
+  letter: () => [
+    heading('Simulated outreach','Clarification letter',state.editing?'Review your changes before saving.':'Approve the exact wording before simulating a send.')+
+    (state.editing?'<div class="fields"><label>Exact letter text<textarea data-field="editLetter" rows="8">'+safe(state.letter)+'</textarea></label></div>':
+      '<article class="paper-text">'+state.letter.split(/\n\n+/).map(p=>'<p>'+safe(p)+'</p>').join('')+'</article>')+
+    (state.sent?notice('Simulation complete','The sample letter has a simulated send receipt.'):state.approved?notice('Approved','This exact wording is approved.'):'' )+
+    (!state.editing&&!state.sent?btn('Edit letter','edit-letter','outline'):''),
+    footer(state.editing?btn('Save letter edits','save-letter'):state.sent?btn('Back to actions','actions','outline'):btn(state.approved?'Simulate sending letter':'Approve exact wording', state.approved?'send-letter':'approve'))
+  ],
+  call: () => [
+    heading('Simulated outreach','Three-way call',state.call===0?'You stay on the line and verify your own identity.':'Review the sample call progress.')+
+    (state.call===0?card('<h2>What the advocate will ask for</h2>','<p>A hold on the account, an itemised bill, supporting records and a reference number.</p>'):
+      group(row('✓','Call joined','Patient, billing and advocate'),
+      row(state.call===1?'…':state.call===4?'×':'✓','Identity verification',state.call===1?'Only the patient speaks to billing here.':state.call===4?'Verification failed. The advocate ended the call.':'The patient verified their own identity.'),
+      ...(state.call===3?[row('✓','Advocate request','Requested the itemised bill and supporting records.')]:[])))+
+    (state.call===1?notice('Waiting for your confirmation','The advocate stays silent until you confirm verification.'):''),
+    state.call===1?footer(btn('I verified my identity','call-verify'),btn('I couldn’t verify','call-fail','outline')):footer(
+      state.call===0?btn('Start simulated call','call-start'):state.call===2?btn('Continue the simulated call','call-complete'):btn('Back to actions','actions','outline'))
+  ],
+  packet: () => [
+    heading('Share evidence','Redacted packet','Review what will be included before sharing.')+
+    notice('Redactions applied','Uploaded text and patient-entered excerpts are excluded. Source locations, findings and amounts are included.')+
+    '<article class="paper-text"><h2>FairBill evidence packet</h2><p>Sample investigation · Revision '+(state.revised?'5':'4')+'</p><p>Original invoice <b class="amount">₹1,56,800</b></p><p>Conditional invoice <b class="amount">'+amount()+'</b></p><p>Separate insurer deduction <b class="amount">₹12,000</b></p><p>Source reference · Itemised invoice, page 2, line 5</p></article>'+
+    (state.status?notice('Share preview',safe(state.status)):''),
+    footer(btn('Preview share step','share'))
+  ],
+  login: () => [
+    heading('Private workspace','Sign in to FairBill','Enter an email address to see how signing in works.')+
+    '<div class="fields">'+labelInput('Email address','email',state.email,'type="email" autocomplete="email" placeholder="you@example.com"')+'</div>'+
+    (state.error?notice('Check your email address','Enter a complete email address, or use the sample address.','bad'):'')+
+    btn('Use sample email','fill-email','outline'),
+    footer(btn('Preview email verification','send-code'))
+  ],
+  code: () => [
+    heading('Sign in','Enter your code','This prototype shows where a six-digit code for '+safe(state.email||'patient@example.com')+' would go.')+
+    '<div class="fields">'+labelInput('Six-digit code','code',state.code||'','inputmode="numeric" maxlength="6" autocomplete="one-time-code"')+'</div>'+
+    (state.error?notice('Code needs attention','Enter the sample verification code.','bad'):'')+
+    btn('Fill in sample code','fill-code','outline')+btn('Use a different email','login','outline'),
+    footer(btn('Verify sample code','verify-code'))
+  ],
+  account: () => [
+    heading('','Your account','Manage access to your FairBill workspace.')+
+    card('<h2>'+safe(state.signedIn?state.email:'Sample workspace')+'</h2>',tag(state.signedIn?'Signed in for this preview':'Prototype access'))+
+    group(row('→',state.signedIn?'Sign out':'Preview email sign-in',state.signedIn?'Return to the sign-in screen':'See the email and code screens',state.signedIn?'signout':'login'),
+      row('⚙','Connection settings','Local demo or test access','connection'),row('×','Delete account','Review account and case removal','delete'))
+  ],
+  delete: () => [
+    heading('Account settings','Delete your account','In the app, deleting an account removes access to its saved cases.')+
+    notice('Permanent action in the app','This preview clears only the sample data in this session.','warn')+
+    '<div class="fields">'+labelInput('Type DELETE to confirm','deleteWord',state.deleteWord,'autocomplete="off"')+'</div>'+
+    (state.error?notice('Confirmation missing','Enter DELETE to preview this action.','bad'):''),
+    footer(btn('Preview account deletion','delete-confirm','danger'),btn('Cancel','account','outline'))
+  ],
+  connection: () => [
+    heading('Test settings','Connect to FairBill','Use a local server address when testing on a device.')+
+    '<div class="fields">'+labelInput('Demo server address','address',state.address||'','type="url" placeholder="http://127.0.0.1:8765"')+'</div>'+
+    (state.error?notice('Can’t reach this address','Check the address or use the sample connection below.','bad'):state.status?notice('Connection preview',safe(state.status)):'')+
+    btn('Use sample connection','fill-address','outline'),
+    footer(btn('Test sample connection','test-address'))
+  ],
+};
+
+function render({ focus = '', preserveScroll = false } = {}) {
+  const before = phone.querySelector('.scroll')?.scrollTop || 0;
+  const [content, bottom=''] = screens[state.page]();
+  const casePage = ['queue','results','documents','timeline','revision','actions'].includes(state.page);
+  const barTitle = casePage ? 'Sample investigation' : names[state.page];
+  const bar = state.page==='home'
+    ? '<span class="mark" aria-hidden="true">'+symbol('✓')+'</span><span class="name">FairBill</span><button type="button" class="iconbtn avatar" aria-label="Your account" data-action="account">FB</button>'
+    : '<button type="button" class="iconbtn" aria-label="Go back" data-action="back">'+symbol('‹')+'</button><span class="name">'+barTitle+'</span>';
+  phone.innerHTML = '<header class="appbar">'+bar+'</header><main class="scroll" aria-label="'+names[state.page]+'">'+content+'</main>'+bottom;
+  for (const node of index.querySelectorAll('button')) {
+    if (node.dataset.jump===state.page) node.setAttribute('aria-current','page');
+    else node.removeAttribute('aria-current');
+  }
+  selector.value = state.page;
+  const [title, ...principles] = guide[state.page];
+  document.getElementById('notes').innerHTML = '<div class="sequence">Design notes</div><h2>'+title+'</h2><ul>'+
+    principles.map(line=>'<li>'+line+'</li>').join('')+'</ul><hr><p>Use the screen index to inspect individual states, or start at Check a bill and follow the sample case.</p>';
+  document.title = names[state.page]+' · FairBill prototype';
+  if (preserveScroll) phone.querySelector('.scroll').scrollTop = before;
+  if (focus) (phone.querySelector(focus)||phone.querySelector('main h1'))?.focus({preventScroll:true});
+}
+
+function go(page, from = state.page) {
+  if (page!==state.page) state.back.push(from);
+  state.page=page;
+  state.error=false;
+  state.status='';
+  state.editing=false;
+  render({focus:'main h1'});
+}
+
+function returnToPrevious() {
+  state.page=state.back.pop()||'home';
+  state.error=false;
+  state.status='';
+  state.editing=false;
+  render({focus:'main h1'});
+}
+
+function redraw(focus) {
+  render({focus,preserveScroll:true});
+}
+
+function showCase() {
+  state.started=true;
+  state.confirmed=true;
+  state.investigated=true;
+  state.sourceOpen=false;
+  go('results');
+}
+
+function requestCase(page) {
+  if (state.page==='home'&&!state.started&&page==='results') return showCase();
+  if (state.page==='home'&&!state.started&&['aid','actions'].includes(page)) return go('cases');
+  if (state.page==='home'&&state.started&&!state.investigated&&['results','aid','actions'].includes(page)) return go('queue');
+  go(page);
+}
+
+function receiptMessage(message, action) {
+  state.status=message;
+  redraw('[data-action="'+action+'"]');
+  document.getElementById('announcer').textContent=message;
+}
+
+function showError(field) {
+  state.error=true;
+  redraw('[data-field="'+field+'"]');
+  phone.querySelector('[data-field="'+field+'"]')?.setAttribute('aria-invalid','true');
+}
+
+const actions = {
+  back: returnToPrevious,
+  sample: showCase,
+  read: () => go('reading'),
+  'read-error': () => {state.error=true;redraw('main h1');},
+  'finish-read': () => {
+    if (state.error) {state.error=false;redraw('main h1');return;}
+    state.started=true;
+    state.confirmed=false;
+    state.investigated=false;
+    state.sourceOpen=false;
+    go('confirm');
+  },
+  'fill-paste': () => {state.paste=sampleLine+'\nTOTAL BILLED | INR 156800';redraw('[data-field="paste"]');},
+  'toggle-source': () => {state.sourceOpen=!state.sourceOpen;redraw('[data-action="toggle-source"]');},
+  'save-edit': () => {
+    const name=phone.querySelector('[data-field="editName"]');
+    const units=phone.querySelector('[data-field="editUnits"]');
+    if (!name.value.trim()) {name.setCustomValidity('Enter a charge description.');name.reportValidity();return;}
+    if (!units.reportValidity()) return;
+    state.name=name.value.trim();
+    state.units=units.value;
+    state.received=!phone.querySelector('[data-field="notReceived"]').checked;
+    state.confirmed=false;
+    state.investigated=false;
+    state.approved=false;
+    state.sent=false;
+    returnToPrevious();
+  },
+  'confirm-save': () => {state.started=true;state.confirmed=true;go('queue');},
+  check: () => {state.investigated=true;go('results');},
+  revise: () => {
+    state.revised=true;
+    state.approved=false;
+    state.sent=false;
+    state.call=0;
+    state.investigated=false;
+    go('queue');
+    state.status='The second lab order was added. Run the checks again.';
+    redraw('main h1');
+  },
+  'fill-aid': () => {state.income='250000';state.household='3';state.error=false;redraw('[data-field="income"]');},
+  'aid-check': () => {
+    if (!/^\d+$/.test((state.income||'').trim())) return showError('income');
+    if (!/^(?:[1-9]|[12][0-9]|30)$/.test(state.household||'')) return showError('household');
+    go('aidResult');
+  },
+  'edit-letter': () => {state.editing=true;redraw('[data-field="editLetter"]');},
+  'save-letter': () => {
+    const field=phone.querySelector('[data-field="editLetter"]');
+    const wording=field.value.trim();
+    if (!wording) {field.setCustomValidity('Enter the wording to save.');field.reportValidity();return;}
+    if (wording!==state.letter) {state.letter=wording;state.approved=false;}
+    state.editing=false;
+    redraw('main h1');
+  },
+  approve: () => {state.approved=true;redraw('[data-action="send-letter"]');},
+  'send-letter': () => {state.sent=true;redraw('main h1');},
+  'call-start': () => {state.call=1;redraw('main h1');},
+  'call-verify': () => {state.call=2;redraw('[data-action="call-complete"]');},
+  'call-fail': () => {state.call=4;redraw('main h1');},
+  'call-complete': () => {state.call=3;redraw('main h1');},
+  share: () => receiptMessage('In the mobile app, this opens the device’s share menu. This prototype shares no files.','share'),
+  'fill-email': () => {state.email='patient@example.com';state.error=false;redraw('[data-field="email"]');},
+  'send-code': () => {
+    const input=phone.querySelector('[data-field="email"]');
+    if (!state.email.trim()||!input.validity.valid) return showError('email');
+    state.code='';
+    go('code');
+  },
+  'fill-code': () => {state.code='236481';state.error=false;redraw('[data-field="code"]');},
+  'verify-code': () => {if (state.code!=='236481') return showError('code');state.signedIn=true;go('account');},
+  signout: () => {state.signedIn=false;go('login');},
+  'delete-confirm': () => {
+    if (state.deleteWord!=='DELETE') return showError('deleteWord');
+    Object.assign(state,{started:false,confirmed:false,investigated:false,revised:false,signedIn:false,approved:false,
+      sent:false,call:0,email:'',code:'',deleteWord:'',letter:letterText,paste:'',name:'Complete blood count',units:'1',received:true});
+    go('home');
+    document.getElementById('announcer').textContent='Sample session cleared.';
+  },
+  'fill-address': () => {state.address='http://127.0.0.1:8765';state.error=false;redraw('[data-field="address"]');},
+  'test-address': () => {
+    if (state.address!=='http://127.0.0.1:8765') return showError('address');
+    state.error=false;
+    receiptMessage('The sample address is valid. This prototype makes no network request.','test-address');
+  },
+};
+
+function selectScreen(page) {
+  if ((groups[1][1].includes(page)||groups[2][1].includes(page))&&!state.started) {
+    state.started=true;
+    state.confirmed=page!=='confirm'&&page!=='edit';
+    state.investigated=state.confirmed;
+  }
+  if (page==='source') {state.sourceKey='adjustment';state.sourceFrom='results';}
+  go(page);
+}
+for (const [label,pages] of groups) {
+  const section=document.createElement('section');
+  section.innerHTML='<h2>'+label+'</h2>'+pages.map(page=>'<button type="button" class="jump" data-jump="'+page+'">'+names[page]+'</button>').join('');
+  index.append(section);
+  const options=document.createElement('optgroup');
+  options.label=label;
+  for (const page of pages) options.append(new Option(names[page],page));
+  selector.append(options);
+}
+index.addEventListener('click',event=>{const button=event.target.closest('[data-jump]');if(button)selectScreen(button.dataset.jump);});
+selector.addEventListener('change',()=>selectScreen(selector.value));
+theme.addEventListener('click',()=>{
+  const dark=phone.classList.toggle('dark');
+  theme.setAttribute('aria-pressed',String(dark));
+  theme.textContent=dark?'Light mode':'Dark mode';
+});
+phone.addEventListener('click',event=>{
+  const button=event.target.closest('[data-action]');
+  if (!button) return;
+  const action=button.dataset.action;
+  if (action.startsWith('source-')) {
+    state.sourceKey=action.slice(7);
+    state.sourceFrom=state.page;
+    go('source');
+    return;
+  }
+  if (actions[action]) actions[action]();
+  else if (screens[action]) requestCase(action);
+});
+phone.addEventListener('input',event=>{
+  const field=event.target;
+  if (!field.dataset.field) return;
+  if (typeof field.setCustomValidity==='function') field.setCustomValidity('');
+  const name=field.dataset.field;
+  if (!['editName','editUnits','notReceived','editLetter'].includes(name)) state[name]=field.value;
+  if (name==='paste') phone.querySelector('[data-action="read"]').disabled=!state.paste.trim();
+});
+render();
+</script>
+<!--
+Material Icons font subset
+Copyright Google LLC
+The original font was reduced to the glyphs used by this prototype.
+
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+-->
+</body>
+</html>

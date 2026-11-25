@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { AppIcon } from './icons';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { hostedBuild, parseRupees, request, type AssistanceResult } from './api';
@@ -37,7 +37,7 @@ export function Assistance({ caseId, revision, onClose }: { caseId: string; revi
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <Card tone="tonal">
           <View style={ui.row}>
-            <Feather name="heart" size={22} color={color.forest} />
+            <AppIcon name="heart" size={22} color={color.primary} />
             <SectionHeader>Assistance screening</SectionHeader>
           </View>
           <Badge tone="amber">Fictional policy</Badge>

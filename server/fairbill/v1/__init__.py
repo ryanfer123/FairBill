@@ -1,4 +1,4 @@
-"""Versioned HTTP contract for the FairBill synthetic case workflow."""
+"""Versioned HTTP contract for the FairBill case workflow."""
 
 import hashlib
 import hmac
@@ -22,12 +22,13 @@ from .. import documents, resolution
 from ..assistance import screen_assistance
 from ..documents import MAX_BYTES, ROW_TYPES, Kind
 from ..investigation import event, now
+from ..india_pilot import PilotInput, PilotReview, review_case
 from ..rules import run_rules
 from ..sample import fixtures
 from . import models as m
-from . import store
+from . import cloud, store
 from .middleware import RequestContext, error, profile, route_error
-from .operations import add_draft_version, document, edit_draft, for_local, invalidate, make_case, simulated
+from .operations import add_draft_version, document, edit_draft, for_local, invalidate, is_live_case, make_case, simulated
 
 app = FastAPI(
     title="FairBill API", version="1.0.0", docs_url=None, redoc_url=None,
@@ -66,10 +67,17 @@ async def storage_error(_request, _exc):
     return route_error(503, "The case store is unavailable. Try again.")
 
 
+Bearer = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
+
+
 def request_owner(
-    authorization: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    authorization: Bearer,
     invite: Annotated[str | None, Header(alias="X-FairBill-Invite", max_length=128)] = None,
 ) -> str:
+    if profile() == "hosted":
+        if authorization is None:
+            raise cloud.unauthorized()
+        return cloud.authenticate(authorization.credentials)
     if authorization is None or not re.fullmatch(r"[a-f0-9]{64}", authorization.credentials):
         raise HTTPException(401, "The demo installation token is missing or invalid.", {"WWW-Authenticate": "Bearer"})
     token = authorization.credentials
@@ -101,7 +109,7 @@ def mutate(owner, case_id, key, reason, data, apply, *, persist=None):
 @app.get("/health", response_model=m.Health, responses={503: {"model": m.Health}})
 def health():
     current = profile()
-    configured = current == "local" or bool(os.getenv("FAIRBILL_INVITE_CODE"))
+    configured = current != "fixtures" or bool(os.getenv("FAIRBILL_INVITE_CODE"))
     try:
         store.health()
         db = "ok"
@@ -111,11 +119,19 @@ def health():
         "status": "ok" if db == "ok" and configured else "degraded",
         "demo": "synthetic", "profile": current,
         "mode": "Gemini" if current == "local" and os.getenv("GEMINI_API_KEY") else "Offline",
-        "ocr_available": current == "local" and bool(shutil.which("tesseract")), "db": db,
+        "ocr_available": current != "fixtures" and bool(shutil.which("tesseract")), "db": db,
     }
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     return health_result
+
+
+@app.delete("/account", status_code=204, response_class=Response)
+def delete_account(owner: Owner):
+    if profile() != "hosted":
+        raise HTTPException(404, "Account deletion is available for hosted accounts.")
+    cloud.delete_account(owner)
+    return Response(status_code=204)
 
 
 @app.post("/cases", status_code=201, response_model=m.Case)
@@ -156,7 +172,7 @@ def sample_order(case_id: str, data: m.Version, owner: Owner, key: Key = None):
     return mutate(owner, case_id, key, "sample_order", data, apply)
 
 
-def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, media_type=None):
+def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, media_type=None, token=None):
     from ..api import attach
 
     created = None
@@ -164,6 +180,8 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
 
     def apply(case):
         nonlocal created
+        if profile() == "hosted" and case["sample"]:
+            raise HTTPException(422, "Open a new bill review to import your own documents.")
         try:
             created = documents.make_document(
                 uuid4().hex, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
@@ -174,6 +192,8 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
 
     def persist():
         nonlocal stored
+        if profile() == "hosted":
+            return cloud.stage_original(owner, cloud.case_uuid(case_id), created, blob, token)
         documents.store_original(owner, case_id, created, blob)
         stored = True
 
@@ -186,13 +206,14 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
 
 
 @app.post("/cases/{case_id}/documents/text", response_model=m.Case)
-def paste(case_id: str, data: m.Paste, owner: Owner, key: Key = None):
+def paste(case_id: str, data: m.Paste, owner: Owner, authorization: Bearer, key: Key = None):
     for_local()
-    return import_document(case_id, owner, key, data, data.kind, data.text.encode(), pasted=True, media_type="text/plain")
+    return import_document(case_id, owner, key, data, data.kind, data.text.encode(), pasted=True,
+                           media_type="text/plain", token=authorization.credentials)
 
 
 @app.post("/cases/{case_id}/documents/file", response_model=m.Case)
-async def upload(case_id: str, owner: Owner, revision: Annotated[int, Form(ge=1)],
+async def upload(case_id: str, owner: Owner, authorization: Bearer, revision: Annotated[int, Form(ge=1)],
                  kind: Annotated[Kind, Form()], file: Annotated[UploadFile, File()], key: Key = None):
     try:
         for_local()
@@ -205,6 +226,7 @@ async def upload(case_id: str, owner: Owner, revision: Annotated[int, Form(ge=1)
                            media_type=file.content_type)
     return await run_in_threadpool(partial(
         import_document, case_id, owner, key, data, kind, blob, media_type=file.content_type,
+        token=authorization.credentials,
     ))
 
 
@@ -310,7 +332,7 @@ def investigate(case_id: str, data: m.Version, owner: Owner, key: Key = None):
             raise HTTPException(422, "Confirm the newly added documents first.")
         case["revision"] += 1
         invalidate(case)
-        run_rules(case, allow_model=profile() == "local")
+        run_rules(case, allow_model=profile() == "local", allow_fictional=not is_live_case(case))
 
     return mutate(owner, case_id, key, "investigate", data, apply)
 
@@ -354,11 +376,29 @@ def get_finding(case_id: str, finding_id: str, owner: Owner, revision: int | Non
     return result
 
 
+
+@app.post("/cases/{case_id}/india-review", response_model=PilotReview)
+def india_review(case_id: str, data: PilotInput, owner: Owner):
+    from ..api import check_revision
+
+    for_local()
+    case = store.get(owner, case_id)
+    check_revision(case, data.revision)
+    if case["sample"]:
+        raise HTTPException(422, "India source review requires a non-sample case.")
+    try:
+        return review_case(case, data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 def assistance_case(case_id, data, owner):
     from ..api import check_revision
 
     case = store.get(owner, case_id)
     check_revision(case, data.revision)
+    if is_live_case(case):
+        raise HTTPException(422, "A verified financial assistance policy is needed for this case.")
     return case
 
 
@@ -387,7 +427,8 @@ def draft(case_id: str, data: m.DraftInput, owner: Owner, key: Key = None):
     def apply(case):
         check_ready(case)
         if data.action not in case["drafts"]:
-            generated = resolution.make_draft(case, data.action, allow_model=profile() == "local")
+            generated = resolution.make_draft(case, data.action, allow_model=profile() == "local",
+                                              patient_call=is_live_case(case))
             case["drafts"].pop(data.action, None)
             add_draft_version(case, data.action, generated)
 
@@ -414,7 +455,7 @@ def approve(case_id: str, data: m.ApprovalInput, owner: Owner, key: Key = None):
     def apply(case):
         current = exact_draft(case, data)
         if data.action not in case["approvals"]:
-            case["approvals"][data.action] = {**current, "approved_at": now(), "simulated": True}
+            case["approvals"][data.action] = {**current, "approved_at": now()}
             event(case, f"{data.action.title()} approved", "The patient approved this revision's exact wording.", "Patient")
 
     return mutate(owner, case_id, key, "approve", data, apply)
@@ -425,6 +466,8 @@ def simulate(case_id: str, data: m.Simulate, owner: Owner, key: Key = None):
     from ..api import exact_draft
 
     def apply(case):
+        if is_live_case(case):
+            raise HTTPException(422, "Use your email app or phone dialer for this case.")
         current = exact_draft(case, data)
         simulated(case, current, data)
 
@@ -441,7 +484,8 @@ def packet(case_id: str, revision: int, owner: Owner, preview: bool = False):
     check_revision(case, revision)
     check_ready(case)
     try:
-        lines, pdf = resolution.redacted_packet(case, approved_letter=case["approvals"].get("letter"))
+        lines, pdf = resolution.redacted_packet(case, approved_letter=case["approvals"].get("letter"),
+                                                live_case=is_live_case(case))
     except resolution.RedactionError as exc:
         raise HTTPException(422, "The redacted packet could not pass the privacy check.") from exc
     if preview:

@@ -1,10 +1,12 @@
-import { Feather } from '@expo/vector-icons';
+import { AppIcon, type IconName } from './icons';
 import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator, Button as MaterialButton, Divider as MaterialDivider, IconButton as MaterialIconButton, Surface, TextInput } from 'react-native-paper';
+import { Button as MaterialButton, Divider as MaterialDivider, IconButton as MaterialIconButton, ProgressBar, Surface, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import { color, radius, ui } from './theme';
+import { font } from './typography';
 export { color, ui } from './theme';
 
 export function Screen({ children }: { children: ReactNode }) {
@@ -39,17 +41,20 @@ export function EmptyState({ children }: { children: ReactNode }) {
 }
 
 export function LoadingState({ label }: { label: string }) {
-  return <View accessibilityLiveRegion="polite" style={ui.row}>
-    <ActivityIndicator color={color.forest} /><Text style={ui.body}>{label}</Text>
+  const reduceMotion = useReducedMotion();
+  return <View accessibilityLiveRegion="polite" accessibilityState={{ busy: true }} style={ui.stack}>
+    <Text style={ui.label}>{label}</Text>
+    {reduceMotion ? <View style={styles.progressTrack} />
+      : <ProgressBar indeterminate color={color.primary} importantForAccessibility="no" style={styles.progressTrack} />}
   </View>;
 }
 
-export type Icon = ComponentProps<typeof Feather>['name'];
+export type Icon = IconName;
 
 export function Mark({ size = 36 }: { size?: number }) {
   return (
     <View style={[styles.mark, { width: size, height: size, borderRadius: size / 3 }]}>
-      <Feather name="file-text" size={Math.round(size / 2)} color={color.lime} />
+      <AppIcon name="file-text" size={Math.round(size / 2)} color={color.onPrimary} />
     </View>
   );
 }
@@ -60,9 +65,9 @@ export function Button({ label, icon, onPress, busy = false, disabled = false, t
   return <MaterialButton mode={mode} accessibilityLabel={label}
     accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy}
     loading={busy} onPress={onPress}
-    icon={icon ? ({ size, color: foreground }) => <Feather name={icon} size={size} color={foreground} /> : undefined}
-    buttonColor={tone === 'destructive' ? color.blush : undefined}
-    textColor={tone === 'destructive' ? color.red : undefined}
+    icon={icon ? ({ size, color: foreground }) => <AppIcon name={icon} size={size} color={foreground} /> : undefined}
+    buttonColor={tone === 'destructive' ? color.errorContainer : undefined}
+    textColor={tone === 'destructive' ? color.onErrorContainer : undefined}
     contentStyle={styles.buttonContent} labelStyle={styles.buttonText}>
     {label}
   </MaterialButton>;
@@ -71,23 +76,23 @@ export function Button({ label, icon, onPress, busy = false, disabled = false, t
 export function IconButton({ label, icon, onPress }: { label: string; icon: Icon; onPress: () => void }) {
   return <MaterialIconButton mode="contained-tonal" accessibilityLabel={label} size={20} onPress={onPress}
     style={styles.iconButton}
-    icon={({ size, color: foreground }) => <Feather name={icon} size={size} color={foreground} />} />;
+    icon={({ size, color: foreground }) => <AppIcon name={icon} size={size} color={foreground} />} />;
 }
 
 export function Badge({ children, tone = 'green' }: { children: ReactNode; tone?: 'green' | 'amber' | 'neutral' }) {
-  const tint = tone === 'amber' ? color.sand : tone === 'green' ? color.pale : color.panel;
+  const tint = tone === 'amber' ? color.tertiaryContainer : tone === 'green' ? color.secondaryContainer : color.surfaceContainer;
   return <View style={[styles.badge, { backgroundColor: tint }]}>
-    <Text style={[styles.badgeText, { color: tone === 'amber' ? color.amber : color.ink }]}>{children}</Text>
+    <Text style={[styles.badgeText, { color: tone === 'amber' ? color.onTertiaryContainer : color.ink }]}>{children}</Text>
   </View>;
 }
 
 export function Message({ text, onClose }: { text: string; onClose?: () => void }) {
   return (
     <View accessibilityRole="alert" style={styles.error}>
-      <Feather name="alert-circle" size={18} color={color.red} />
-      <Text style={[ui.small, ui.grow, { color: color.red }]}>{text}</Text>
+      <AppIcon name="alert-circle" size={18} color={color.onErrorContainer} />
+      <Text style={[ui.small, ui.grow, { color: color.onErrorContainer }]}>{text}</Text>
       {onClose && <Pressable accessibilityLabel="Dismiss message" accessibilityRole="button" onPress={onClose} style={styles.dismiss}>
-        <Feather name="x" size={17} color={color.red} />
+        <AppIcon name="x" size={17} color={color.onErrorContainer} />
       </Pressable>}
     </View>
   );
@@ -118,20 +123,21 @@ export function Sheet({ title, children, onClose, bottom = false }:
 }
 
 export const styles = StyleSheet.create({
-  mark: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.forest },
-  tonal: { backgroundColor: color.panel, borderColor: 'transparent' },
+  mark: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
+  tonal: { backgroundColor: color.surfaceContainer, borderColor: 'transparent' },
   buttonContent: { minHeight: 48 },
-  buttonText: { fontWeight: '600', fontSize: 14, textAlign: 'center' },
+  buttonText: { fontFamily: font.semibold, fontSize: 14, textAlign: 'center' },
   iconButton: { width: 44, height: 44, margin: 0 },
   actionBar: { paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   actionContent: { width: '100%', maxWidth: 648, alignSelf: 'center', gap: 8 },
   handle: { alignSelf: 'center', marginTop: 10, width: 30, height: 4, borderRadius: 2, backgroundColor: color.line },
   badge: { maxWidth: '100%', alignSelf: 'flex-start', borderRadius: 99, paddingVertical: 5, paddingHorizontal: 9 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
+  badgeText: { fontFamily: font.semibold, fontSize: 12 },
+  progressTrack: { height: 4, borderRadius: 4, backgroundColor: color.secondaryContainer, overflow: 'hidden' },
   dismiss: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  error: { padding: 12, backgroundColor: color.blush, flexDirection: 'row', gap: 8,
+  error: { padding: 12, backgroundColor: color.errorContainer, flexDirection: 'row', gap: 8,
     borderRadius: 12, alignItems: 'center' },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#19252266' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: color.backdrop },
   bottomSheet: { height: '88%', backgroundColor: color.paper, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
   sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomColor: color.line,
     borderBottomWidth: 1, paddingTop: 6 },
