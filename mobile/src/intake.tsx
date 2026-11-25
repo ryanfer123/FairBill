@@ -5,6 +5,7 @@ import { pickDocument, type CaptureMethod, type PickedDocument } from './documen
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
+import { ScanPreview } from './scan-preview';
 import { CaptureOptions } from './capture-options';
 import { Disclosure } from './disclosure';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
@@ -16,6 +17,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [picking, setPicking] = useState<CaptureMethod | null>(null);
+  const [scanning, setScanning] = useState<PickedDocument | null>(null);
   const disabled = picking !== null || busy;
 
   async function pick(method: CaptureMethod) {
@@ -23,10 +25,14 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
     setPicking(method);
     try {
       const asset = await pickDocument(method);
-      if (asset) await onFile(kind, asset);
+      if (asset) {
+        setScanning(asset);
+        await onFile(kind, asset);
+      }
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
+      setScanning(null);
       setPicking(null);
     }
   }
@@ -41,7 +47,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   }
 
   return <Sheet title="Add evidence" onClose={() => { if (!disabled) onClose(); }}>
-    <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    {scanning ? <ScanPreview asset={scanning} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.stack}>
           <Text style={ui.title}>Add a document</Text>
@@ -70,7 +76,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
         </Card>
         {busy && <LoadingState label="Reading document…" />}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView>}
   </Sheet>;
 }
 
