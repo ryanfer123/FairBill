@@ -1,5 +1,4 @@
 import { AppIcon, type IconName } from '../src/icons';
-import { Illustration } from '../src/illustrations';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -156,27 +155,6 @@ export default function Home() {
       </View>
       {destination === 'check' && <ScrollView style={ui.grow} contentContainerStyle={[ui.content, styles.homeContent]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
-        <View style={styles.intro}>
-          <View style={[ui.between, styles.hero]}>
-            <View style={[ui.grow, ui.stack]}>
-              <Text accessibilityRole="header" accessibilityLabel="Check a hospital bill" style={ui.title}>
-                Don’t pay what you <Text style={styles.heroAccent}>don’t owe.</Text>
-              </Text>
-              <Text style={ui.body}>Check hospital bills against your records.</Text>
-            </View>
-            <Illustration name="receipt" size={80} />
-          </View>
-          {hostedBuild ? <Button label="Open tester settings" icon="key" tone="ghost" onPress={() => setDestination('settings')} />
-            : <View style={styles.captureActions}>
-              <View style={styles.captureButton}><Button label="Scan a bill" icon="camera" busy={busy === 'camera'}
-                disabled={!!busy} onPress={() => void start('camera')} /></View>
-              <View style={styles.captureButton}><Button label="Upload a file" icon="upload" tone="ghost"
-                disabled={!!busy} onPress={() => chooseCapture('upload')} /></View>
-            </View>}
-          {!hostedBuild && <View style={styles.pasteRow}>
-            <Button label="Paste text" icon="file-text" tone="light" disabled={!!busy} onPress={() => chooseCapture('paste')} />
-          </View>}
-        </View>
         {!!latest && <View style={ui.stack}>
           <SectionHeader>{recent && !reviewed ? 'Needs your attention' : 'Recent case'}</SectionHeader>
           <View style={styles.recentCase}>
@@ -184,6 +162,33 @@ export default function Home() {
               featured icon="receipt" disabled={!!busy} onPress={() => open(latest)}
               progress={progress} detail={activeQuestions ? `${recentDetail} · ${activeQuestions} ${activeQuestions === 1 ? 'question' : 'questions'}` : recentDetail}
               amount={conditionalAmount != null ? money(conditionalAmount) : undefined} />
+          </View>
+        </View>}
+        <View style={styles.scanPanel}>
+          <View style={styles.scanTop}>
+            <View style={styles.viewfinder} accessible={false} importantForAccessibility="no-hide-descendants">
+              <AppIcon name="receipt" size={43} color={color.paper} />
+              <View style={styles.cornerStart} /><View style={styles.cornerEnd} />
+            </View>
+            <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
+          </View>
+          <Text style={styles.scanHint}>Start with the page that lists each service and its charge.</Text>
+          <TouchableRipple accessibilityRole="button" accessibilityState={{ disabled: !!busy, busy: busy === 'camera' }}
+            disabled={!!busy} style={styles.scanAction} onPress={hostedBuild ? () => setDestination('settings') : () => void start('camera')}>
+            <View style={styles.scanButton}>
+              {busy === 'camera' ? <ActivityIndicator size="small" color={color.primary} /> :
+                <AppIcon name={hostedBuild ? 'key' : 'camera'} size={22} color={color.primary} />}
+              <Text style={[ui.label, styles.scanLabel]}>{hostedBuild ? 'Open tester settings' : 'Scan a bill'}</Text>
+              <AppIcon name="arrow-right" size={20} color={color.primary} />
+            </View>
+          </TouchableRipple>
+        </View>
+        {!hostedBuild && <View style={ui.stack}>
+          <SectionHeader>Other ways to add a bill</SectionHeader>
+          <View style={styles.methods}>
+            <CaseLink title="Upload a file" label="Upload a file" detail="PDF or photo" icon="upload" disabled={!!busy} onPress={() => chooseCapture('upload')} />
+            <Divider />
+            <CaseLink title="Paste text" label="Paste text" detail="Copied from an itemised bill" icon="file-text" disabled={!!busy} onPress={() => chooseCapture('paste')} />
           </View>
         </View>}
         {!cloudBuild && <View style={styles.sample}>
@@ -250,12 +255,17 @@ const styles = StyleSheet.create({
   appBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
   brand: { fontFamily: font.display, fontSize: 27, letterSpacing: -0.6, color: color.ink },
   homeContent: { gap: 20, paddingTop: 16 },
-  intro: { gap: 9 },
-  hero: { alignItems: 'flex-start', paddingTop: 6, paddingBottom: 6 },
-  heroAccent: { color: color.primary },
-  captureActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  captureButton: { flexGrow: 1, flexBasis: 140, minWidth: 0 },
-  pasteRow: { alignSelf: 'flex-start' },
+  scanPanel: { backgroundColor: color.primary, borderRadius: 26, padding: 22, gap: 16 },
+  scanTop: { gap: 17, alignItems: 'flex-start' },
+  viewfinder: { height: 56, width: 66, justifyContent: 'center', alignItems: 'center' },
+  cornerStart: { position: 'absolute', top: 0, left: 0, width: 17, height: 17, borderLeftWidth: 2, borderTopWidth: 2, borderTopLeftRadius: 6, borderColor: color.inversePrimary },
+  cornerEnd: { position: 'absolute', right: 0, bottom: 0, width: 17, height: 17, borderRightWidth: 2, borderBottomWidth: 2, borderBottomRightRadius: 6, borderColor: color.inversePrimary },
+  headline: { fontFamily: font.display, fontSize: 44, lineHeight: 45, letterSpacing: -1, color: color.paper },
+  scanHint: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, color: color.primaryContainer },
+  scanAction: { backgroundColor: color.paper, borderRadius: 15, overflow: 'hidden', marginTop: 3 },
+  scanButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, gap: 12, minHeight: 52 },
+  scanLabel: { color: color.primary, flex: 1 },
+  methods: { borderRadius: 18, borderWidth: 1, borderColor: color.line, overflow: 'hidden', backgroundColor: color.card },
   sample: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   recentCase: { borderRadius: 16, backgroundColor: color.card, borderWidth: 1, borderColor: color.line, overflow: 'hidden' },
   caseList: { borderRadius: 20, backgroundColor: color.surfaceContainer, overflow: 'hidden' },
