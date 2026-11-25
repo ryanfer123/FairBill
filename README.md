@@ -1,16 +1,50 @@
 # FairBill
 
-FairBill helps patients trace hospital charges and insurance deductions to the records that support them. Team Honey Potato built this India-first Android prototype for the AgenticX Agentic AI track. The demo uses fictional documents and simulated outreach.
+FairBill helps patients check Indian hospital bills against their own records. It turns repeated charges, quantity mismatches, and insurance deductions into questions for the billing team, with links to the relevant document lines.
 
-## Run FairBill on Android
+Built by **Team Honey Potato** for the AgenticX hackathon. The project includes a standalone Android app, a FastAPI service, and a separate fictional demo.
 
-Install the hosted APK on an Android arm64 phone or emulator, connect to the internet, and sign in with your email. FairBill connects to its HTTPS service automatically.
+[Build for Android](#build-for-android) · [Walk through the sample](#walk-through-the-sample) · [Explore the repository](#repository-guide) · [Tests and evaluation](#tests-and-evaluation)
 
-The hosted app supports uploading bills to a signed-in account, reviewing the confirmed lines, and preparing a letter or call script. The separate development build includes fictional bills and simulated outreach. Read [the privacy notice](https://fairbill-api.onrender.com/privacy) before uploading a bill.
+## How it works
 
-## Local development
+1. **Add a bill.** Scan a photo, upload a PDF, or paste text. Add supporting records or an insurance settlement when available.
+2. **Confirm the lines.** Compare extracted text with your records, correct misreads, and mark services you did not receive.
+3. **Review the questions.** Deterministic rules calculate in integer paise. Each finding links to its source. The conditional total assumes billing agrees with the included questions, and insurance deductions are shown separately.
+4. **Decide what to share.** Review the exact letter or call script before handing it off to your email app or dialer. Preview the redacted PDF before sharing it.
 
-For a synthetic development build, install Python 3.13, `uv`, and Tesseract with English data. Start the test API with `./scripts/run-demo.sh`. Build with the explicit development flag and forward the fixed port over USB.
+The hosted India pilot covers selected [tariff and policy sources](docs/india-pilot-sources.md) where the hospital, date, and policy details match. Published rates and policy wording can support a question. Coverage and assistance decisions remain with the insurer or hospital.
+
+## Build for Android
+
+Install Node.js 22.13 or later, Java 17, and the Android SDK with NDK `27.2.12479018`. Set `ANDROID_HOME` to your SDK path. Add `adb` from Android Platform Tools to your path if you plan to install over USB.
+
+```sh
+git clone https://github.com/ryanfer123/FairBill.git
+cd FairBill
+
+export FAIRBILL_SUPABASE_PUBLISHABLE_KEY='your-project-publishable-key'
+./scripts/build-android.sh
+adb install -r artifacts/FairBill-Android.apk
+```
+
+The script builds an ARM64 APK by default. For an x86_64 emulator, set `FAIRBILL_ANDROID_ABIS=x86_64` when running the build script. The installed hosted app uses HTTPS and email verification. It needs internet access and works independently of the development machine. The mobile build uses the Supabase publishable key. Keep the service key on the server.
+
+- [Hosted setup and deployment](docs/hosted-app.md)
+- [Privacy notice](https://fairbill-api.onrender.com/privacy)
+- [Account deletion](https://fairbill-api.onrender.com/delete-account)
+
+## Walk through the sample
+
+The fictional sample and simulated outreach run in the **development or fixture build**. To run the local development version, install Python 3.13, `uv`, and Tesseract with English data.
+
+Start the demo API in one terminal:
+
+```sh
+./scripts/run-demo.sh
+```
+
+Build and install from a second terminal:
 
 ```sh
 FAIRBILL_LOCAL_DEV=1 ./scripts/build-android.sh
@@ -18,31 +52,39 @@ adb install -r artifacts/FairBill-Android.apk
 adb reverse tcp:8765 tcp:8765
 ```
 
-## Walk through the case
+| Step | What the sample shows |
+| --- | --- |
+| Run the first review | The billed amount is **₹1,56,800**. A ₹900 duplicate question and a ₹500 quantity question yield a **₹1,55,400 conditional total**. |
+| Add and confirm the second lab order, then rerun | The order explains the repeated charge. FairBill withdraws the ₹900 question and shows **₹1,56,300 conditional**. The ₹500 question remains. |
+| Open Timeline and review the insurance deduction | Both revisions remain available. The **₹12,000 insurance deduction** stays separate from the invoice calculation. |
+| Open Act | Approve the exact letter, simulate outreach, and confirm identity before the simulated advocate can speak. Preview the redacted PDF. |
 
-1. Open the sample case and run the investigation. The ₹1,56,800 invoice becomes **₹1,55,400 conditional**. Open the two billing questions to inspect their evidence.
-2. Add the second lab order and confirm the extracted row. Run the investigation again. The duplicate question is withdrawn and the total becomes **₹1,56,300 conditional**. The ₹500 quantity question stays active. The ₹12,000 insurance deduction remains separate.
-3. Open Timeline to compare both revisions. Draft and approve the clarification letter, then simulate sending it. In the call simulation, verify your identity before continuing the advocate’s turn.
-4. Preview and share the redacted PDF. To demonstrate capture, print the [one-page scan sample](demo/scan-invoice.pdf), create a new case, and take a photo. To demonstrate multi-page import, choose the [full synthetic invoice](demo/invoice.pdf) in a separate case.
+To try import in a separate local case, use the [printable scan sample](demo/scan-invoice.pdf) or [multi-page fictional invoice](demo/invoice.pdf). Check extraction against the original before confirming. Other invoice layouts may require manual line entry.
 
-The [demo folder](demo/) contains editable-in-app source fixtures as printable PDFs. The app extracts all PDF or photo text locally and recognises the labelled rows used in the fixtures. For other layouts, view extracted text and enter the rows manually. The sample policy is fictional. A policy citation shows a link in the submitted records and still needs applicability review.
+## Repository guide
 
-## Build and test
+| Path | Contents |
+| --- | --- |
+| [`mobile/`](mobile/) | Expo and React Native Android app with Material controls |
+| [`server/`](server/) | FastAPI `/v1` API, PDF and photo extraction, billing rules, and redacted PDF generation |
+| [`supabase/`](supabase/) | Authentication, case storage, private uploads, and database migrations |
+| [`demo/`](demo/) | Fictional bill, settlement, policy, and service records |
+| [`design/fairbill/`](design/fairbill/) | Design exploration and previews |
+| [`scripts/`](scripts/) | Android build, local server startup, and contract export |
 
-Set `ANDROID_HOME` to your SDK, install NDK 27.2.12479018, and use Java 17. The build needs Node 22.13+ and installs the Expo packages from the lockfile. Export `FAIRBILL_SUPABASE_PUBLISHABLE_KEY` for the hosted build.
+See the [local backend architecture](docs/ARCHITECTURE.md), [OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). The API reports database and OCR readiness at `/v1/health`.
+
+## Tests and evaluation
+
+Run these from the repository root:
 
 ```sh
-./scripts/build-android.sh
-(cd mobile && npm run typecheck)
-(cd server && .venv/bin/pytest -q)
+(cd server && uv sync --locked --python 3.13)
+(cd server && .venv/bin/python -m pytest -q)
+(cd mobile && npm ci --include=dev && npm run typecheck)
+make eval
 ```
 
-The optional Gemini path reads `GEMINI_API_KEY` and `FAIRBILL_GEMINI_MODEL` from the local server environment. It receives a small set of structured facts about the unedited bundled case. The fixed-template path runs the same checks. The backend computes figures in integer paise and holds the authoritative case revision, drafts, approvals, and simulated receipts. Local case data is in `.local/fairbill.sqlite3`.
+The [synthetic evaluation](docs/eval-report.md) reports seeded findings, clean-bill checks, and OCR results with and without exact row identifiers. Those results measure the fictional fixtures. Performance and savings on real patient bills still need validation.
 
-Workflow inspiration from [BetterBill](https://github.com/matmanna/betterbill). FairBill's interface, implementation, synthetic documents, and test results are separate.
-
-## Versioned backend
-
-The versioned API is served under `/v1`. Use `/v1/health` to check the active profile, database, planner mode and OCR. The hosted service stores cases under the signed-in account. The sample investigation uses bundled fixtures.
-
-See the [backend architecture](docs/ARCHITECTURE.md), [V1 OpenAPI contract](docs/openapi.json), and [environment settings](.env.example). Use `make eval` to regenerate the synthetic evaluation. The optional fixture profile serves the synthetic test flow in a separate environment.
+Workflow inspiration from [BetterBill](https://github.com/matmanna/betterbill).
