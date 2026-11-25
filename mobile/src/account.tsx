@@ -4,7 +4,7 @@ import { Illustration } from './illustrations';
 import { surfaceReveal } from './motion';
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View, type ScrollViewProps } from 'react-native';
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
 import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
@@ -140,7 +140,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
 
 const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
-export function AccountSettings({ onClose, onInvite, embedded = false }: { onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
+export function AccountSettings({ onClose, onInvite, embedded = false, onScroll, clearance }: { onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
   const [confirmation, setConfirmation] = useState('');
   const [invite, setInvite] = useState('');
@@ -177,7 +177,7 @@ export function AccountSettings({ onClose, onInvite, embedded = false }: { onClo
   }
 
   const content = <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <ScrollView key={panel} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+    <ScrollView key={panel} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, clearance != null && { paddingBottom: clearance }]} keyboardShouldPersistTaps="handled">
       {error ? <Message text={error} /> : null}
       {panel === 'delete' && <Card>
         <Text style={ui.body}>This permanently deletes your account, saved cases and uploaded bills.</Text>
