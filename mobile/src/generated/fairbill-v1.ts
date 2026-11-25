@@ -625,11 +625,8 @@ export interface components {
         };
         /** Create */
         Create: {
-            /**
-             * Sample
-             * @default true
-             */
-            sample: boolean;
+            /** Sample */
+            sample?: boolean | null;
         };
         /** Document */
         Document: {
@@ -822,12 +819,8 @@ export interface components {
              * @enum {string}
              */
             db: "ok" | "unavailable";
-            /**
-             * Demo
-             * @default synthetic
-             * @constant
-             */
-            demo: "synthetic";
+            /** Demo */
+            demo?: "synthetic" | null;
             /**
              * Mode
              * @enum {string}

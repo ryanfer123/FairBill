@@ -186,12 +186,14 @@ def _scenario(rows, findings):
 
 
 def run_rules(case: dict, *, allow_model: bool = True, allow_fictional: bool = True) -> None:
-    loaded = load_fictional("rules.json", "FAIRBILL_RULES_FILE")
-    enabled = loaded[0]["enabled"]
-    if any(type(enabled.get(rule)) is not bool for rule in RULES):
-        raise ValueError("Each billing rule requires a boolean enabled setting.")
-    if not allow_fictional:
-        enabled = {**enabled, "unit_limit": False, "reference_tariff": False}
+    loaded = None
+    if allow_fictional:
+        loaded = load_fictional("rules.json", "FAIRBILL_RULES_FILE")
+        enabled = loaded[0]["enabled"]
+        if any(type(enabled.get(rule)) is not bool for rule in RULES):
+            raise ValueError("Each billing rule requires a boolean enabled setting.")
+    else:
+        enabled = {rule: rule not in {"unit_limit", "reference_tariff"} for rule in RULES}
     options = [rule for rule in RULES if enabled[rule]]
     decision = gemini(
         Plan, f"Order each of these allowed investigation checks exactly once: {json.dumps(options)}.",
