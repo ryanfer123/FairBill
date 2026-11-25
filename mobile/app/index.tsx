@@ -1,25 +1,60 @@
+import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { AppIcon, type IconName } from '../src/icons';
-import { Illustration } from '../src/illustrations';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaseList } from '../src/cases';
-import { ActivityIndicator, BottomNavigation, TouchableRipple } from 'react-native-paper';
+import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
 import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
 import { ApiError, type Case, createCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
-import { Button, Card, Divider, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from '../src/ui';
+import { Button, Card, Divider, Input, Mark, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
   { key: 'check', title: 'New check', icon: 'receipt' },
   { key: 'settings', title: 'Settings', icon: 'settings' },
 ] as const;
-const navigation = { index: 1, routes: [...destinations] };
-const noBarInsets = { bottom: 0, left: 0, right: 0 };
+type Destination = typeof destinations[number]['key'];
+
+function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
+  const { width, fontScale } = useWindowDimensions();
+  const narrow = compact && fontScale <= 1.3;
+  const dockWidth = Math.min(width * 0.92, 410);
+  const size = useAnimatedStyle(() => ({ width: withTiming(narrow ? Math.min(214, dockWidth) : dockWidth, { duration: 200, reduceMotion: ReduceMotion.System }) }));
+  const [typing, setTyping] = useState(() => Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const index = destinations.findIndex(tab => tab.key === current);
+  const slide = useAnimatedStyle(() => ({
+    start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, { duration: 180, reduceMotion: ReduceMotion.System }),
+  }));
+  if (typing) return null;
+  return <Animated.View style={[styles.dock, { bottom }, size]}>
+    <View style={styles.tabTrack}>
+      <Animated.View pointerEvents="none" style={[styles.selection, slide]} />
+      {destinations.map(tab => {
+        const selected = tab.key === current;
+        const tint = selected ? color.onPrimaryContainer : color.paper;
+        return <TouchableRipple key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
+          accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
+          rippleColor={selected ? color.primaryContainer : '#467562'} style={styles.tab}>
+          <View style={styles.tabContents}>
+            <AppIcon name={tab.icon} color={tint} size={20} />
+            {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
+          </View>
+        </TouchableRipple>;
+      })}
+    </View>
+  </Animated.View>;
+}
 
 function CaseLink({ title, label, detail, amount, progress, icon, disabled, pending = false, featured = false, onPress }:
   { title: string; label: string; detail?: string; amount?: string; progress?: number; icon: IconName;
@@ -54,6 +89,20 @@ export default function Home() {
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
+  const { bottom } = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const clearance = bottom + 86 + Math.max(0, fontScale - 1) * 32;
+  const [compact, setCompact] = useState(false);
+  const anchor = useRef(0);
+  useEffect(() => { anchor.current = 0; setCompact(false); }, [destination]);
+  const onScroll: NonNullable<ScrollViewProps['onScroll']> = useCallback(({ nativeEvent }) => {
+    const limit = Math.max(0, nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height);
+    const y = Math.max(0, Math.min(limit, nativeEvent.contentOffset.y));
+    if (y <= 2 || Math.abs(y - anchor.current) >= 12) {
+      setCompact(y > 2 && y > anchor.current);
+      anchor.current = y;
+    }
+  }, []);
   const [connectionRevision, setConnectionRevision] = useState(0);
   const [versioned, setVersioned] = useState(cloudBuild);
 
@@ -149,34 +198,13 @@ export default function Home() {
     : recent ? 'Add a bill to begin' : 'Pick up where you left off';
 
   return (
-    <Screen>
+    <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
       <View style={[ui.between, styles.appBar]}>
         <View style={ui.row}><Mark size={36} /><Text style={styles.brand}>FairBill</Text></View>
         <Text style={ui.small}>INR · ₹</Text>
       </View>
-      {destination === 'check' && <ScrollView style={ui.grow} contentContainerStyle={[ui.content, styles.homeContent]}>
+      {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
-        <View style={styles.intro}>
-          <View style={[ui.between, styles.hero]}>
-            <View style={[ui.grow, ui.stack]}>
-              <Text accessibilityRole="header" accessibilityLabel="Check a hospital bill" style={ui.title}>
-                Don’t pay what you <Text style={styles.heroAccent}>don’t owe.</Text>
-              </Text>
-              <Text style={ui.body}>Check hospital bills against your records.</Text>
-            </View>
-            <Illustration name="receipt" size={80} />
-          </View>
-          {hostedBuild ? <Button label="Open tester settings" icon="key" tone="ghost" onPress={() => setDestination('settings')} />
-            : <View style={styles.captureActions}>
-              <View style={styles.captureButton}><Button label="Scan a bill" icon="camera" busy={busy === 'camera'}
-                disabled={!!busy} onPress={() => void start('camera')} /></View>
-              <View style={styles.captureButton}><Button label="Upload a file" icon="upload" tone="ghost"
-                disabled={!!busy} onPress={() => chooseCapture('upload')} /></View>
-            </View>}
-          {!hostedBuild && <View style={styles.pasteRow}>
-            <Button label="Paste text" icon="file-text" tone="light" disabled={!!busy} onPress={() => chooseCapture('paste')} />
-          </View>}
-        </View>
         {!!latest && <View style={ui.stack}>
           <SectionHeader>{recent && !reviewed ? 'Needs your attention' : 'Recent case'}</SectionHeader>
           <View style={styles.recentCase}>
@@ -186,18 +214,45 @@ export default function Home() {
               amount={conditionalAmount != null ? money(conditionalAmount) : undefined} />
           </View>
         </View>}
+        <View style={styles.scanPanel}>
+          <View style={styles.scanTop}>
+            <View style={styles.viewfinder} accessible={false} importantForAccessibility="no-hide-descendants">
+              <AppIcon name="receipt" size={43} color={color.paper} />
+              <View style={styles.cornerStart} /><View style={styles.cornerEnd} />
+            </View>
+            <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
+          </View>
+          <Text style={styles.scanHint}>Start with the page that lists each service and its charge.</Text>
+          <TouchableRipple accessibilityRole="button" accessibilityState={{ disabled: !!busy, busy: busy === 'camera' }}
+            disabled={!!busy} style={styles.scanAction} onPress={hostedBuild ? () => setDestination('settings') : () => void start('camera')}>
+            <View style={styles.scanButton}>
+              {busy === 'camera' ? <ActivityIndicator size="small" color={color.primary} /> :
+                <AppIcon name={hostedBuild ? 'key' : 'camera'} size={22} color={color.primary} />}
+              <Text style={[ui.label, styles.scanLabel]}>{hostedBuild ? 'Open tester settings' : 'Scan a bill'}</Text>
+              <AppIcon name="arrow-right" size={20} color={color.primary} />
+            </View>
+          </TouchableRipple>
+        </View>
+        {!hostedBuild && <View style={ui.stack}>
+          <SectionHeader>Other ways to add a bill</SectionHeader>
+          <View style={styles.methods}>
+            <CaseLink title="Upload a file" label="Upload a file" detail="PDF or photo" icon="upload" disabled={!!busy} onPress={() => chooseCapture('upload')} />
+            <Divider />
+            <CaseLink title="Paste text" label="Paste text" detail="Copied from an itemised bill" icon="file-text" disabled={!!busy} onPress={() => chooseCapture('paste')} />
+          </View>
+        </View>}
         {!cloudBuild && <View style={styles.sample}>
           <CaseLink title="Try the sample case" label="Try the sample case" icon="arrow-right" pending={busy === 'sample'}
             detail="Follow a fictional bill from questions to evidence." disabled={!!busy} onPress={() => void start('sample')} />
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onOpen={(id) => {
+      {destination === 'cases' && <CaseList onScroll={onScroll} clearance={clearance} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
       }} />}
-      {destination === 'settings' && <AccountSettings embedded onClose={() => setDestination('check')} onInvite={() => {
+      {destination === 'settings' && <AccountSettings onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
@@ -228,21 +283,15 @@ export default function Home() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Sheet>}
-      <BottomNavigation.Bar navigationState={{ ...navigation, index: destinations.findIndex((route) => route.key === destination) }} safeAreaInsets={noBarInsets}
-        keyboardHidesNavigationBar getAccessibilityLabel={({ route }) => route.title}
-        activeIndicatorStyle={styles.navIndicator}
-        activeColor={color.onSecondaryContainer} inactiveColor={color.muted}
-        renderIcon={({ route, color: tint }) => <AppIcon name={route.icon} size={24} color={tint} />}
-        onTabPress={({ route, preventDefault }) => {
-          if (busy) { preventDefault(); return; }
-          if (route.key === 'cases' && !versioned) {
+      <TabDock compact={compact} bottom={bottom + 8} current={destination} busy={!!busy} onSelect={(tab) => {
+          if (tab === 'cases' && !versioned) {
             if (latest) open(latest);
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
             return;
           }
-          setDestination(route.key);
+          setDestination(tab);
         }} />
-    </Screen>
+    </SafeAreaView>
   );
 }
 
@@ -250,12 +299,17 @@ const styles = StyleSheet.create({
   appBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
   brand: { fontFamily: font.display, fontSize: 27, letterSpacing: -0.6, color: color.ink },
   homeContent: { gap: 20, paddingTop: 16 },
-  intro: { gap: 9 },
-  hero: { alignItems: 'flex-start', paddingTop: 6, paddingBottom: 6 },
-  heroAccent: { color: color.primary },
-  captureActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  captureButton: { flexGrow: 1, flexBasis: 140, minWidth: 0 },
-  pasteRow: { alignSelf: 'flex-start' },
+  scanPanel: { backgroundColor: color.primary, borderRadius: 26, padding: 22, gap: 16 },
+  scanTop: { gap: 17, alignItems: 'flex-start' },
+  viewfinder: { height: 56, width: 66, justifyContent: 'center', alignItems: 'center' },
+  cornerStart: { position: 'absolute', top: 0, left: 0, width: 17, height: 17, borderLeftWidth: 2, borderTopWidth: 2, borderTopLeftRadius: 6, borderColor: color.inversePrimary },
+  cornerEnd: { position: 'absolute', right: 0, bottom: 0, width: 17, height: 17, borderRightWidth: 2, borderBottomWidth: 2, borderBottomRightRadius: 6, borderColor: color.inversePrimary },
+  headline: { fontFamily: font.display, fontSize: 44, lineHeight: 45, letterSpacing: -1, color: color.paper },
+  scanHint: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, color: color.primaryContainer },
+  scanAction: { backgroundColor: color.paper, borderRadius: 15, overflow: 'hidden', marginTop: 3 },
+  scanButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, gap: 12, minHeight: 52 },
+  scanLabel: { color: color.primary, flex: 1 },
+  methods: { borderRadius: 18, borderWidth: 1, borderColor: color.line, overflow: 'hidden', backgroundColor: color.card },
   sample: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   recentCase: { borderRadius: 16, backgroundColor: color.card, borderWidth: 1, borderColor: color.line, overflow: 'hidden' },
   caseList: { borderRadius: 20, backgroundColor: color.surfaceContainer, overflow: 'hidden' },
@@ -270,5 +324,12 @@ const styles = StyleSheet.create({
   caseAmount: { fontSize: 24, lineHeight: 30 },
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  navIndicator: { width: 56, height: 32, borderRadius: 16 },
+  dock: { alignSelf: 'center', position: 'absolute', zIndex: 2,
+    padding: 5, backgroundColor: color.onPrimaryContainer, borderRadius: 34, elevation: 5,
+    shadowColor: color.ink, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, shadowOpacity: 0.17 },
+  tabTrack: { flexDirection: 'row', position: 'relative' },
+  selection: { position: 'absolute', width: '33.333333%', top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
+  tab: { flex: 1, minHeight: 49, borderRadius: 28, overflow: 'hidden' },
+  tabContents: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 4 },
+  tabText: { textAlign: 'center', fontFamily: font.semibold, fontSize: 13 },
 });

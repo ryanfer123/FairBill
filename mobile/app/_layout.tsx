@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useSyncExternalStore } from 'react';
 import { PaperProvider } from 'react-native-paper';
+import { FirstRun } from '../src/first-run';
 import { SignIn } from '../src/account';
 import { accountState, cloudBuild, listenAccount } from '../src/cloud-auth';
 import { color, material } from '../src/theme';
@@ -14,7 +15,7 @@ export default function Layout() {
   if (!fontReady && !fontError) return null;
   return <PaperProvider theme={material}>
     <StatusBar style="dark" />
-    {cloudBuild && session !== 'signed-in' ? <SignIn restoring={session === 'loading'} />
-      : <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.paper } }} />}
+    <FirstRun>{cloudBuild && session !== 'signed-in' ? <SignIn restoring={session === 'loading'} />
+      : <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.paper } }} />}</FirstRun>
   </PaperProvider>;
 }
