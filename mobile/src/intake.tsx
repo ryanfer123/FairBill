@@ -4,7 +4,7 @@ import { AppIcon } from './icons';
 import { cloudBuild } from './cloud-auth';
 import { pickDocument, type CaptureMethod, type PickedDocument } from './document-picker';
 import { useRef, useState } from 'react';
-import { Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, newImportId, parseRupees, Row, RowType } from './api';
 import { ScanPreview, type ScanStage } from './scan-preview';
 import { CaptureOptions } from './capture-options';
@@ -141,6 +141,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
   const [source, setSource] = useState(!doc.rows.length);
   const [addLines, setAddLines] = useState(false);
   const [readingNotes, setReadingNotes] = useState(false);
+  const [leave, setLeave] = useState<'line' | 'review'>();
   const [openLine, setOpenLine] = useState<string | null>(initialRowId ?? null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [fields, setFields] = useState<EditFields | null>(null);
@@ -238,18 +239,17 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
 
   function close() {
     if (busy) return;
+    if (leave) { setLeave(undefined); return; }
     if (editing) {
       if (JSON.stringify(fields) !== JSON.stringify(editable(editing))) {
-        Alert.alert('Leave this edit?', 'Your other corrections will stay in this review.', [
-          { text: 'Keep editing', style: 'cancel' }, { text: 'Discard this edit', style: 'destructive', onPress: cancelEdit },
-        ]);
+        Keyboard.dismiss();
+        setLeave('line');
       } else cancelEdit();
       return;
     }
     if (changed) {
-      Alert.alert('Leave without saving?', 'Your unconfirmed changes will be discarded.', [
-        { text: 'Keep reviewing', style: 'cancel' }, { text: 'Discard changes', style: 'destructive', onPress: onClose },
-      ]);
+      Keyboard.dismiss();
+      setLeave('review');
     } else onClose();
   }
 
@@ -284,7 +284,20 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
 
   const selectedRow = rows.find((row) => row.id === initialRowId);
 
-  return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}>
+  return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}
+    confirmation={leave ? {
+      title: leave === 'line' ? 'Leave this edit?' : 'Leave without saving?',
+      detail: leave === 'line' ? 'This line edit will be lost. Your other corrections will stay.'
+        : 'Your unconfirmed corrections will be lost.',
+      keep: leave === 'line' ? 'Keep editing' : 'Keep reviewing',
+      discard: leave === 'line' ? 'Discard this edit' : 'Discard changes',
+      onKeep: () => setLeave(undefined),
+      onDiscard: () => {
+        setLeave(undefined);
+        if (leave === 'line') cancelEdit();
+        else onClose();
+      },
+    } : undefined}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scroll} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <Animated.View entering={evidenceReveal} style={styles.introText}>

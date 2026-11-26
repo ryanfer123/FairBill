@@ -303,7 +303,10 @@ export default function CaseScreen() {
   return <Screen>
     <View style={[ui.between, styles.toolbar]}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => { if (!busy) router.back(); }} />
-      <Text accessibilityRole="header" style={[ui.label, ui.grow]}>{data.sample ? 'Sample case' : 'Hospital bill'}</Text>
+      <View style={ui.grow}>
+        <Text accessibilityRole="header" style={ui.label}>{data.sample ? 'Sample case' : 'Hospital bill'}</Text>
+        {!data.sample && <Text style={ui.small}>Case {data.id.slice(-6).toUpperCase()}</Text>}
+      </View>
       <IconButton label="Case assistant" icon="message-circle" onPress={showAssistant} />
       {canAddEvidence && !compact && <Button label="Add evidence" icon="plus" tone="ghost" disabled={!!busy} onPress={addEvidence} />}
     </View>

@@ -1,8 +1,8 @@
 import { radius, themedStyles, useFairBillTheme } from './theme';
 import { StatusBar } from 'expo-status-bar';
 import { AppIcon, type IconName } from './icons';
-import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
-import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View, type TextProps } from 'react-native';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { AccessibilityInfo, findNodeHandle, Modal, Pressable, ScrollView, StyleSheet, Text, View, type TextProps } from 'react-native';
 import { Button as MaterialButton, Divider as MaterialDivider, IconButton as MaterialIconButton, ProgressBar, Surface, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Illustration } from './illustrations';
@@ -120,8 +120,38 @@ export function Message({ text, onClose }: { text: string; onClose?: () => void 
   );
 }
 
-export function Sheet({ title, children, onClose, bottom = false, compact = false }:
-  { title: string; children: ReactNode; onClose: () => void; bottom?: boolean; compact?: boolean }) {
+type SheetConfirmation = {
+  title: string; detail: string; keep: string; discard: string; onKeep: () => void; onDiscard: () => void;
+};
+
+function ConfirmationOverlay({ confirmation }: { confirmation: SheetConfirmation }) {
+  const { color, ui } = useFairBillTheme();
+  const styles = useStyles();
+  const heading = useRef<Text>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const target = findNodeHandle(heading.current);
+      if (target != null) AccessibilityInfo.setAccessibilityFocus(target);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return <View style={styles.confirmationBackdrop} accessibilityViewIsModal onAccessibilityEscape={confirmation.onKeep}>
+    <ScrollView style={styles.confirmationScroll} contentContainerStyle={styles.confirmationInset}>
+      <View style={styles.confirmationCard}>
+        <View style={styles.confirmationIcon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <AppIcon name="alert-circle" size={22} color={color.question} />
+        </View>
+        <Text ref={heading} accessible accessibilityRole="header" style={ui.heading}>{confirmation.title}</Text>
+        <Text style={ui.body}>{confirmation.detail}</Text>
+        <Button label={confirmation.keep} onPress={confirmation.onKeep} />
+        <Button label={confirmation.discard} tone="destructive" onPress={confirmation.onDiscard} />
+      </View>
+    </ScrollView>
+  </View>;
+}
+
+export function Sheet({ title, children, onClose, bottom = false, compact = false, confirmation }:
+  { title: string; children: ReactNode; onClose: () => void; bottom?: boolean; compact?: boolean; confirmation?: SheetConfirmation }) {
   const { ui, dark } = useFairBillTheme();
   const styles = useStyles();
   const [reduceMotion, setReduceMotion] = useState(true);
@@ -136,12 +166,18 @@ export function Sheet({ title, children, onClose, bottom = false, compact = fals
       {dark && <StatusBar style="light" />}
       <View style={bottom ? styles.backdrop : ui.grow}>
       <SafeAreaView style={bottom ? [styles.bottomSheet, compact && styles.compactSheet] : ui.safe} edges={bottom ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
-        {bottom && <View style={styles.handle} importantForAccessibility="no" />}
-        <View style={[ui.between, styles.sheetHeader]}>
-          <Text style={[ui.heading, ui.grow]}>{title}</Text>
-          <IconButton label="Close" icon="x" onPress={onClose} />
+        <View style={!bottom || !compact ? ui.grow : undefined}
+          pointerEvents={confirmation ? 'none' : 'auto'}
+          accessibilityElementsHidden={!!confirmation}
+          importantForAccessibility={confirmation ? 'no-hide-descendants' : 'auto'}>
+          {bottom && <View style={styles.handle} importantForAccessibility="no" />}
+          <View style={[ui.between, styles.sheetHeader]}>
+            <Text style={[ui.heading, ui.grow]}>{title}</Text>
+            <IconButton label="Close" icon="x" onPress={onClose} />
+          </View>
+          {children}
         </View>
-        {children}
+        {confirmation && <ConfirmationOverlay confirmation={confirmation} />}
       </SafeAreaView>
       </View>
     </Modal>
@@ -165,6 +201,13 @@ const useStyles = themedStyles(({ color }) => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: color.backdrop },
   bottomSheet: { height: '88%', backgroundColor: color.sheet, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
   compactSheet: { height: 'auto', maxHeight: '90%' },
+  confirmationBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: color.backdrop },
+  confirmationScroll: { flex: 1 },
+  confirmationInset: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  confirmationCard: { alignSelf: 'center', width: '100%', maxWidth: 420, padding: 20, gap: 12,
+    borderRadius: 24, backgroundColor: color.sheet, borderColor: color.line, borderWidth: 1 },
+  confirmationIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: color.tertiaryContainer },
   sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomColor: color.line,
     borderBottomWidth: 1, paddingTop: 6 },
 }));
