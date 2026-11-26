@@ -8,7 +8,7 @@ import { TouchableRipple } from 'react-native-paper';
 import { EvidenceDocuments } from '../../src/evidence-documents';
 import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
-import { CaseAssistant, type AssistantAction, type SavedPlan, type SavedPlan } from '../../src/case-assistant';
+import { CaseAssistant, type AssistantAction, type SavedPlan } from '../../src/case-assistant';
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { cloudBuild } from '../../src/cloud-auth';

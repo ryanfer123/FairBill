@@ -97,7 +97,6 @@ export function CaseAssistant(props: Props) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
       <Text accessibilityRole="header" style={ui.title}>What would you like to do?</Text>
       <Text style={ui.small}>Your request is processed on this device.</Text>
-      <Text style={ui.small}>Your request is processed on this device.</Text>
       <Input label="Ask about this case" accessibilityLabel="Ask about this case" value={request}
         maxLength={240} onChangeText={setRequest}
         onSubmitEditing={() => { if (request.trim()) submit(request); }} />
