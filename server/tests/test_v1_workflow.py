@@ -236,6 +236,36 @@ def test_assistance_and_redacted_packet(client):
     assert pdf.headers["Cache-Control"] == "no-store"
 
 
+def test_packet_route_for_a_fresh_invoice_keeps_rupees_and_omits_private_source(client):
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    bill = ("Patient name: Nora QA Fixture\nEmail: packet-test@example.invalid\n"
+            "Currency: INR\nDescription Qty Rate Amount\n"
+            "Consultation 1 500.00 500.00\nBlood count 2 130.00 240.00\nGrand Total 740.00")
+    uploaded = client.post(path + "/documents/text", headers={"Idempotency-Key": "fresh-packet"},
+                           json={"revision": case["revision"], "kind": "invoice", "text": bill})
+    assert uploaded.status_code == 200
+    case = uploaded.json()
+    document = case["documents"][0]
+    assert "Nora QA Fixture" in document["pages"][0]
+    case = operation(client, case, f"documents/{document['id']}/confirm")
+    case = operation(client, case, "investigate")
+    assert any(finding["check"] == "line_arithmetic" for finding in case["findings"])
+    version = {"revision": case["revision"]}
+    preview = client.get(path + "/packet", params={**version, "preview": True})
+    exported = client.get(path + "/packet", params=version)
+    assert preview.status_code == exported.status_code == 200
+    assert exported.headers["Content-Type"] == "application/pdf"
+    assert exported.headers["Cache-Control"] == "no-store"
+    with pymupdf.open(stream=exported.content, filetype="pdf") as pdf:
+        text = "\n".join(page.get_text() for page in pdf)
+    for output in ("\n".join(preview.json()["lines"]), text):
+        assert "Original invoice: ₹740.00" in output
+        assert "Revision history" in output
+        assert "Nora QA Fixture" not in output
+        assert "packet-test@example.invalid" not in output
+
+
 def test_fixture_profile_fail_closed(client, monkeypatch):
     monkeypatch.setenv("FAIRBILL_PROFILE", "fixtures")
     monkeypatch.setenv("FAIRBILL_INVITE_CODE", "test-invite")

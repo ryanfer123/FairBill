@@ -324,3 +324,33 @@ def test_packet_preserves_rupee_symbol_and_paise():
     assert labels == ["₹0.00", "₹0.01", "₹12,34,567.89", "−₹1.25"]
     with pymupdf.open(stream=resolution.evidence_packet(labels), filetype="pdf") as pdf:
         assert pdf[0].get_text().splitlines() == labels
+
+
+def test_packet_draws_the_rupee_outline_from_the_mobile_face():
+    expected_font = DEMO.parent / "mobile" / "assets" / "fonts" / "FairBillUISans-Semibold.ttf"
+    matrix = pymupdf.Matrix(8, 8)
+    clip = pymupdf.Rect(44, 44, 56, 58)
+    with pymupdf.open() as reference:
+        page = reference.new_page(width=595, height=842)
+        page.insert_text((46, 55), "₹", fontsize=10.5, fontname="RupeeReference",
+                         fontfile=str(expected_font), color=(0.10, 0.20, 0.19))
+        expected = page.get_pixmap(matrix=matrix, clip=clip).samples
+
+    with pymupdf.open(stream=resolution.evidence_packet(["₹"]), filetype="pdf") as pdf:
+        actual = pdf[0].get_pixmap(matrix=matrix, clip=clip).samples
+    assert min(expected) < 255
+    assert actual == expected
+
+
+def test_packet_keeps_wide_currency_lines_inside_the_page():
+    line = "W" * 87 + " ₹1.25"
+    lines = [line] * 26 + ["Final amount ₹740.00"]
+    with pymupdf.open(stream=resolution.evidence_packet(lines), filetype="pdf") as pdf:
+        assert len(pdf) == 2
+        extracted = "".join(page.get_text() for page in pdf)
+        assert extracted.count("W") == 87 * 26
+        assert extracted.count("₹1.25") == 26
+        assert extracted.rstrip().endswith("Final amount ₹740.00")
+        for page in pdf:
+            assert all(46 <= left < right <= page.rect.width - 45
+                       for left, _, right, *_ in page.get_text("words"))

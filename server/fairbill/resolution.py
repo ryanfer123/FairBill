@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import textwrap
 from collections.abc import Iterable
 from pathlib import Path
@@ -131,20 +132,50 @@ def packet_lines(case: dict) -> list[str]:
     return lines
 
 
+def _packet_parts(line, face, currency_body, rupee, size, available_width):
+    rupee_width = rupee.text_length("₹", fontsize=size)
+    adjustment = rupee_width - currency_body.text_length("₹", fontsize=size)
+    for part in textwrap.wrap(line, width=93) or [""]:
+        width = (currency_body.text_length(part, fontsize=size) + adjustment * part.count("₹")
+                 if "₹" in part else face.text_length(part, fontsize=size))
+        if width <= available_width:
+            yield part
+        else:
+            # A character-count limit alone can overflow for wide letters.
+            widest = max(rupee_width, *face.char_lengths(part, fontsize=size),
+                         *currency_body.char_lengths(part, fontsize=size))
+            yield from textwrap.wrap(part, width=max(1, int(available_width / widest)))
+
+
 def evidence_packet(lines: list[str]) -> bytes:
-    font_path = Path(__file__).with_name("fonts") / "PTSans-Regular.ttf"
+    fonts = Path(__file__).with_name("fonts")
+    heading = pymupdf.Font("hebo")
+    body = pymupdf.Font("helv")
+    currency_body = pymupdf.Font(fontfile=str(fonts / "PTSans-Regular.ttf"))
+    rupee = pymupdf.Font(fontfile=str(fonts / "FairBillUISans-Semibold.ttf"))
+    page_width, margin = 595, 46
+    ink = (0.10, 0.20, 0.19)
     with pymupdf.open() as pdf:
         page = None
         y = 0
         for line in lines:
-            for part in textwrap.wrap(line, width=93) or [""]:
+            title = line.startswith("FairBill  /")
+            size, face = (18, heading) if title else (10.5, body)
+            for part in _packet_parts(line, face, currency_body, rupee, size, page_width - 2 * margin):
                 if page is None or y > 782:
-                    page = pdf.new_page(width=595, height=842)
+                    page = pdf.new_page(width=page_width, height=842)
                     y = 55
-                title = line.startswith("FairBill  /")
-                font = "PacketSans" if "₹" in part else ("hebo" if title else "helv")
-                page.insert_text((46, y), part, fontsize=18 if title else 10.5,
-                                 fontname=font, fontfile=str(font_path) if font == "PacketSans" else None, color=(0.10, 0.20, 0.19))
+                if "₹" in part:
+                    # Keep the original body face and give the symbol its own font.
+                    writer = pymupdf.TextWriter(page.rect)
+                    position = (margin, y)
+                    for text in re.split("(₹)", part):
+                        if text:
+                            _, position = writer.append(position, text, font=rupee if text == "₹" else currency_body,
+                                                        fontsize=size)
+                    writer.write_text(page, color=ink)
+                else:
+                    page.insert_text((margin, y), part, fontsize=size, fontname="hebo" if title else "helv", color=ink)
                 y += 28 if title else 16
         return pdf.tobytes(garbage=4, deflate=True)
 
