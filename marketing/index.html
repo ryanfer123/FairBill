@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FairBill — Know what you’re being billed for</title>
+<meta name="description" content="FairBill helps patients in India read itemised hospital bills, check charges against their records, and prepare questions backed by evidence.">
+<meta name="theme-color" content="#f8f7f1"><link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="assets/crimson.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="style.css"><script defer src="app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header"><div class="wrap nav">
+<a class="brand" href="#top" aria-label="FairBill home"><img src="assets/mark.svg" alt="" width="36" height="36"><span>FairBill</span></a>
+<nav aria-label="Main navigation"><a href="#how">How it works</a><a href="#privacy">Privacy</a></nav>
+<a class="button outline small" href="https://github.com/ryanfer123/FairBill#build-android">Android setup</a>
+</div></header>
+<main id="main">
+<section class="hero wrap" id="top" aria-labelledby="hero-title">
+<div class="hero-copy">
+<h1 id="hero-title">Know what you’re<br class="wide"> being billed for<span>.</span></h1>
+<p>Turn an itemised hospital bill into clear questions, with the source behind each one.</p>
+<div class="hero-actions"><a class="button primary" href="#sample">Explore a sample bill</a><a class="quiet" href="#how">See how it works</a></div>
+<div class="note"><span class="dot"></span> Built for hospital bills in India</div>
+</div>
+<figure class="hero-figure" aria-label="Illustration: a hospital invoice compared with source-backed evidence on FairBill">
+<div class="plate">
+<div class="plate-corner a"></div><div class="plate-corner b"></div><div class="plate-corner c"></div><div class="plate-corner d"></div>
+<div class="receipt" aria-hidden="true">
+<div class="receipt-top"><span class="receipt-symbol"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>ITEMISED<br>HOSPITAL BILL</span></div>
+<div class="receipt-meta">PATIENT COPY · SAMPLE</div>
+<div class="receipt-row"><span>Lab tests</span><span>₹900</span></div><div class="receipt-row"><span>Lab tests</span><span>₹900</span></div>
+<div class="receipt-row"><span>Other charges</span><span>₹11,500</span></div>
+<div class="receipt-total"><span>Total</span><span>₹13,300</span></div><div class="barcode"></div>
+</div>
+<div class="phone" aria-hidden="true"><div class="phone-glass">
+<div class="phone-status"><span>9:41</span><span class="phone-dot"></span><span>••• ▮</span></div>
+<div class="phone-brand"><img src="assets/mark.svg" alt="" width="24" height="24">FairBill</div>
+<div class="phone-tabs"><span>Review</span><b>Evidence</b><span>Timeline</span></div>
+<div class="phone-body">
+<div class="phone-heading">Evidence</div><div class="phone-sub">1 confirmed document</div>
+<div class="phone-card"><div class="phone-card-title"><span class="paper-icon">≡</span> Hospital invoice</div><div class="phone-total"><span>Invoice total</span><b>₹13,300</b></div>
+<div class="phone-row"><div>Lab tests<small>Page 1 · Line 4</small></div><span>₹900</span></div>
+<div class="phone-row"><div>Lab tests<small>Page 1 · Line 5</small></div><span>₹900</span></div></div>
+<div class="phone-footer"><span>●</span> Open full document</div>
+</div><div class="phone-home"></div></div></div>
+<svg class="evidence-trace" viewBox="0 0 600 480" preserveAspectRatio="none" aria-hidden="true"><path class="trace-base" d="M192 274h56c35 0 27 59 60 59h30"/><path class="trace-draw" pathLength="1" d="M192 274h56c35 0 27 59 60 59h30"/><circle cx="192" cy="274" r="4"/><circle cx="338" cy="333" r="4"/></svg><div class="figure-tag" aria-hidden="true"><span class="trace-icon" aria-hidden="true">↳</span> Traceable to the source</div>
+</div><figcaption>Product illustration. Example amounts are fictional.</figcaption>
+</figure>
+</section>
+<section class="sample" id="sample" aria-labelledby="sample-title"><div class="wrap sample-grid">
+<div class="sample-copy" data-reveal><p class="kicker">Interactive walkthrough</p><h2 id="sample-title">The evidence changes.<br>So can the findings.</h2>
+<p>Try a fictional bill. Add a second lab order and see which questions still have evidence behind them.</p>
+<p class="sample-note"><span></span> Nothing to upload. Nothing is sent.</p></div>
+<div class="audit" data-reveal><div class="audit-head"><div><p class="kicker">Evidence ledger</p><h3>Review the charges</h3></div><span class="revision" id="revision">Revision 1</span></div>
+<div class="audit-totals"><div><span>Original invoice</span><strong>₹13,300</strong></div><div><span>Conditional total</span><strong id="conditional">₹11,900</strong></div></div>
+<div class="finding" id="duplicateFinding"><span class="finding-icon" id="duplicateIcon" aria-hidden="true">?</span><div class="finding-content"><strong>Possible duplicate lab charge</strong><span id="duplicateSource">Invoice · page 1, lines 4–5</span></div><span class="status" id="duplicateStatus">₹900 question</span></div>
+<div class="finding"><span class="finding-icon" aria-hidden="true">?</span><div class="finding-content"><strong>Quantity differs from the order</strong><span>Invoice and lab order · quantity</span></div><span class="status">₹500 question</span></div>
+<p class="audit-note" id="auditNote">Conditional total assumes billing accepts both questions. It is not the amount you owe.</p>
+<div class="audit-actions"><button id="addOrder" class="button primary" type="button">Add second lab order</button><button id="resetExample" class="button text-button" type="button" hidden>Reset example</button></div>
+<p id="announcement" class="sr" role="status" aria-live="polite"></p><noscript><p class="audit-note">With a second lab order, the duplicate question is withdrawn and the conditional total becomes ₹12,800.</p></noscript>
+</div></div></section>
+<section class="how wrap" id="how" aria-labelledby="how-title">
+<div><p class="kicker">The patient workflow</p><h2 id="how-title">From bill<br>to next step.</h2><p class="how-intro">You confirm the records. FairBill does the arithmetic. You decide what to share.</p></div>
+<div class="steps" data-reveal>
+<article><div class="step-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 10h8m-8 4h8"/></svg></div><div><h3>Scan and confirm</h3><p>Take a photo, upload a file, or paste itemised text. Check extracted charges against the original.</p></div></article>
+<article><div class="step-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM15 3v5h4m-10 6 2 2 4-4"/></svg></div><div><h3>Find the questions</h3><p>Check repeated charges, quantities, and insurer deductions. Open the source lines behind a finding.</p></div></article>
+<article><div class="step-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h16v12H9l-5 4zm4 5h8m-8 3h5"/></svg></div><div><h3>Prepare your response</h3><p>Review a billing letter or call script, or save a redacted evidence PDF. FairBill doesn’t contact anyone on your behalf.</p></div></article>
+</div></section>
+<section class="trust" id="privacy" aria-labelledby="trust-title"><div class="wrap trust-grid">
+<div><p class="kicker">Privacy and limits</p><h2 id="trust-title">Your bill is yours.</h2></div>
+<div class="faq">
+<details><summary>Does this website take uploads?</summary><p>No. This site explains FairBill with a fictional example. It never asks for a bill or personal information.</p></details>
+<details><summary>Does a flagged charge mean I was overcharged?</summary><p>No. A finding is a question for the billing team. The conditional total shows what could change if the questions are accepted, not confirmed savings.</p></details>
+<details><summary>How do I get the Android app?</summary><p>Use the <a href="https://github.com/ryanfer123/FairBill#build-android">Android build instructions</a> in the project’s GitHub repository. This page does not claim a Play Store release.</p></details>
+</div>
+</div></section>
+</main>
+<footer class="footer"><div class="wrap footer-grid"><a class="brand" href="#top" aria-label="FairBill home"><img src="assets/mark.svg" alt="" width="32" height="32"><span>FairBill</span></a><p>Built by Team Honey Potato for AgenticX.</p><nav aria-label="Project links"><a href="https://github.com/ryanfer123/FairBill">GitHub</a><a href="https://fairbill-api.onrender.com/privacy">App privacy</a></nav></div></footer>
+</body></html>
