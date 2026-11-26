@@ -5,17 +5,31 @@ import Animated from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import type { PickedDocument } from './document-picker';
 import { Illustration } from './illustrations';
-import { evidenceReveal, surfaceReveal } from './motion';
-import { ActionBar, Button } from './ui';
+import { surfaceReveal } from './motion';
+import { ActionBar, Button, LoadingState, Message } from './ui';
 
 export type ScanStage = 'preparing' | 'reading' | 'processing';
 
 const copy = {
-  preparing: { title: 'Preparing your document', detail: 'Getting the original ready for review.', icon: 'scan' },
-  reading: { title: 'Reading text on your phone', detail: 'FairBill is looking for the lines on this image.', icon: 'scan' },
-  processing: { title: 'Extracting document lines', detail: 'You’ll review the lines alongside their source.', icon: 'confirm' },
-  discarding: { title: 'Discarding this import', detail: 'FairBill is clearing the pending import.', icon: 'scan' },
-} as const;
+  preparing: { title: 'Preparing the file', detail: 'Getting the selected document ready to read.' },
+  reading: { title: 'Reading the image on this phone', detail: 'Looking for text in the captured page.' },
+  processing: { title: 'Extracting document lines', detail: 'You’ll compare the extracted lines with your bill next.' },
+  discarding: { title: 'Discarding the import', detail: 'Clearing this import from the case.' },
+};
+
+export type ImportRecovery = {
+  message: string;
+  onRetry: () => void;
+  onReplace: () => void;
+  replaceLabel: string;
+  onPaste: () => void;
+};
+
+function recoveryTitle(message: string) {
+  if (/could not reach|connection|offline/i.test(message)) return 'Connection interrupted';
+  if (/no readable|unreadable|invalid (?:image|pdf)|could not decode/i.test(message)) return 'The file couldn’t be read';
+  return 'The import couldn’t finish';
+}
 
 function ViewfinderCorners() {
   const { color } = useFairBillTheme();
@@ -25,33 +39,35 @@ function ViewfinderCorners() {
   </Svg>;
 }
 
-export function ScanPreview({ asset, stage, discarding, onDiscard }:
-  { asset: PickedDocument; stage: ScanStage; discarding: boolean; onDiscard: () => void }) {
+export function ScanPreview({ asset, stage, discarding, onDiscard, recovery }:
+  { asset: PickedDocument; stage: ScanStage; discarding: boolean; onDiscard: () => void; recovery?: ImportRecovery }) {
   const { ui } = useFairBillTheme();
   const styles = useStyles();
-  const [failed, setFailed] = useState(false);
+  const [failedPreview, setFailedPreview] = useState(false);
   const status = discarding ? 'discarding' : stage;
-  const { title, detail, icon } = copy[status];
-  const showPhoto = asset.type.startsWith('image/') && !failed;
+  const { title, detail } = copy[status];
+  const showPhoto = asset.type.startsWith('image/') && !failedPreview;
   return <View style={ui.grow}>
     <ScrollView contentContainerStyle={[ui.content, styles.content]}>
-      <Animated.View entering={surfaceReveal} style={styles.frame} accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants">
+      <Animated.View entering={surfaceReveal} style={styles.frame}
+        accessibilityLabel={showPhoto ? 'Selected bill image' : 'Selected document'} accessible>
         {showPhoto ? <Image source={{ uri: asset.uri }} resizeMode="contain" style={styles.photo}
-          onError={() => setFailed(true)} /> : <Illustration name="scan" size={100} />}
+          onError={() => setFailedPreview(true)} /> : <Illustration name="scan" size={100} />}
         <View pointerEvents="none" style={StyleSheet.absoluteFill}><ViewfinderCorners /></View>
       </Animated.View>
-      <View accessibilityLiveRegion="polite">
-        <Animated.View key={status} entering={evidenceReveal} style={styles.status}>
-          <Illustration name={icon} size={42} />
-          <View style={ui.grow}>
-            <Text accessibilityRole="header" style={ui.heading}>{title}</Text>
-            <Text style={ui.body}>{detail}</Text>
-          </View>
-        </Animated.View>
-      </View>
+      {recovery ? <>
+        <Text accessibilityRole="header" style={ui.heading}>{recoveryTitle(recovery.message)}</Text>
+        <Message text={recovery.message} />
+        <Button label={recovery.replaceLabel} tone="light" onPress={recovery.onReplace} />
+        <Button label="Type it manually" tone="ghost" onPress={recovery.onPaste} />
+      </> : <>
+        <LoadingState label={title} />
+        <Text style={ui.body}>{detail}</Text>
+      </>}
     </ScrollView>
-    <ActionBar><Button label="Discard import" icon="x" tone="ghost" disabled={discarding} onPress={onDiscard} /></ActionBar>
+    <ActionBar>{recovery
+      ? <Button label="Retry this file" icon="refresh-cw" onPress={recovery.onRetry} />
+      : <Button label="Discard import" icon="x" tone="ghost" disabled={discarding} onPress={onDiscard} />}</ActionBar>
   </View>;
 }
 
@@ -60,5 +76,4 @@ const useStyles = themedStyles(({ color }) => StyleSheet.create({
   frame: { aspectRatio: 1.05, maxHeight: 330, backgroundColor: color.scanFrame, borderRadius: 22,
     overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   photo: { width: '91%', height: '91%' },
-  status: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
 }));

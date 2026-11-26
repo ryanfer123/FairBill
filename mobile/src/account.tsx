@@ -1,10 +1,8 @@
 import { useFairBillTheme, themedStyles } from './theme';
-import * as SecureStore from 'expo-secure-store';
-import Animated from 'react-native-reanimated';
 import { Illustration } from './illustrations';
 import { AppIcon, type IconName } from './icons';
 import { font } from './typography';
-import { surfaceReveal } from './motion';
+import { BillReviewSteps } from './first-run';
 import { AppearanceChoices } from './appearance';
 import { GuestReview } from './guest-review';
 import Constants from 'expo-constants';
@@ -16,12 +14,6 @@ import { configureInvite, forgetCase, hostedBuild, request } from './api';
 import { updateProfile, accountUser, type PreferredEvidence, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet } from './ui';
 
-const welcomeSteps = [
-  { title: 'Welcome to FairBill', body: 'Check hospital bills against your records.', art: 'welcome' },
-  { title: 'Follow the evidence', body: 'Open a billing question to see the document and exact line behind it.', art: 'evidence' },
-  { title: 'You stay in control', body: 'Review the exact letter or call script before deciding what to share.', art: 'letter' },
-] as const;
-const welcomeKey = 'fairbill_welcome_seen';
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
 
 export function SignIn({ restoring }: { restoring: boolean }) {
@@ -34,8 +26,6 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   const [settings, setSettings] = useState(false);
   const [guest, setGuest] = useState(false);
   const pending = useRef(false);
-  const [welcome, setWelcome] = useState<number | null>(null);
-  const [welcomeReady, setWelcomeReady] = useState(false);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -63,51 +53,12 @@ export function SignIn({ restoring }: { restoring: boolean }) {
     return () => listener.remove();
   }, [restoring]);
 
-  useEffect(() => {
-    if (restoring) return;
-    let active = true;
-    void SecureStore.getItemAsync(welcomeKey).then((seen) => {
-      if (active && !seen) setWelcome(0);
-    }).catch(() => undefined).finally(() => {
-      if (active) setWelcomeReady(true);
-    });
-    return () => { active = false; };
-  }, [restoring]);
-
-  function finishWelcome() {
-    setWelcome(null);
-    void SecureStore.setItemAsync(welcomeKey, 'yes').catch(() => undefined);
-  }
-
   async function send() {
     const value = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error('Enter a valid email address.');
     await requestSignInCode(value);
     setCode('');
     setDestination(value);
-  }
-
-  if (!restoring && !welcomeReady) return <Screen><View style={ui.content}><Mark size={42} /></View></Screen>;
-
-  if (!restoring && welcome !== null) {
-    const step = welcomeSteps[welcome]!;
-    const last = welcome === welcomeSteps.length - 1;
-    return <Screen><ScrollView contentContainerStyle={[ui.content, { flexGrow: 1 }]} keyboardShouldPersistTaps="handled">
-      <View style={ui.between}>
-        <View style={ui.row}><Mark /><Text style={ui.label}>FairBill</Text></View>
-        <Button label="Skip" tone="ghost" onPress={finishWelcome} />
-      </View>
-      <Animated.View key={welcome} entering={surfaceReveal} style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-        <Illustration name={step.art} size={164} />
-        <Text accessibilityRole="header" style={[ui.title, { textAlign: 'center' }]}>{step.title}</Text>
-        <Text style={[ui.body, { textAlign: 'center' }]}>{step.body}</Text>
-      </Animated.View>
-      <Text accessibilityLiveRegion="polite" style={[ui.small, { textAlign: 'center' }]}>Step {welcome + 1} of {welcomeSteps.length}</Text>
-      <Button label={last ? 'Get started' : 'Continue'} icon="arrow-right" onPress={() => {
-        if (last) finishWelcome(); else setWelcome(welcome + 1);
-      }} />
-      {welcome > 0 && <Button label="Back" tone="ghost" onPress={() => setWelcome(welcome - 1)} />}
-    </ScrollView></Screen>;
   }
 
   return <Screen>
@@ -292,15 +243,8 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
           onPress={() => void run(async () => { await updateProfile({ name, state: region, evidence }); show('main'); })} />
       </>}
       {panel === 'help' && <Card>
-        <View style={ui.stack}>
-          <Text style={ui.label}>Which bill should I add?</Text>
-          <Text style={ui.body}>Use an itemised hospital bill with a charge on each line. Keep every page in frame if you scan it.</Text>
-        </View>
-        <Divider />
-        <View style={ui.stack}>
-          <Text style={ui.label}>How do I check a finding?</Text>
-          <Text style={ui.body}>Confirm the extracted lines, run the review, and tap a finding to open its source.</Text>
-        </View>
+        <SectionHeader>Review a bill</SectionHeader>
+        <BillReviewSteps detailed />
         {cloudBuild && <><Divider /><Text style={ui.body}>FairBill uses the internet to sign in, save cases, and review documents.</Text></>}
       </Card>}
       {panel === 'status' && <ConnectionStatus />}

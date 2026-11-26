@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
 import { EvidenceDocuments } from '../../src/evidence-documents';
+import { documentPreview, rememberDocumentPreview } from '../../src/document-preview';
 import type { ScanStage } from '../../src/scan-preview';
 import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
@@ -52,6 +53,7 @@ export default function CaseScreen() {
   const working = useRef(false);
   const cancelRequested = useRef(false);
   const uploadControl = useRef<AbortController | null>(null);
+  const fileAttempt = useRef<{ id: string; revision: number } | undefined>(undefined);
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
@@ -153,16 +155,17 @@ export default function CaseScreen() {
     if (doc) setOverlay({ type: 'review', id: doc.id });
   }
 
-  async function importEvidence(kind: Kind, source: string | PickedDocument, onStage?: (stage: ScanStage) => void) {
+  async function importEvidence(kind: Kind, source: string | PickedDocument, onStage?: (stage: ScanStage) => void, importId = newImportId()) {
     if (working.current) return;
     working.current = true;
     cancelRequested.current = false;
     setDiscarding(false);
     setBusy('import');
-    const importId = newImportId();
+    const importRevision = fileAttempt.current?.id === importId ? fileAttempt.current.revision : revision;
+    if (typeof source !== 'string') fileAttempt.current = { id: importId, revision: importRevision };
     let submitted = false;
     try {
-      const form = typeof source === 'string' ? undefined : await documentForm(kind, revision, source, () => onStage?.('reading'));
+      const form = typeof source === 'string' ? undefined : await documentForm(kind, importRevision, source, () => onStage?.('reading'));
       if (cancelRequested.current) return;
       if (form) onStage?.('processing');
       submitted = true;
@@ -172,6 +175,9 @@ export default function CaseScreen() {
         ? await postCase(`/cases/${id}/documents/file`, form, importId, signal)
         : await postCase(`/cases/${id}/documents/text`, { kind, revision, text: source }, importId, signal);
       if (!cancelRequested.current) {
+        fileAttempt.current = undefined;
+        const imported = result.documents.at(-1);
+        if (imported && typeof source !== 'string') rememberDocumentPreview(result.id, imported.id, source);
         setData(result);
         reviewNew(result);
       }
@@ -187,6 +193,7 @@ export default function CaseScreen() {
             const current = await postCase(`/cases/${id}/imports/${importId}/cancel`, { revision });
             setData(current);
           }
+          fileAttempt.current = undefined;
           setOverlay(undefined);
         }
       } catch {
@@ -306,19 +313,27 @@ export default function CaseScreen() {
           <Text accessibilityRole="header" style={ui.title}>Case review</Text>
           <View style={ui.card}>
             <Text style={ui.small}>{pending ? 'Step 2 of 3 · Confirm charges' : hasInvoice ? 'Step 3 of 3 · Check the bill' : 'Step 1 of 3 · Add a bill'}</Text>
-            <Text style={ui.label}>{pending ? 'Check what we read' : hasInvoice ? 'Ready to check your bill' : 'Add your hospital invoice'}</Text>
+            <Text style={ui.label}>{pending ? `Confirm ${KINDS[pending.kind].toLowerCase()}` : hasInvoice ? 'Charges confirmed' : 'Add your hospital invoice'}</Text>
             <Text style={ui.body}>{pending ? 'Compare each charge with the original and correct any misreads.' : hasInvoice
-              ? 'Check the confirmed documents for billing questions and insurance deductions.'
+              ? 'Your confirmed charges are ready to check for billing questions.'
               : 'Scan a printed invoice, import a file, or paste the text to start.'}</Text>
-            {pending ? <Button label="Check extracted charges" icon="arrow-right" disabled={!!busy}
+            {pending ? <Button label={pending.kind === 'invoice' ? 'Check extracted charges' : 'Check this document'} icon="arrow-right" disabled={!!busy}
                 onPress={() => setOverlay({ type: 'review', id: pending.id })} />
               : hasInvoice ? <Button label={data.history.length ? 'Check again with new evidence' : 'Check for billing issues'} icon="search"
                 busy={busy === 'investigate'} disabled={!!busy} onPress={() => void run()} />
                 : canAddEvidence && <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
           </View>
         </>}
-        {ready && <ReviewChange data={data} onEvidence={openEvidence} />}
+        {ready && <ReviewChange data={data} onEvidence={openEvidence}
+          onRevision={item => setOverlay({ type: 'revision', revision: item })} />}
         <ScenarioCard data={data} stale={!ready} onEvidence={openEvidence} />
+        {canAct && <Card>
+          <Text style={ui.label}>Ready to follow up?</Text>
+          <Text style={ui.body}>Draft questions for billing or save a redacted PDF. Nothing is sent automatically.</Text>
+          <Button label="See next steps" icon="arrow-right" tone="light" disabled={!!busy}
+            onPress={() => { setRevealedRevision(undefined); setTab('Act'); }} />
+        </Card>}
+
         {ready && <>
           <SectionHeader>Questions to ask billing</SectionHeader>
           {billingFindings.filter((finding) => finding.status !== 'withdrawn').map((finding) => <FindingCard key={finding.id} finding={finding} onPress={openEvidence} />)}
@@ -336,12 +351,6 @@ export default function CaseScreen() {
             <Text style={ui.small}>Add it to see how new evidence changes the calculation.</Text>
             <Button label="Add second lab order" icon="plus" tone="ghost" busy={busy === 'sample-order'} disabled={!!busy}
               onPress={() => { void update('sample-order', '/documents/sample-order', { revision }).then(reviewNew).catch(report); }} />
-          </Card>}
-          {canAct && <Card>
-            <Text style={ui.label}>Ready to follow up?</Text>
-            <Text style={ui.body}>Draft questions for billing or save a redacted PDF. Nothing is sent automatically.</Text>
-            <Button label="See next steps" icon="arrow-right" tone="light" disabled={!!busy}
-              onPress={() => { setRevealedRevision(undefined); setTab('Act'); }} />
           </Card>}
           <SectionHeader>Insurance review</SectionHeader>
           {insuranceFindings.map((finding) => <FindingCard key={finding.id} finding={finding}
@@ -387,11 +396,14 @@ export default function CaseScreen() {
       discarding={discarding} onDiscard={() => { cancelRequested.current = true; uploadControl.current?.abort(); setDiscarding(true); }}
       onPaste={importEvidence} onFile={importEvidence} />}
     {reviewing && overlay?.type === 'review' && <Review key={reviewing.id} doc={reviewing}
-      initialRowId={overlay.rowId} readOnly={hostedBuild || !!overlay.returnTo || (cloudBuild && data.sample)} busy={!!busy}
+      initialRowId={overlay.rowId} original={documentPreview(data.id, reviewing.id)} readOnly={hostedBuild || !!overlay.returnTo || (cloudBuild && data.sample)} busy={!!busy}
       onClose={() => { if (overlay.returnTo) setOverlay(overlay.returnTo); else close(); }} onConfirm={confirm}
       onDiscard={async () => {
         await update('discard', `/documents/${reviewing.id}/discard`, { revision });
         setOverlay(undefined);
+      }} onReplace={async () => {
+        await update('discard', `/documents/${reviewing.id}/discard`, { revision });
+        setOverlay({ type: 'intake', kind: reviewing.kind });
       }} />}
     {overlay?.type === 'evidence' && <Evidence entry={overlay.entry} onSource={(source) => {
       const doc = sourceDocument(source);

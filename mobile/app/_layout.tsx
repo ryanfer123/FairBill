@@ -10,7 +10,6 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { AppearanceSettingsProvider, useStoredAppearance } from '../src/appearance';
-import { FirstRun } from '../src/first-run';
 import { SignIn } from '../src/account';
 import { accountState, cloudBuild, listenAccount } from '../src/cloud-auth';
 import { fairBillThemes, FairBillThemeProvider } from '../src/theme';
@@ -45,8 +44,8 @@ export default function Layout() {
           <PaperProvider theme={theme.material}>
             <StatusBar style={barStyle} />
             {Platform.OS === 'android' && <NavigationBar style={barStyle} />}
-            <FirstRun>{cloudBuild && session !== 'signed-in' ? <SignIn restoring={session === 'loading'} />
-              : <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'fade', contentStyle: { backgroundColor } }} />}</FirstRun>
+            {cloudBuild && session !== 'signed-in' ? <SignIn restoring={session === 'loading'} />
+              : <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'fade', contentStyle: { backgroundColor } }} />}
           </PaperProvider>
         </ThemeProvider>
       </FairBillThemeProvider>

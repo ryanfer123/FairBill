@@ -152,7 +152,7 @@ const useStyles = themedStyles(({ color }) => StyleSheet.create({
   tonal: { backgroundColor: color.surfaceContainer, borderColor: 'transparent' },
   buttonContent: { minHeight: 48 },
   buttonText: { fontFamily: font.semibold, fontSize: 14, textAlign: 'center' },
-  iconButton: { width: 44, height: 44, margin: 0 },
+  iconButton: { width: 48, height: 48, margin: 0 },
   actionBar: { paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   actionContent: { width: '100%', maxWidth: 648, alignSelf: 'center', gap: 8 },
   handle: { alignSelf: 'center', marginTop: 10, width: 30, height: 4, borderRadius: 2, backgroundColor: color.line },

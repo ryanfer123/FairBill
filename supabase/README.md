@@ -1,6 +1,6 @@
 # FairBill Supabase
 
-The dedicated FairBill project in Mumbai (`ap-south-1`) has the case schema, hosted workflow and a private `fairbill-originals` bucket. The migrations are tracked in `migrations/` and were applied to project `ehqolzlwsjvnwiervyid`.
+The dedicated FairBill project in Mumbai (`ap-south-1`) has the case schema, hosted workflow and a private `fairbill-originals` bucket. The baseline migrations are tracked in `migrations/` and were applied to project `ehqolzlwsjvnwiervyid`. The report-link migration remains a feature-branch change until it is verified and approved separately.
 
 Authenticated users with an active session can read their own cases and originals. The server manages case writes, revisions and replay records. It reserves an object name before uploading on the user's behalf. The private bucket accepts PDF, JPEG, PNG and plain text up to 10 MiB.
 

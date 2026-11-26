@@ -344,3 +344,67 @@ def test_cancel_before_and_after_import(client, tmp_path):
     with sqlite3.connect(os.environ["FAIRBILL_DB"]) as db:
         assert not db.execute("SELECT 1 FROM case_snapshots_v1 WHERE snapshot LIKE '%TOTAL|T|Payable|18%'").fetchall()
         assert not db.execute("SELECT 1 FROM request_replays_v1 WHERE response LIKE '%TOTAL|T|Payable|18%'").fetchall()
+
+
+def test_patient_pdf_and_new_lab_order_keep_separate_quantity_question(client):
+    invoice = (
+        "CHARGE | cbc1 | Blood count | CBC | 2026-11-01 | 1 | 500.00 | 500.00",
+        "CHARGE | cbc2 | Blood count | CBC | 2026-11-01 | 1 | 500.00 | 500.00",
+        "CHARGE | draw | Blood draws | DRAW | 2026-11-01 | 4 | 50.00 | 200.00",
+        "TOTAL | total | Invoice total | 1200.00",
+    )
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    with pymupdf.open() as source:
+        page = source.new_page()
+        page.insert_text((40, 60), "\n".join(invoice))
+        response = client.post(path + "/documents/file", data={"kind": "invoice", "revision": case["revision"]},
+                               files={"file": ("fictional-bill.pdf", source.tobytes(), "application/pdf")})
+    assert response.status_code == 200, response.text
+    case = response.json()
+    bill, = case["documents"]
+    assert not case["sample"] and not bill["confirmed"]
+    assert len(bill["rows"]) == 4
+    case = operation(client, case, f"documents/{bill['id']}/confirm", rows=bill["rows"])
+
+    def add_record(case, text):
+        case = operation(client, case, "documents/text", kind="service_record", text=text)
+        doc = case["documents"][-1]
+        return operation(client, case, f"documents/{doc['id']}/confirm", rows=doc["rows"]), doc["id"]
+
+    case, first_record = add_record(case, "ORDER | first | Blood count | CBC | 2026-11-01 | 1 | ORDER-A\n"
+                                         "QUANTITY | logged | Blood draws | DRAW | 2026-11-01 | 2 | LOG-A")
+    first = operation(client, case, "investigate")
+    assert first["scenario"]["billed"] == 120000
+    assert first["scenario"]["conditional"] == 60000
+    assert {item["check"] for item in first["findings"] if item["status"] == "active"} == {"duplicates", "quantities"}
+    previous_draft = operation(client, first, "drafts", action="letter")["drafts"]["letter"]
+
+    case, second_record = add_record(first, "ORDER | second | Blood count | CBC | 2026-11-01 | 1 | ORDER-B")
+    current = operation(client, case, "investigate")
+    assert current["scenario"]["billed"] == 120000
+    assert current["scenario"]["conditional"] == 110000
+    checks = {item["check"]: item for item in current["findings"]}
+    assert checks["duplicates"]["status"] == "withdrawn"
+    assert any(item["document_id"] == second_record and item["relation"] == "contradicts"
+               for item in checks["duplicates"]["evidence"])
+    assert checks["quantities"]["status"] == "active" and checks["quantities"]["amount"] == 10000
+    assert {item["document_id"] for item in checks["quantities"]["evidence"]} == {first_record, bill["id"]}
+    diff = client.get(f"{path}/revisions/{first['revision']}/diff/{current['revision']}").json()
+    assert any(item["after"]["status"] == "withdrawn" for item in diff["changes"])
+
+    assert client.post(path + "/approvals", json={
+        "action": "letter", "revision": first["revision"], "hash": previous_draft["hash"],
+    }).status_code == 409
+    drafted = operation(client, current, "drafts", action="letter")
+    draft = drafted["drafts"]["letter"]
+    approved = operation(client, drafted, "approvals", action="letter", hash=draft["hash"])
+    assert approved["approvals"]["letter"]["hash"] == draft["hash"]
+    assert not approved["receipts"]
+    result = client.get(path + "/packet", params={"revision": current["revision"]})
+    assert result.status_code == 200
+    with pymupdf.open(stream=result.content, filetype="pdf") as packet:
+        text = "\n".join(page.get_text() for page in packet)
+        assert "Quantity needs clarification" in text
+        assert "₹1,100.00" in text
+        assert not packet.embfile_names()

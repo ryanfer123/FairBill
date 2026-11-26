@@ -11,8 +11,10 @@ import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
+import { rememberDocumentPreview } from '../src/document-preview';
 import { dockTiming, highlightReveal, surfaceReveal } from '../src/motion';
 import { AccountSettings } from '../src/account';
+import { FirstBillGuide, useFirstBillGuide } from '../src/first-run';
 import { GuestReview } from '../src/guest-review';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
@@ -86,9 +88,11 @@ export default function Home() {
   const { ui, color } = useFairBillTheme();
   const styles = useStyles();
   const [latest, setLatest] = useState<string | null>(null);
+  const [latestReady, setLatestReady] = useState(false);
   const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
   const [scanning, setScanning] = useState<PickedDocument | null>(null);
+  const [failedFile, setFailedFile] = useState<{ method: CaptureMethod; asset: PickedDocument; message: string }>();
   const [guest, setGuest] = useState(false);
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
@@ -108,6 +112,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const guide = useFirstBillGuide(cloudBuild && latestReady && latest === null && !busy);
   const { bottom } = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const [typing, setTyping] = useState(() => Keyboard.isVisible());
@@ -138,6 +143,7 @@ export default function Home() {
     void lastCase().then(async (id) => {
       if (!active) return;
       setLatest(id);
+      setLatestReady(true);
       setRecent((saved) => saved?.id === id ? saved : null);
       if (id) {
         try {
@@ -158,7 +164,7 @@ export default function Home() {
   const open = (id: string, options?: { document?: string }) =>
     router.push({ pathname: '/case/[id]', params: { id, ...options } });
 
-  async function start(action: CaptureMethod | 'paste' | 'sample') {
+  async function start(action: CaptureMethod | 'paste' | 'sample', selected?: PickedDocument) {
     if (importing.current) return;
     importing.current = true;
     committedImport.current = false;
@@ -166,6 +172,7 @@ export default function Home() {
     setDiscarding(false);
     setBusy(action);
     setError('');
+    let asset = selected;
     try {
       if (action === 'sample') {
         if (cloudBuild) return;
@@ -175,10 +182,10 @@ export default function Home() {
         return;
       }
       if (hostedBuild) return;
-      const asset = action !== 'paste' ? await pickDocument(action) : undefined;
+      if (action !== 'paste' && !asset) asset = await pickDocument(action);
       if (action !== 'paste' && !asset) return;
       if (action === 'paste' && !text.trim()) return;
-      if (asset) { setScanStage('preparing'); setScanning(asset); }
+      if (asset) { setFailedFile(undefined); setScanStage('preparing'); setScanning(asset); }
       if (!blank.current) blank.current = await createCase(false);
       if (discarded.current) return;
       const { id, revision } = blank.current;
@@ -196,7 +203,9 @@ export default function Home() {
       await rememberCase(result.id).catch(() => undefined);
       setText('');
       setCapture(null);
-      open(result.id, { document: result.documents.at(-1)?.id });
+      const imported = result.documents.at(-1);
+      if (asset && imported) rememberDocumentPreview(result.id, imported.id, asset);
+      open(result.id, { document: imported?.id });
     } catch (cause) {
       if (discarded.current) return;
       if (action !== 'sample' && cause instanceof ApiError && cause.status === 409 && blank.current) {
@@ -215,7 +224,9 @@ export default function Home() {
           }
         } catch { /* Show the original request error. */ }
       }
-      setError((cause as Error).message);
+      const message = (cause as Error).message;
+      if (asset && action !== 'paste' && action !== 'sample') setFailedFile({ method: action, asset, message });
+      else setError(message);
     } finally {
       if (discarded.current) {
         const current = blank.current;
@@ -238,6 +249,7 @@ export default function Home() {
 
   function chooseCapture(mode: 'upload' | 'paste') {
     setError('');
+    setFailedFile(undefined);
     setCapture(mode);
   }
 
@@ -301,6 +313,7 @@ export default function Home() {
             </View>
           </TouchableRipple>
         </Animated.View>
+        {guide.visible && <FirstBillGuide onDismiss={guide.dismiss} />}
         {!hostedBuild && <View style={ui.stack}>
           <SectionHeader>Other ways to add a bill</SectionHeader>
           <View style={styles.methods}>
@@ -337,12 +350,19 @@ export default function Home() {
         void rememberCase(adopted.id).catch(() => undefined);
         open(adopted.id, { document: adopted.documents[0]?.id });
       }} />}
-      {(capture || scanning) && <Sheet title={scanning ? 'Scan document' : capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
+      {(capture || scanning || failedFile) && <Sheet title={scanning || failedFile ? 'Read document' : capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
         if (importing.current) return;
         setCapture(null);
+        setFailedFile(undefined);
         setError('');
       }}>
-        {scanning ? <ScanPreview asset={scanning} stage={scanStage} discarding={discarding} onDiscard={discardImport} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {scanning ? <ScanPreview asset={scanning} stage={scanStage} discarding={discarding} onDiscard={discardImport} />
+          : failedFile ? <ScanPreview asset={failedFile.asset} stage={scanStage} discarding={false} onDiscard={discardImport}
+            recovery={{ message: failedFile.message, replaceLabel: failedFile.method === 'camera' ? 'Retake photo' : 'Choose another file',
+              onRetry: () => void start(failedFile.method, failedFile.asset),
+              onReplace: () => failedFile.method === 'camera' ? void start('camera') : chooseCapture('upload'),
+              onPaste: () => chooseCapture('paste') }} />
+          : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             {error ? <Message text={error} onClose={() => setError('')} /> : null}
             <Text style={ui.body}>Choose the page that lists each service and its charge. You’ll confirm the extracted amounts next.</Text>

@@ -103,16 +103,14 @@ const conditionalTitle = 'Total if the questions are resolved';
 export function ReviewHeadline({ data, animate }: { data: Case; animate: boolean }) {
   const { ui } = useFairBillTheme();
   const styles = useStyles();
-  const amount = data.scenario?.adjustments;
   const active = data.findings.filter((finding) => finding.check !== 'settlement' && finding.status === 'active');
   const sources = unique(active.flatMap((finding) => finding.evidence)).length;
   return <Animated.View entering={animate ? surfaceReveal : undefined} style={styles.reviewHeadline}>
     <View style={ui.between}>
       <View style={ui.grow}>
-        <Text accessibilityRole="header" style={styles.summaryLabel}>{amount != null && amount > 0
-          ? 'Worth asking billing about' : 'Case review'}</Text>
-        {amount != null && amount > 0 ? <Text selectable style={[ui.money, styles.headline]}>{money(amount)}</Text>
-          : <Text style={ui.heading}>Billing questions</Text>}
+        <Text accessibilityRole="header" style={ui.heading}>Questions to ask billing</Text>
+        <Text style={ui.body}>{active.length > 0 ? 'Each open question links to the charges or records behind it.'
+          : 'No open billing questions in the confirmed lines.'}</Text>
       </View>
       <Illustration name="balance" size={58} />
     </View>
@@ -179,13 +177,15 @@ function signedMoney(amount: number) {
   return amount > 0 ? `+${money(amount)}` : money(amount);
 }
 
-export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (entry: EvidenceView) => void }) {
+export function ReviewChange({ data, onEvidence, onRevision }:
+  { data: Case; onEvidence: (entry: EvidenceView) => void; onRevision: (item: History) => void }) {
   const { ui } = useFairBillTheme();
   const styles = useStyles();
   const item = data.history.at(-1);
   if (!item) return null;
-  const { withdrawn, movement, secondOrder } = revisionChange(data, item);
+  const { previous, withdrawn, movement, secondOrder } = revisionChange(data, item);
   const [first] = withdrawn;
+  const stillOpen = item.findings.filter(finding => finding.status === 'active' && finding.check !== 'settlement');
   const evidence = unique(withdrawn.flatMap((finding) => finding.evidence));
   if (!first) return null;
   return <View style={styles.withdrawal}>
@@ -196,10 +196,14 @@ export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (en
     </View>
     <Text style={ui.body}>{secondOrder ? 'The second lab order explains the repeat test.' : first.explanation}
       {movement !== null && movement !== 0 ? ' This changed the conditional total.' : ''}</Text>
+    {stillOpen.length > 0 && <Text style={ui.body}>Still open: {stillOpen[0]?.title}{stillOpen.length > 1
+      ? ` and ${stillOpen.length - 1} more.` : '.'}</Text>}
     <SourceChips evidence={evidence} onPress={(selected) => onEvidence({
       title: 'Why the questions were withdrawn', explanation: withdrawn.map((finding) => finding.explanation).join(' '),
       amount: null, status: 'withdrawn', evidence, selected,
     })} />
+    {previous && <Button label="See previous check" tone="ghost" onPress={() => onRevision(previous)} />}
+    <Button label="See current check" tone="ghost" onPress={() => onRevision(item)} />
   </View>;
 }
 
@@ -356,11 +360,9 @@ const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   currentDot: { backgroundColor: color.primary },
   railLine: { width: 1, flex: 1, backgroundColor: color.line, marginBottom: -10 },
   reviewHeadline: { gap: 10, padding: 16, backgroundColor: color.tertiaryContainer, borderRadius: 16 },
-  summaryLabel: { ...ui.label, color: color.onTertiaryContainer },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 4, borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: color.outline, paddingTop: 9 },
   metricValue: { ...ui.money, color: color.onTertiaryContainer },
-  headline: { color: color.question, fontSize: 36, lineHeight: 44, letterSpacing: -1 },
   ledger: { gap: 4, padding: 14, paddingBottom: 0, backgroundColor: color.card, borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth, borderColor: color.line },
   ledgerSource: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, gap: 6 },

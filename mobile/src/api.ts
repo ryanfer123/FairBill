@@ -36,6 +36,7 @@ export interface Document {
   sha256: string;
   confirmed: boolean;
   edited_rows?: string[];
+  media_type?: string | null;
 }
 
 export interface Source {
