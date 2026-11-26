@@ -538,6 +538,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guest-reviews/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adopt Guest Review */
+        post: operations["adopt_guest_review_guest_reviews_adopt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -999,6 +1016,37 @@ export interface components {
             title: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** GuestAdoption */
+        GuestAdoption: {
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+            /**
+             * Guest Id
+             * Format: uuid
+             */
+            guest_id: string;
+            /** Invoice Total */
+            invoice_total?: number | null;
+            /**
+             * Owner Id
+             * Format: uuid
+             */
+            owner_id: string;
+            /** Rows */
+            rows: components["schemas"]["GuestCharge"][];
+        };
+        /** GuestCharge */
+        GuestCharge: {
+            /** Amount */
+            amount: number;
+            /** Description */
+            description: string;
+            /** Units */
+            units: number;
         };
         /** Health */
         Health: {
@@ -5122,6 +5170,113 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Simulate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adopt_guest_review_guest_reviews_adopt_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-FairBill-Invite"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestAdoption"];
             };
         };
         responses: {

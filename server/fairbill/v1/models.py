@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -27,6 +28,38 @@ class Create(Input):
 
 class Version(Input):
     revision: int = Field(strict=True, ge=1)
+
+
+GuestAmount = Annotated[int, Field(strict=True, ge=0, le=1_000_000_000)]
+
+
+class GuestCharge(Input):
+    description: str = Field(min_length=1, max_length=72)
+    units: int = Field(strict=True, ge=1, le=9999)
+    amount: GuestAmount
+
+    @field_validator("description")
+    @classmethod
+    def normalise_description(cls, value):
+        result = " ".join(value.split())
+        if not result:
+            raise ValueError("Each charge needs a description.")
+        return result
+
+
+class GuestAdoption(Input):
+    guest_id: UUID
+    owner_id: UUID
+    rows: list[GuestCharge] = Field(min_length=1, max_length=15)
+    invoice_total: GuestAmount | None = None
+    consent: Literal[True]
+
+    @field_validator("consent", mode="before")
+    @classmethod
+    def explicit_consent(cls, value):
+        if value is not True:
+            raise ValueError("Explicit transfer consent is required.")
+        return value
 
 
 class ReportLinkInput(Version):

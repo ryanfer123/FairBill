@@ -6,6 +6,7 @@ import { AppIcon, type IconName } from './icons';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
 import { AppearanceChoices } from './appearance';
+import { GuestReview } from './guest-review';
 import Constants from 'expo-constants';
 import { Chip } from 'react-native-paper';
 import { useEffect, useRef, useState } from 'react';
@@ -31,6 +32,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(restoring);
   const [settings, setSettings] = useState(false);
+  const [guest, setGuest] = useState(false);
   const pending = useRef(false);
   const [welcome, setWelcome] = useState<number | null>(null);
   const [welcomeReady, setWelcomeReady] = useState(false);
@@ -137,10 +139,12 @@ export function SignIn({ restoring }: { restoring: boolean }) {
             <Button label="Send sign-in email" icon="mail" busy={busy} onPress={() => void run(send)} />
           </>}
         </Card>}
+        <Button label="Review on this device" tone="light" icon="receipt" onPress={() => setGuest(true)} />
         {privacyUrl && <Button label="Privacy notice" tone="ghost" onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
       </ScrollView>
     </KeyboardAvoidingView>
     {settings && <AccountSettings onClose={() => setSettings(false)} />}
+    {guest && <GuestReview onClose={() => setGuest(false)} />}
   </Screen>;
 }
 

@@ -13,6 +13,7 @@ import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } f
 import { ConnectionStatus } from '../src/connection';
 import { dockTiming, highlightReveal, surfaceReveal } from '../src/motion';
 import { AccountSettings } from '../src/account';
+import { GuestReview } from '../src/guest-review';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
 import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
@@ -94,6 +95,7 @@ export default function Home() {
   const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
   const [scanning, setScanning] = useState<PickedDocument | null>(null);
+  const [guest, setGuest] = useState(false);
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
   const importing = useRef(false);
@@ -303,6 +305,10 @@ export default function Home() {
             <CaseLink title="Upload a file" label="Upload a file" detail="PDF or photo" icon="upload" disabled={!!busy} onPress={() => chooseCapture('upload')} />
             <Divider />
             <CaseLink title="Paste text" label="Paste text" detail="Copied from an itemised bill" icon="file-text" disabled={!!busy} onPress={() => chooseCapture('paste')} />
+            {cloudBuild && <><Divider />
+              <CaseLink title="On-device review" label="On-device review" detail="Enter charges without uploading a bill"
+                icon="receipt" disabled={!!busy} onPress={() => setGuest(true)} />
+            </>}
           </View>
         </View>}
         {!cloudBuild && <View style={styles.sample}>
@@ -323,6 +329,11 @@ export default function Home() {
       {destination === 'settings' && !archiveOpen && <AccountSettings onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
+      }} />}
+      {guest && <GuestReview onClose={() => setGuest(false)} onAdopted={(adopted) => {
+        setGuest(false);
+        void rememberCase(adopted.id).catch(() => undefined);
+        open(adopted.id, { document: adopted.documents[0]?.id });
       }} />}
       {(capture || scanning) && <Sheet title={scanning ? 'Scan document' : capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
         if (importing.current) return;

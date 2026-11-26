@@ -27,7 +27,7 @@ from ..india_pilot import PilotInput, PilotReview, review_case
 from ..rules import run_rules
 from ..sample import fixtures
 from . import models as m
-from . import cloud, follow_ups, report_links, store
+from . import cloud, follow_ups, guest_review, report_links, store
 from .middleware import RequestContext, error, profile, route_error
 from .operations import add_draft_version, document, edit_draft, for_local, invalidate, is_live_case, make_case, simulated
 
@@ -132,7 +132,7 @@ def health(response: Response):
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     if current == "hosted":
-        features = ["india-review", "policy-lookup", "follow-ups"]
+        features = ["india-review", "policy-lookup", "follow-ups", "guest-adoption"]
         if report_links.enabled():
             features.append("report-links")
         response.headers["X-FairBill-Features"] = ", ".join(features)
@@ -556,6 +556,14 @@ def simulate(case_id: str, data: m.Simulate, owner: Owner, key: Key = None):
         simulated(case, current, data)
 
     return mutate(owner, case_id, key, "simulations", data, apply)
+
+
+@app.post("/guest-reviews/adopt", response_model=m.Case)
+def adopt_guest_review(data: m.GuestAdoption, owner: Owner):
+    for_local()
+    if profile() == "hosted" and str(data.owner_id) != owner:
+        raise HTTPException(409, "Your account changed. Reopen the on-device review.")
+    return guest_review.adopt(owner, data)
 
 
 @app.post("/cases/{case_id}/follow-ups", response_model=m.Case)
