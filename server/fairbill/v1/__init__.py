@@ -27,7 +27,7 @@ from ..india_pilot import PilotInput, PilotReview, review_case
 from ..rules import run_rules
 from ..sample import fixtures
 from . import models as m
-from . import cloud, store
+from . import cloud, report_links, store
 from .middleware import RequestContext, error, profile, route_error
 from .operations import add_draft_version, document, edit_draft, for_local, invalidate, is_live_case, make_case, simulated
 
@@ -132,7 +132,10 @@ def health(response: Response):
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     if current == "hosted":
-        response.headers["X-FairBill-Features"] = "india-review, policy-lookup"
+        features = ["india-review", "policy-lookup"]
+        if report_links.enabled():
+            features.append("report-links")
+        response.headers["X-FairBill-Features"] = ", ".join(features)
     return health_result
 
 
@@ -553,6 +556,39 @@ def simulate(case_id: str, data: m.Simulate, owner: Owner, key: Key = None):
         simulated(case, current, data)
 
     return mutate(owner, case_id, key, "simulations", data, apply)
+
+
+@app.post("/cases/{case_id}/report-links", response_model=m.CreatedReportLink, status_code=201)
+def create_report_link(case_id: str, data: m.ReportLinkInput, owner: Owner, key: Key = None):
+    report_links.require_enabled()
+    return report_links.create(owner, case_id, data.revision, data.hours, key)
+
+
+@app.get("/cases/{case_id}/report-links", response_model=list[m.ReportLink])
+def list_report_links(case_id: str, owner: Owner):
+    report_links.require_enabled()
+    return report_links.listing(owner, case_id)
+
+
+@app.delete("/cases/{case_id}/report-links/{link_id}", status_code=204, response_class=Response)
+def revoke_report_link(case_id: str, link_id: str, owner: Owner):
+    report_links.require_enabled()
+    report_links.revoke(owner, case_id, cloud.case_uuid(link_id))
+    return Response(status_code=204)
+
+
+@app.get("/shared-report", responses={200: {"content": {"application/pdf": {"schema": {
+    "type": "string", "format": "binary",
+}}}}})
+def download_shared_report(authorization: Bearer):
+    report_links.require_enabled()
+    try:
+        packet = report_links.download(authorization.credentials if authorization else None)
+    except OSError:
+        raise HTTPException(503, "The report is temporarily unavailable.", report_links.PUBLIC_HEADERS) from None
+    return Response(packet, media_type="application/pdf", headers={
+        **report_links.PUBLIC_HEADERS, "Content-Disposition": "attachment; filename=FairBill-evidence.pdf",
+    })
 
 
 @app.get("/cases/{case_id}/packet", response_model=m.Packet, responses={200: {"content": {

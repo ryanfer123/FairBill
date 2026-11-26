@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import sqlite3
 from pathlib import Path
 from typing import Annotated, Literal
@@ -11,7 +12,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from .documents import MAX_BYTES, ROW_TYPES, Kind, Row, make_document
@@ -19,6 +20,7 @@ from .investigation import CHECKS, DEPENDENCIES, event, run
 from .resolution import Action, evidence_packet, make_draft, packet_lines
 from .sample import fixtures
 from .v1 import app as v1_app
+from .v1 import report_links
 from .v1.middleware import profile as api_profile
 
 app = FastAPI(title="FairBill", version="0.1.0", docs_url=None, redoc_url=None)
@@ -363,6 +365,22 @@ async def restrict_hosted_legacy(request, call_next):
     if api_profile() != "local" and not request.url.path.startswith("/v1/"):
         return JSONResponse({"code": "not_found", "message": "Use the versioned API.", "details": []}, status_code=404)
     return await call_next(request)
+
+
+@app.get("/shared-report", include_in_schema=False)
+def shared_report_page():
+    report_links.require_enabled()
+    assets = Path(__file__).with_name("public_pages")
+    nonce = secrets.token_urlsafe(24)
+    script = (assets / "shared_report.js").read_text()
+    html = (assets / "layout.html").read_text().format(
+        title="Shared FairBill report", nonce=nonce, body=(assets / "shared_report.html").read_text(),
+        script=f'<script nonce="{nonce}">{script}</script>',
+    )
+    return HTMLResponse(html, headers={**report_links.PUBLIC_HEADERS,
+        "Content-Security-Policy": f"default-src 'none'; style-src 'nonce-{nonce}'; script-src 'nonce-{nonce}'; "
+                                   "connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    })
 
 
 app.mount("/v1", v1_app)

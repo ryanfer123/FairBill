@@ -129,6 +129,7 @@ export interface Backend {
   mode?: 'Offline' | 'Gemini';
   indiaReview?: boolean;
   policyLookup?: boolean;
+  reportLinks?: boolean;
 }
 
 async function createToken() {
@@ -177,6 +178,7 @@ async function discover(origin: string): Promise<Backend> {
       origin, prefix, profile: cloudBuild ? 'hosted' : result.profile === 'fixtures' ? 'fixtures' : 'local',
       indiaReview: features.includes('india-review'),
       policyLookup: features.includes('policy-lookup'),
+      reportLinks: features.includes('report-links'),
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {

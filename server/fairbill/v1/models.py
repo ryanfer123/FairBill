@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..documents import Kind, ObservedRow
 
@@ -26,6 +27,31 @@ class Create(Input):
 
 class Version(Input):
     revision: int = Field(strict=True, ge=1)
+
+
+class ReportLinkInput(Version):
+    consent: Literal[True]
+    hours: int = Field(strict=True, ge=1, le=168)
+
+    @field_validator("consent", mode="before")
+    @classmethod
+    def explicit_consent(cls, value):
+        if value is not True:
+            raise ValueError("Explicit consent is required.")
+        return value
+
+
+class ReportLink(BaseModel):
+    id: str
+    revision: int
+    expires_at: datetime
+    revoked_at: datetime | None = None
+    status: Literal["active", "revoked", "expired", "superseded"]
+
+
+class CreatedReportLink(BaseModel):
+    link: ReportLink
+    token: str
 
 
 class PolicyLookupInput(Version):

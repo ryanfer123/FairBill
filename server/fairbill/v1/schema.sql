@@ -28,3 +28,18 @@ CREATE TABLE IF NOT EXISTS request_replays_v1 (
 CREATE INDEX IF NOT EXISTS request_replays_v1_age ON request_replays_v1(created_at);
 
 INSERT OR IGNORE INTO fairbill_schema_migrations(version) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS report_links (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    serial INTEGER NOT NULL CHECK (serial >= 0),
+    token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64 AND token_hash NOT GLOB '*[^a-f0-9]*'),
+    creation_key TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    revoked_at INTEGER,
+    UNIQUE(case_id, creation_key),
+    FOREIGN KEY(case_id, serial) REFERENCES case_snapshots_v1(case_id, serial) ON DELETE CASCADE
+);
+
+INSERT OR IGNORE INTO fairbill_schema_migrations(version) VALUES (2);

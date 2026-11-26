@@ -27,7 +27,7 @@ def connection():
     try:
         conn.execute("PRAGMA foreign_keys=ON")
         has_migrations = conn.execute("PRAGMA table_info(fairbill_schema_migrations)").fetchone() is not None
-        if not has_migrations or conn.execute("SELECT 1 FROM fairbill_schema_migrations WHERE version = 1").fetchone() is None:
+        if not has_migrations or conn.execute("SELECT 1 FROM fairbill_schema_migrations WHERE version = 2").fetchone() is None:
             # Publish the migration marker and its tables in the same transaction.
             conn.executescript("BEGIN IMMEDIATE;\n" + SCHEMA + "\nCOMMIT;")
         yield conn

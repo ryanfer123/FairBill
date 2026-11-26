@@ -14,6 +14,7 @@ import { CaseActions } from '../../src/case-actions';
 import { CaseAssistant, type AssistantAction, type SavedPlan } from '../../src/case-assistant';
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
+import { ReportLinks } from '../../src/report-links';
 import { accountUser, cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, getBackend, getCase, hostedBuild, newImportId, postCase, request } from '../../src/api';
@@ -41,6 +42,7 @@ export default function CaseScreen() {
   const [versioned, setVersioned] = useState(false);
   const [indiaReview, setIndiaReview] = useState(false);
   const [policyLookup, setPolicyLookup] = useState(false);
+  const [reportLinks, setReportLinks] = useState(false);
   const [busy, setBusy] = useState('');
   const [packetNotice, setPacketNotice] = useState('');
   const working = useRef(false);
@@ -74,6 +76,7 @@ export default function CaseScreen() {
       setVersioned(backend.prefix === '/v1');
       setIndiaReview(backend.indiaReview === true);
       setPolicyLookup(backend.policyLookup === true);
+      setReportLinks(backend.reportLinks === true);
       setData(snapshot);
     } catch (cause) { setError((cause as Error).message); }
   }, [id]);
@@ -426,6 +429,8 @@ export default function CaseScreen() {
             </View>
           )}
         </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
+        {live && reportLinks && overlay.revision === revision && overlay.lines.length > 0 &&
+          <ReportLinks key={`${id}:${revision}`} caseId={id} revision={revision} />}
       </ScrollView>
       <ActionBar>
         {!!packetNotice && <Text accessibilityLiveRegion="polite" style={[ui.small, styles.packetNotice]}>{packetNotice}</Text>}
