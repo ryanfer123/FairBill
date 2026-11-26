@@ -44,7 +44,7 @@ const deviceReader = Platform.OS === 'android'
   ? requireOptionalNativeModule<{ readImage(uri: string): Promise<string | null> }>('FairBillOcr')
   : null;
 
-export async function documentForm(kind: Kind, revision: number, asset: PickedDocument) {
+export async function documentForm(kind: Kind, revision: number, asset: PickedDocument, onRead?: () => void) {
   const form = new FormData();
   form.append('kind', kind);
   form.append('revision', String(revision));
@@ -52,6 +52,7 @@ export async function documentForm(kind: Kind, revision: number, asset: PickedDo
   form.append('file', file);
   if (kind === 'invoice' && deviceReader && ['image/jpeg', 'image/png'].includes(asset.type) && file.size <= 10 * 1024 * 1024) {
     // Send the original in the same request even if the device cannot transcribe it.
+    onRead?.();
     const text = await deviceReader.readImage(asset.uri).catch(() => null);
     if (text) form.append('device_ocr_text', text);
   }

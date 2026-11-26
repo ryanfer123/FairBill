@@ -1,7 +1,7 @@
 import { AppIcon } from './icons';
 import Animated from 'react-native-reanimated';
 import { Illustration } from './illustrations';
-import { surfaceReveal } from './motion';
+import { evidenceReveal, surfaceReveal } from './motion';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Case, Finding, History, KINDS, Source, money } from './api';
@@ -228,6 +228,7 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
   }
   return <Sheet title="Linked evidence" onClose={onClose} bottom>
     <ScrollView contentContainerStyle={ui.content}>
+      <Animated.View entering={evidenceReveal}>
       <Card tone="tonal">
         <View style={ui.between}><View style={ui.grow}><SectionHeader>{entry.title}</SectionHeader></View><Illustration name="evidence" size={42} /></View>
         {entry.status === 'withdrawn' && <Badge tone="neutral">Finding withdrawn</Badge>}
@@ -235,6 +236,7 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
         {entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
         <Text style={ui.body}>{entry.explanation}</Text>
       </Card>
+      </Animated.View>
       {order.length > 0 && <SectionHeader>Source records</SectionHeader>}
       {order.map(({ source, index }) => <Card key={sourceKey(source)}>
         <Badge tone={source.relation === 'contradicts' ? 'amber' : source.relation === 'supports' ? 'green' : 'neutral'}>
@@ -245,7 +247,9 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
           {source.basis === 'patient_confirmed' ? ' · Patient-edited row' : ''}</Text>
         <Disclosure label={opened === index ? 'Hide source line' : 'View source line'} open={opened === index}
           onToggle={() => setOpened(opened === index ? null : index)}>
-          <Text selectable style={styles.excerpt}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          <Animated.View entering={evidenceReveal}>
+            <Text selectable style={styles.excerpt}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+          </Animated.View>
           <Text selectable style={styles.hash}>Source fingerprint {source.sha256.slice(0, 12)}</Text>
           {canOpenSource(source) && <Button label="Open document at this line" icon="file-text" tone="ghost" onPress={() => onSource(source)} />}
         </Disclosure>

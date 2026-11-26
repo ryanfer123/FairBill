@@ -1,44 +1,60 @@
-import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
 import type { PickedDocument } from './document-picker';
-import { AppIcon } from './icons';
-import { Button, color, ui } from './ui';
+import { Illustration } from './illustrations';
+import { evidenceReveal, surfaceReveal } from './motion';
+import { ActionBar, Button, color, ui } from './ui';
 
-export function ScanPreview({ asset, discarding, onDiscard }: { asset: PickedDocument; discarding: boolean; onDiscard: () => void }) {
-  const [height, setHeight] = useState(0);
+export type ScanStage = 'preparing' | 'reading' | 'processing';
+
+const copy = {
+  preparing: { title: 'Preparing your document', detail: 'Getting the original ready for review.', icon: 'scan' },
+  reading: { title: 'Reading text on your phone', detail: 'FairBill is looking for the lines on this image.', icon: 'scan' },
+  processing: { title: 'Extracting document lines', detail: 'You’ll review the lines alongside their source.', icon: 'confirm' },
+  discarding: { title: 'Discarding this import', detail: 'FairBill is clearing the pending import.', icon: 'scan' },
+} as const;
+
+function ViewfinderCorners() {
+  return <Svg viewBox="0 0 256 256" width="100%" height="100%" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
+    <Path d="M14 39V22Q14 14 22 14H39M217 14H234Q242 14 242 22V39M242 217V234Q242 242 234 242H217M39 242H22Q14 242 14 234V217"
+      fill="none" stroke={color.inversePrimary} strokeWidth={2} strokeLinecap="round" />
+  </Svg>;
+}
+
+export function ScanPreview({ asset, stage, discarding, onDiscard }:
+  { asset: PickedDocument; stage: ScanStage; discarding: boolean; onDiscard: () => void }) {
   const [failed, setFailed] = useState(false);
-  const reduced = useReducedMotion();
-  const sweep = useSharedValue(0);
-  useEffect(() => {
-    sweep.value = reduced ? 0.5 : withRepeat(withTiming(1, { duration: 1650, easing: Easing.inOut(Easing.sin) }), -1, true);
-    return () => cancelAnimation(sweep);
-  }, [reduced, sweep]);
-  const beam = useAnimatedStyle(() => ({ transform: [{ translateY: sweep.value * Math.max(0, height - 14) }] }));
-  return <View style={styles.surface} accessibilityLiveRegion="polite">
-    <View style={styles.frame} onLayout={event => setHeight(event.nativeEvent.layout.height)}
-      importantForAccessibility="no-hide-descendants">
-      {asset.type.startsWith('image/') && !failed
-        ? <Image source={{ uri: asset.uri }} resizeMode="contain" style={StyleSheet.absoluteFill} onError={() => setFailed(true)} />
-        : <View style={styles.page}><AppIcon name="file-text" size={68} color={color.primary} /></View>}
-      <View style={[styles.corner, styles.tl]} /><View style={[styles.corner, styles.tr]} />
-      <View style={[styles.corner, styles.bl]} /><View style={[styles.corner, styles.br]} />
-      <Animated.View style={[styles.beam, beam]} />
-    </View>
-    <Text accessibilityRole="header" style={ui.heading}>Reading your document</Text>
-    <Text style={ui.body}>{discarding ? 'Finishing discard…' : 'You can check the extracted lines when they’re ready.'}</Text>
-    <Button label="Discard import" icon="x" tone="ghost" disabled={discarding} onPress={onDiscard} />
+  const status = discarding ? 'discarding' : stage;
+  const { title, detail, icon } = copy[status];
+  const showPhoto = asset.type.startsWith('image/') && !failed;
+  return <View style={ui.grow}>
+    <ScrollView contentContainerStyle={[ui.content, styles.content]}>
+      <Animated.View entering={surfaceReveal} style={styles.frame} accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants">
+        {showPhoto ? <Image source={{ uri: asset.uri }} resizeMode="contain" style={styles.photo}
+          onError={() => setFailed(true)} /> : <Illustration name="scan" size={100} />}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}><ViewfinderCorners /></View>
+      </Animated.View>
+      <View accessibilityLiveRegion="polite">
+        <Animated.View key={status} entering={evidenceReveal} style={styles.status}>
+          <Illustration name={icon} size={42} />
+          <View style={ui.grow}>
+            <Text accessibilityRole="header" style={ui.heading}>{title}</Text>
+            <Text style={ui.body}>{detail}</Text>
+          </View>
+        </Animated.View>
+      </View>
+    </ScrollView>
+    <ActionBar><Button label="Discard import" icon="x" tone="ghost" disabled={discarding} onPress={onDiscard} /></ActionBar>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  surface: { flex: 1, padding: 24, gap: 12, alignSelf: 'center', width: '100%', maxWidth: 520, justifyContent: 'center' },
-  frame: { flexShrink: 1, height: 340, backgroundColor: '#142C24', borderRadius: 16, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  page: { width: '57%', height: '76%', borderRadius: 5, backgroundColor: color.paper, alignItems: 'center', justifyContent: 'center' },
-  corner: { position: 'absolute', width: 23, height: 23, borderColor: '#ABF4C9' },
-  tl: { top: 12, left: 12, borderTopWidth: 3, borderLeftWidth: 3 },
-  tr: { top: 12, right: 12, borderTopWidth: 3, borderRightWidth: 3 },
-  bl: { bottom: 12, left: 12, borderBottomWidth: 3, borderLeftWidth: 3 },
-  br: { bottom: 12, right: 12, borderBottomWidth: 3, borderRightWidth: 3 },
-  beam: { position: 'absolute', top: 0, left: 8, right: 8, height: 14, borderBottomWidth: 2, borderColor: '#94FFBF', backgroundColor: 'rgba(147,255,190,0.22)' },
+  content: { maxWidth: 500, paddingTop: 24 },
+  frame: { aspectRatio: 1.05, maxHeight: 330, backgroundColor: color.onPrimaryContainer, borderRadius: 22,
+    overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  photo: { width: '91%', height: '91%' },
+  status: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
 });

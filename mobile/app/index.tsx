@@ -4,7 +4,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScanPreview } from '../src/scan-preview';
+import { ScanPreview, type ScanStage } from '../src/scan-preview';
+import { Illustration } from '../src/illustrations';
 import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } from '../src/document-picker';
@@ -93,6 +94,7 @@ export default function Home() {
   const discarded = useRef(false);
   const uploadControl = useRef<AbortController | null>(null);
   const [discarding, setDiscarding] = useState(false);
+  const [scanStage, setScanStage] = useState<ScanStage>('preparing');
   function discardImport() {
     if (!importing.current || committedImport.current) return;
     discarded.current = true;
@@ -165,12 +167,13 @@ export default function Home() {
       const asset = action !== 'paste' ? await pickDocument(action) : undefined;
       if (action !== 'paste' && !asset) return;
       if (action === 'paste' && !text.trim()) return;
-      if (asset) setScanning(asset);
+      if (asset) { setScanStage('preparing'); setScanning(asset); }
       if (!blank.current) blank.current = await createCase(false);
       if (discarded.current) return;
       const { id, revision } = blank.current;
-      const form = asset ? await documentForm('invoice', revision, asset) : undefined;
+      const form = asset ? await documentForm('invoice', revision, asset, () => setScanStage('reading')) : undefined;
       if (discarded.current) return;
+      if (form) setScanStage('processing');
       uploadControl.current = new AbortController();
       const signal = uploadControl.current.signal;
       const result = form
@@ -273,10 +276,7 @@ export default function Home() {
         </Animated.View>}
         <Animated.View entering={surfaceReveal} style={styles.scanPanel}>
           <View style={styles.scanTop}>
-            <View style={styles.viewfinder} accessible={false} importantForAccessibility="no-hide-descendants">
-              <AppIcon name="receipt" size={30} color={color.primary} />
-              <View style={styles.cornerStart} /><View style={styles.cornerEnd} />
-            </View>
+            <Illustration name="scan" size={54} />
             <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
           </View>
           <Text style={styles.scanHint}>{Platform.OS === 'android' ? 'Hold the itemised bill steady with all four corners in view for auto capture.' : 'Start with the page that lists each service and its charge.'}</Text>
@@ -322,7 +322,7 @@ export default function Home() {
         setCapture(null);
         setError('');
       }}>
-        {scanning ? <ScanPreview asset={scanning} discarding={discarding} onDiscard={discardImport} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {scanning ? <ScanPreview asset={scanning} stage={scanStage} discarding={discarding} onDiscard={discardImport} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             {error ? <Message text={error} onClose={() => setError('')} /> : null}
             <Text style={ui.body}>Use an itemised bill that lists each service and its charge.</Text>
@@ -369,11 +369,8 @@ const styles = StyleSheet.create({
   homeContent: { gap: 20, paddingTop: 16 },
   summaryTitle: { ...ui.title, fontFamily: font.uiSans, fontSize: 36, lineHeight: 42 },
   scanPanel: { backgroundColor: color.card, borderColor: color.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: 24, padding: 20, gap: 13 },
-  scanTop: { gap: 17, alignItems: 'flex-start' },
-  viewfinder: { height: 42, width: 48, justifyContent: 'center', alignItems: 'center' },
-  cornerStart: { position: 'absolute', top: 0, left: 0, width: 17, height: 17, borderLeftWidth: 2, borderTopWidth: 2, borderTopLeftRadius: 6, borderColor: color.inversePrimary },
-  cornerEnd: { position: 'absolute', right: 0, bottom: 0, width: 17, height: 17, borderRightWidth: 2, borderBottomWidth: 2, borderBottomRightRadius: 6, borderColor: color.inversePrimary },
-  headline: { fontFamily: font.uiSans, fontSize: 29, lineHeight: 35, letterSpacing: -0.7, color: color.ink },
+  scanTop: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  headline: { flex: 1, fontFamily: font.uiSans, fontSize: 29, lineHeight: 35, letterSpacing: -0.7, color: color.ink },
   scanHint: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, color: color.muted },
   scanAction: { backgroundColor: color.primaryContainer, borderRadius: 15, overflow: 'hidden', marginTop: 3 },
   scanButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, gap: 12, minHeight: 52 },

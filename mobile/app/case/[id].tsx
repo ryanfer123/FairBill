@@ -1,11 +1,14 @@
 import { AppIcon } from '../../src/icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import Animated from 'react-native-reanimated';
+import { evidenceReveal } from '../../src/motion';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
 import { EvidenceDocuments } from '../../src/evidence-documents';
+import type { ScanStage } from '../../src/scan-preview';
 import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
 import { CaseAssistant, type AssistantAction, type SavedPlan } from '../../src/case-assistant';
@@ -135,7 +138,7 @@ export default function CaseScreen() {
     if (doc) setOverlay({ type: 'review', id: doc.id });
   }
 
-  async function importEvidence(kind: Kind, source: string | PickedDocument) {
+  async function importEvidence(kind: Kind, source: string | PickedDocument, onStage?: (stage: ScanStage) => void) {
     if (working.current) return;
     working.current = true;
     cancelRequested.current = false;
@@ -144,8 +147,9 @@ export default function CaseScreen() {
     const importId = newImportId();
     let submitted = false;
     try {
-      const form = typeof source === 'string' ? undefined : await documentForm(kind, revision, source);
+      const form = typeof source === 'string' ? undefined : await documentForm(kind, revision, source, () => onStage?.('reading'));
       if (cancelRequested.current) return;
+      if (form) onStage?.('processing');
       submitted = true;
       uploadControl.current = new AbortController();
       const signal = uploadControl.current.signal;
@@ -400,15 +404,17 @@ export default function CaseScreen() {
       } : undefined} />}
     {overlay?.type === 'packet' && <Sheet title="Redacted packet" onClose={close}>
       <ScrollView contentContainerStyle={ui.content}>
-        <Card tone="tonal">
-          <View style={ui.row}>
-            <Illustration name="packet" size={56} />
-            <SectionHeader>Redactions</SectionHeader>
-          </View>
-          <Text style={ui.body}>{live
-            ? 'The packet includes source locations, findings, amounts and revision history. It omits uploaded text and approved letters.'
-            : 'The packet retains source locations, findings, amounts and revision history.'}</Text>
-        </Card>
+        <Animated.View entering={evidenceReveal}>
+          <Card tone="tonal">
+            <View style={ui.row}>
+              <Illustration name="packet" size={48} />
+              <View style={ui.grow}><SectionHeader>What’s in the PDF</SectionHeader></View>
+            </View>
+            <Text style={ui.body}>{live
+              ? 'Findings, amounts, source locations and revision history. Uploaded text and approved letters are omitted.'
+              : 'Findings, amounts, source locations and revision history.'}</Text>
+          </Card>
+        </Animated.View>
         {error ? <Message text={error} /> : null}
         {overlay.lines.length ? <Card>
           <SectionHeader>{overlay.lines[0]}</SectionHeader>

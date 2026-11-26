@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Chip } from 'react-native-paper';
+import Animated from 'react-native-reanimated';
+import { evidenceReveal } from './motion';
 import { AppIcon } from './icons';
 import { Illustration } from './illustrations';
 import { KINDS, money, type Case } from './api';
@@ -35,17 +37,20 @@ export function EvidenceDocuments({ data, busy, onOpen }:
         })}
       </View>
     </View>
-    <View style={styles.paper}>
+    <Animated.View key={document.id} entering={evidenceReveal} style={styles.paper}>
       <View style={ui.between}>
         <Illustration name="evidence" size={44} />
         <View style={ui.grow}>
           <Text accessibilityRole="header" style={ui.heading}>{title(document)}</Text>
           <Text style={ui.small}>{document.pages.length} {document.pages.length === 1 ? 'page' : 'pages'} · {document.rows.length} {document.rows.length === 1 ? 'line' : 'lines'}</Text>
         </View>
-        {!document.confirmed && <Badge tone="amber">Needs review</Badge>}
+        <Badge tone={document.confirmed ? 'green' : 'amber'}>{document.confirmed ? 'Confirmed' : 'Needs review'}</Badge>
       </View>
       {corrected && <Text style={styles.corrected}>Explains the repeat charge</Text>}
-      {document.confirmed && total.length === 1 && total[0]?.amount != null && <Text selectable style={[ui.money, styles.total]}>{money(total[0].amount)}</Text>}
+      {document.confirmed && total.length === 1 && total[0]?.amount != null && <View style={styles.totalStrip}>
+        <Text style={ui.label}>Invoice total</Text>
+        <Text selectable style={[ui.money, styles.total]}>{money(total[0].amount)}</Text>
+      </View>}
       {document.rows.slice(0, previewLimit).map((row) => {
         const cited = citedRows.has(row.id);
         return <Pressable accessibilityRole="button" accessibilityHint="Opens the document at this source line"
@@ -62,7 +67,7 @@ export function EvidenceDocuments({ data, busy, onOpen }:
       {document.rows.length > previewLimit && <Text style={ui.small}>Showing {previewLimit} of {document.rows.length} lines.</Text>}
       <Button label={document.confirmed ? 'Open full document' : 'Confirm document lines'} icon="file-text" tone="ghost"
         disabled={busy} onPress={() => onOpen(document.id)} />
-    </View>
+    </Animated.View>
   </>;
 }
 
@@ -74,6 +79,8 @@ const styles = StyleSheet.create({
   cited: { backgroundColor: color.tertiaryContainer, borderRadius: 8 },
   pressed: { opacity: 0.75 },
   amount: { flexShrink: 1, maxWidth: '46%', textAlign: 'right' },
-  total: { alignSelf: 'flex-end', fontSize: 19, marginVertical: 4 },
+  totalStrip: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: color.primaryContainer, padding: 12, borderRadius: 10, gap: 6, marginVertical: 4 },
+  total: { fontSize: 19, color: color.onPrimaryContainer },
   corrected: { ...ui.small, color: color.primary },
 });

@@ -5,7 +5,7 @@ import { pickDocument, type CaptureMethod, type PickedDocument } from './documen
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
-import { ScanPreview } from './scan-preview';
+import { ScanPreview, type ScanStage } from './scan-preview';
 import { CaptureOptions } from './capture-options';
 import Animated from 'react-native-reanimated';
 import { evidenceReveal } from './motion';
@@ -15,12 +15,13 @@ import { ActionBar, Badge, Button, Card, Divider, Input, LoadingState, Message, 
 
 export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, onDiscard }:
   { busy: boolean; discarding: boolean; onDiscard: () => void; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
-    onFile: (kind: Kind, asset: PickedDocument) => Promise<void> }) {
+    onFile: (kind: Kind, asset: PickedDocument, onStage: (stage: ScanStage) => void) => Promise<void> }) {
   const [kind, setKind] = useState<Kind>(startKind);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [picking, setPicking] = useState<CaptureMethod | null>(null);
   const [scanning, setScanning] = useState<PickedDocument | null>(null);
+  const [stage, setStage] = useState<ScanStage>('preparing');
   const disabled = picking !== null || busy;
 
   async function pick(method: CaptureMethod) {
@@ -29,8 +30,9 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, 
     try {
       const asset = await pickDocument(method);
       if (asset) {
+        setStage('preparing');
         setScanning(asset);
-        await onFile(kind, asset);
+        await onFile(kind, asset, setStage);
       }
     } catch (cause) {
       setError((cause as Error).message);
@@ -50,7 +52,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, 
   }
 
   return <Sheet title="Add evidence" onClose={() => { if (!disabled) onClose(); }}>
-    {scanning ? <ScanPreview asset={scanning} onDiscard={onDiscard} discarding={discarding} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    {scanning ? <ScanPreview asset={scanning} stage={stage} onDiscard={onDiscard} discarding={discarding} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.stack}>
           <Text style={ui.title}>Add a document</Text>
@@ -222,21 +224,24 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
   return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.intro}>
-          <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : 'Confirm document lines'}</Text>
-          <View style={styles.metadata}>
-            <Text style={ui.small}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
-            <Text accessibilityElementsHidden importantForAccessibility="no" style={ui.small}>·</Text>
-            <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
+        <Animated.View entering={evidenceReveal} style={styles.intro}>
+          <Illustration name={selectedRow ? 'evidence' : 'confirm'} size={48} />
+          <View style={styles.introText}>
+            <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : 'Confirm document lines'}</Text>
+            <View style={styles.metadata}>
+              <Text style={ui.small}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
+              <Text accessibilityElementsHidden importantForAccessibility="no" style={ui.small}>·</Text>
+              <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
+            </View>
             {(changed || editing || doc.confirmed) && <Badge tone={changed || editing ? 'amber' : 'green'}>
               {changed || editing ? 'Unsaved' : 'Confirmed'}
             </Badge>}
           </View>
-        </View>
-        {selectedRow && <View style={[ui.stack, styles.highlight]}>
+        </Animated.View>
+        {selectedRow && <Animated.View entering={evidenceReveal} style={[ui.stack, styles.highlight]}>
           <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
           <Text selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1] || 'No text found on this line.'}</Text>
-        </View>}
+        </Animated.View>}
         {rows.length > 0 ? <View style={styles.ledger}>
           {rows.map((row, index) => {
             const isTotal = row.type === 'invoice_total';
@@ -314,7 +319,8 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
 }
 
 const styles = StyleSheet.create({
-  intro: { gap: 6 },
+  intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  introText: { flex: 1, gap: 6 },
   metadata: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
   ledger: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
   lineRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },

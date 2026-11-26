@@ -3,14 +3,14 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { color } from './theme';
 
 export type IllustrationName = 'receipt' | 'balance' | 'corrected' | 'evidence' | 'letter' | 'history' | 'settings'
-  | 'cases' | 'confirm' | 'identity' | 'packet' | 'welcome' | 'signin';
+  | 'cases' | 'confirm' | 'identity' | 'packet' | 'welcome' | 'signin' | 'scan';
 
 const tones: Record<IllustrationName, string> = {
   receipt: color.secondaryContainer, balance: color.tertiaryContainer, corrected: color.secondaryContainer,
   evidence: color.secondaryContainer, letter: color.tertiaryContainer, history: color.secondaryContainer,
   settings: color.surfaceContainer, cases: color.secondaryContainer, confirm: color.tertiaryContainer,
   identity: color.tertiaryContainer, packet: color.secondaryContainer, welcome: color.secondaryContainer,
-  signin: color.surfaceContainer,
+  signin: color.surfaceContainer, scan: color.secondaryContainer,
 };
 
 function Receipt() {
@@ -22,6 +22,20 @@ function Receipt() {
 
 function Artwork({ name }: { name: IllustrationName }) {
   switch (name) {
+    case 'scan':
+      return <>
+        <Path d="M13 22v-6a3 3 0 0 1 3-3h7m18 0h7a3 3 0 0 1 3 3v6m0 20v6a3 3 0 0 1-3 3h-7m-18 0h-7a3 3 0 0 1-3-3v-6" />
+        <Path d="M23 20h14l5 5v19H23Z" fill={color.card} />
+        <Path d="M36 20v6h6M27 31h10m-10 5h7" />
+      </>;
+    case 'evidence':
+      return <>
+        <Path d="M15 14h24l6 6v26H15Z" fill={color.card} />
+        <Path d="M38 14v7h7M20 24h11m-11 5h19m-19 5h12" />
+        <Path d="M13 38h26" stroke={color.question} />
+        <Circle cx={43} cy={43} r={10} fill={color.secondaryContainer} />
+        <Path d="m39 43 3 3 5-6" />
+      </>;
     case 'balance':
       return <><Path d="M32 14v34m-9 1h18M15 25l34-6M18 25l-7 13h14l-7-13Zm27-5-7 13h14l-7-13Z" />
         <Circle cx={32} cy={22} r={3} fill={color.card} /></>;
@@ -54,7 +68,7 @@ function Artwork({ name }: { name: IllustrationName }) {
     default:
       return <><Receipt /><Circle cx={39} cy={35} r={11} fill={color.tertiaryContainer} />
         <Path d="m47 43 9 9" strokeWidth={3} />
-        {name === 'evidence' ? <Path d="M34 35h10m-10 4h6" /> : <Path d="m34 35 3 3 7-7" />}</>;
+        <Path d="m34 35 3 3 7-7" /></>;
   }
 }
 
