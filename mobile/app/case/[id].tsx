@@ -12,8 +12,8 @@ import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
-import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, apiUrl, getBackend, getCase, headers, hostedBuild, postCase, request } from '../../src/api';
-import { documentForm } from '../../src/document-picker';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, apiUrl, getBackend, getCase, headers, hostedBuild, newImportId, postCase, request } from '../../src/api';
+import { documentForm, type PickedDocument } from '../../src/document-picker';
 import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, ReviewChange, ReviewHeadline, RevisionComparison, ScenarioCard, Timeline, revisionTitle } from '../../src/results';
@@ -36,6 +36,8 @@ export default function CaseScreen() {
   const [indiaReview, setIndiaReview] = useState(false);
   const [busy, setBusy] = useState('');
   const working = useRef(false);
+  const cancelRequested = useRef(false);
+  const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
   const [overlay, setOverlay] = useState<Overlay>();
@@ -128,6 +130,50 @@ export default function CaseScreen() {
   function reviewNew(next: Case) {
     const doc = next.documents.at(-1);
     if (doc) setOverlay({ type: 'review', id: doc.id });
+  }
+
+  async function importEvidence(kind: Kind, source: string | PickedDocument) {
+    if (working.current) return;
+    working.current = true;
+    cancelRequested.current = false;
+    setDiscarding(false);
+    setBusy('import');
+    const importId = newImportId();
+    let submitted = false;
+    try {
+      const form = typeof source === 'string' ? undefined : await documentForm(kind, revision, source);
+      if (cancelRequested.current) return;
+      submitted = true;
+      const result = form
+        ? await postCase(`/cases/${id}/documents/file`, form, importId)
+        : await postCase(`/cases/${id}/documents/text`, { kind, revision, text: source }, importId);
+      if (!cancelRequested.current) {
+        setData(result);
+        reviewNew(result);
+      }
+    } catch (cause) {
+      if (!cancelRequested.current) {
+        if (cause instanceof ApiError && cause.status === 409) await refresh();
+        throw cause;
+      }
+    } finally {
+      try {
+        if (cancelRequested.current) {
+          if (submitted) {
+            const current = await postCase(`/cases/${id}/imports/${importId}/cancel`, { revision });
+            setData(current);
+          }
+          setOverlay(undefined);
+        }
+      } catch {
+        await refresh();
+        throw new Error('Could not confirm discard. Check Evidence for the pending document before trying again.');
+      } finally {
+        setBusy('');
+        setDiscarding(false);
+        working.current = false;
+      }
+    }
   }
 
   async function confirm(rows: Row[]) {
@@ -284,10 +330,8 @@ export default function CaseScreen() {
       </>}
     </ScrollView>
     {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
-      onPaste={async (kind: Kind, text: string) => reviewNew(await update('import', '/documents/text', { kind, text, revision }))}
-      onFile={async (kind, asset) => {
-        reviewNew(await update('import', '/documents/file', documentForm(kind, revision, asset)));
-      }} />}
+      discarding={discarding} onDiscard={() => { cancelRequested.current = true; setDiscarding(true); }}
+      onPaste={importEvidence} onFile={importEvidence} />}
     {reviewing && overlay?.type === 'review' && <Review key={reviewing.id} doc={reviewing}
       initialRowId={overlay.rowId} readOnly={hostedBuild || !!overlay.returnTo || (cloudBuild && data.sample)} busy={!!busy}
       onClose={() => { if (overlay.returnTo) setOverlay(overlay.returnTo); else close(); }} onConfirm={confirm}

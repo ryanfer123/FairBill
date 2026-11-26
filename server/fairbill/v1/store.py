@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -53,6 +54,50 @@ def get(owner, case_id):
         return cloud.get(owner, case_id)
     with connection() as conn:
         return json.loads(select_case(conn, owner, case_id)[1])
+
+
+def purge_discarded_import(owner, case_id, doc_id):
+    if profile() == "hosted":
+        if cloud.rpc("purge_discarded_import", p_owner=owner, p_case=cloud.case_uuid(case_id), p_document=doc_id):
+            cloud.remove_originals([f"{owner}/{case_id}/{doc_id}"])
+        return
+    from ..documents import remove_original
+
+    with connection() as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        current = json.loads(select_case(conn, owner, case_id)[1])
+        if any(doc["id"] == doc_id for doc in current["documents"]):
+            return
+        saved = conn.execute("SELECT serial, snapshot FROM case_snapshots_v1 WHERE case_id = ? AND EXISTS "
+                             "(SELECT 1 FROM json_each(snapshot, '$.documents') WHERE value->>'id' = ?)",
+                             (case_id, doc_id)).fetchall()
+        for serial, raw in saved:
+            previous = json.loads(raw)
+            previous["documents"] = [doc for doc in previous["documents"] if doc["id"] != doc_id]
+            conn.execute("UPDATE case_snapshots_v1 SET snapshot = ? WHERE case_id = ? AND serial = ?",
+                         (json.dumps(previous), case_id, serial))
+        conn.execute("DELETE FROM request_replays_v1 WHERE owner = ? AND json_extract(response, '$.id') = ? "
+                     "AND EXISTS (SELECT 1 FROM json_each(response, '$.documents') WHERE value->>'id' = ?)",
+                     (owner, case_id, doc_id))
+        remove_original(owner, case_id, {"id": doc_id})
+
+
+def delete_case(owner, case_id):
+    if profile() == "hosted":
+        return cloud.delete_case(owner, case_id)
+    from ..documents import _original_path
+
+    with connection() as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM cases WHERE owner = ? AND id = ?", (owner, case_id)).fetchone():
+            return
+        directory = _original_path(owner, case_id, {"id": "original"}).parent
+        if directory.exists():
+            shutil.rmtree(directory)
+        conn.execute("DELETE FROM case_snapshots_v1 WHERE case_id = ?", (case_id,))
+        conn.execute("DELETE FROM request_replays_v1 WHERE owner = ? AND json_extract(response, '$.id') = ?",
+                     (owner, case_id))
+        conn.execute("DELETE FROM cases WHERE owner = ? AND id = ?", (owner, case_id))
 
 
 def list_cases(owner, limit, after):

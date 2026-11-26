@@ -165,6 +165,12 @@ def get_case(case_id: str, owner: Owner):
     return store.get(owner, case_id)
 
 
+@app.delete("/cases/{case_id}", status_code=204, response_class=Response)
+def delete_case(case_id: str, owner: Owner):
+    store.delete_case(owner, case_id)
+    return Response(status_code=204)
+
+
 @app.get("/cases/{case_id}/documents/{doc_id}", response_model=m.Document)
 @app.get("/cases/{case_id}/documents/{doc_id}/extracted", response_model=m.Document)
 def get_document(case_id: str, doc_id: str, owner: Owner):
@@ -195,9 +201,13 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
 
     def apply(case):
         nonlocal created
+        doc_id = key[7:] if key and re.fullmatch(r"import-[a-f0-9]{32}", key) else uuid4().hex
+        if doc_id in case.get("_cancelled_imports", {}).get(str(data.revision), []):
+            raise HTTPException(409, "This import was discarded.")
+        case.pop("_cancelled_imports", None)
         try:
             created = documents.make_document(
-                uuid4().hex, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
+                doc_id, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -334,6 +344,34 @@ def discard(case_id: str, doc_id: str, data: m.Version, owner: Owner, key: Key =
         event(case, "Unconfirmed import discarded", "The document was removed before investigation.", "Patient")
 
     return mutate(owner, case_id, key, f"discard:{doc_id}", data, apply)
+
+
+@app.post("/cases/{case_id}/imports/{import_id}/cancel", response_model=m.Case)
+def cancel_import(case_id: str, import_id: str, data: m.Version, owner: Owner, key: Key = None):
+    """Fence an in-flight import at its starting revision or discard its exact result."""
+    from ..api import revise
+    if not re.fullmatch(r"[a-f0-9]{32}", import_id):
+        raise HTTPException(422, "Invalid import identifier.")
+
+    def apply(case):
+        doc = next((item for item in case["documents"] if item["id"] == import_id), None)
+        if doc:
+            if doc["confirmed"]:
+                raise HTTPException(409, "This document has already been confirmed.")
+            case["documents"].remove(doc)
+            revise(case, doc["kind"])
+            event(case, "Unconfirmed import discarded", "The document was removed.", "Patient")
+        elif case["revision"] == data.revision:
+            # Invalidate delayed submissions as well as workers already holding the old serial.
+            cancelled = case.get("_cancelled_imports", {}).get(str(data.revision), [])
+            if import_id not in cancelled:
+                cancelled.append(import_id)
+            case["_cancelled_imports"] = {str(data.revision): cancelled}
+        return case
+
+    result = store.mutate(owner, key, "cancel_import", {"import_id": import_id, "revision": data.revision}, apply, case_id)
+    store.purge_discarded_import(owner, case_id, import_id)
+    return result
 
 
 @app.post("/cases/{case_id}/investigate", response_model=m.Case)

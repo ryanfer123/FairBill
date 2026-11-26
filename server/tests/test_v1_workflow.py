@@ -248,3 +248,40 @@ def test_request_limit_validation_and_health(client, monkeypatch):
     assert client.post("/v1/cases", json={}).status_code == 503
     assert client.post("/v1/cases", json={}).status_code == 429
     assert client.get("/v1/health").status_code == 503
+
+
+def test_case_deletion_is_scoped_and_purges_source_and_replays(client, tmp_path):
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    response = client.post(path + "/documents/text", headers={"Idempotency-Key": "test-source"},
+                           json={"kind": "invoice", "revision": 1, "text": "TOTAL|T|Payable|8"})
+    assert response.status_code == 200
+    doc = response.json()["documents"][0]
+    original = next((tmp_path / "originals").rglob(doc["id"]))
+    assert client.delete(path, headers=OTHER).status_code == 204
+    assert client.get(path).status_code == 200
+    assert original.exists()
+    assert client.delete(path).status_code == 204
+    assert client.delete(path).status_code == 204
+    assert client.get(path).status_code == 404
+    assert not original.exists()
+    with sqlite3.connect(os.environ["FAIRBILL_DB"]) as db:
+        assert not db.execute("SELECT serial FROM case_snapshots_v1 WHERE case_id=?", (case["id"],)).fetchall()
+        assert not db.execute("SELECT key FROM request_replays_v1 WHERE key='test-source'").fetchall()
+
+
+def test_cancel_before_and_after_import(client, tmp_path):
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    first, second = "a" * 32, "b" * 32
+    data = {"kind": "invoice", "revision": case["revision"], "text": "TOTAL|T|Payable|18"}
+    cancel = lambda doc: client.post(f"{path}/imports/{doc}/cancel", json={"revision": data["revision"]})
+    assert cancel(first).status_code == 200
+    assert client.post(path + "/documents/text", json=data, headers={"Idempotency-Key": "import-" + first}).status_code == 409
+    response = client.post(path + "/documents/text", json=data, headers={"Idempotency-Key": "import-" + second})
+    assert response.status_code == 200 and response.json()["documents"][0]["id"] == second
+    assert cancel(second).json()["documents"] == []
+    assert not list((tmp_path / "originals").rglob(second))
+    with sqlite3.connect(os.environ["FAIRBILL_DB"]) as db:
+        assert not db.execute("SELECT 1 FROM case_snapshots_v1 WHERE snapshot LIKE '%TOTAL|T|Payable|18%'").fetchall()
+        assert not db.execute("SELECT 1 FROM request_replays_v1 WHERE response LIKE '%TOTAL|T|Payable|18%'").fetchall()

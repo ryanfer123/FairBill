@@ -184,6 +184,18 @@ def mutate(owner, key, reason, fingerprint, apply, case_id, persist):
             raise Unavailable("The hosted case was not committed.")
 
 
+def delete_case(owner, case_id):
+    case_id = case_uuid(case_id)
+    for _ in range(10):
+        names = rpc("delete_case", p_owner=owner, p_case=case_id)
+        if names is None:
+            raise HTTPException(403, "This account is being deleted.")
+        if not names:
+            return
+        remove_originals(names)
+    raise Unavailable("Case deletion is still in progress. Retry to finish.")
+
+
 def delete_account(owner):
     path = f"/auth/v1/admin/users/{owner}"
     # Bound each request. A retry continues after any completed batch.

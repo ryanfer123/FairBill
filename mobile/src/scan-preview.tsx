@@ -3,9 +3,9 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import type { PickedDocument } from './document-picker';
 import { AppIcon } from './icons';
-import { color, ui } from './theme';
+import { Button, color, ui } from './ui';
 
-export function ScanPreview({ asset }: { asset: PickedDocument }) {
+export function ScanPreview({ asset, discarding, onDiscard }: { asset: PickedDocument; discarding: boolean; onDiscard: () => void }) {
   const [height, setHeight] = useState(0);
   const [failed, setFailed] = useState(false);
   const reduced = useReducedMotion();
@@ -26,7 +26,8 @@ export function ScanPreview({ asset }: { asset: PickedDocument }) {
       <Animated.View style={[styles.beam, beam]} />
     </View>
     <Text accessibilityRole="header" style={ui.heading}>Reading your document</Text>
-    <Text style={ui.body}>You can check the extracted lines when it’s ready.</Text>
+    <Text style={ui.body}>{discarding ? 'Finishing discard…' : 'You can check the extracted lines when they’re ready.'}</Text>
+    <Button label="Discard import" icon="x" tone="ghost" disabled={discarding} onPress={onDiscard} />
   </View>;
 }
 

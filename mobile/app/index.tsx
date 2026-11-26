@@ -12,7 +12,7 @@ import { ConnectionStatus } from '../src/connection';
 import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
-import { ApiError, type Case, createCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
+import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
 import { Button, Card, Divider, Input, Mark, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 const destinations = [
@@ -88,6 +88,12 @@ export default function Home() {
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
   const importing = useRef(false);
+  const discarded = useRef(false);
+  const [discarding, setDiscarding] = useState(false);
+  function discardImport() {
+    discarded.current = true;
+    setDiscarding(true);
+  }
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
@@ -136,6 +142,8 @@ export default function Home() {
   async function start(action: CaptureMethod | 'paste' | 'sample') {
     if (importing.current) return;
     importing.current = true;
+    discarded.current = false;
+    setDiscarding(false);
     setBusy(action);
     setError('');
     try {
@@ -152,20 +160,26 @@ export default function Home() {
       if (action === 'paste' && !text.trim()) return;
       if (asset) setScanning(asset);
       if (!blank.current) blank.current = await createCase(false);
+      if (discarded.current) return;
       const { id, revision } = blank.current;
-      const result = asset
-        ? await postCase(`/cases/${id}/documents/file`, documentForm('invoice', revision, asset))
+      const form = asset ? await documentForm('invoice', revision, asset) : undefined;
+      if (discarded.current) return;
+      const result = form
+        ? await postCase(`/cases/${id}/documents/file`, form)
         : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text });
+      if (discarded.current) return;
       blank.current = null;
       await rememberCase(result.id);
       setText('');
       setCapture(null);
       open(result.id, { document: result.documents.at(-1)?.id });
     } catch (cause) {
+      if (discarded.current) return;
       if (action !== 'sample' && cause instanceof ApiError && cause.status === 409 && blank.current) {
         try {
           const current = await getCase(blank.current.id);
           const uploaded = current.documents.find((document) => document.kind === 'invoice' && !document.confirmed);
+          if (discarded.current) return;
           if (uploaded) {
             blank.current = null;
             await rememberCase(current.id);
@@ -178,6 +192,18 @@ export default function Home() {
       }
       setError((cause as Error).message);
     } finally {
+      if (discarded.current) {
+        const current = blank.current;
+        blank.current = null;
+        setCapture(null);
+        setText('');
+        try {
+          if (current) await deleteCase(current.id);
+        } catch {
+          setError('Could not finish discarding this case. Open Cases and delete case ' + current?.id.slice(-6).toUpperCase() + ' to retry.');
+        }
+      }
+      setDiscarding(false);
       setScanning(null);
       setBusy(null);
       importing.current = false;
@@ -251,7 +277,10 @@ export default function Home() {
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
+      {destination === 'cases' && <CaseList onDeleted={id => {
+        if (latest === id) { setLatest(null); setRecent(null); void forgetCase().catch(() => undefined); }
+        if (blank.current?.id === id) blank.current = null;
+      }} onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
@@ -265,7 +294,7 @@ export default function Home() {
         setCapture(null);
         setError('');
       }}>
-        {scanning ? <ScanPreview asset={scanning} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {scanning ? <ScanPreview asset={scanning} discarding={discarding} onDiscard={discardImport} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             {error ? <Message text={error} onClose={() => setError('')} /> : null}
             <Text style={ui.body}>Use an itemised bill that lists each service and its charge.</Text>
@@ -283,6 +312,7 @@ export default function Home() {
               <Input label="Itemised bill text" accessibilityLabel="Itemised bill text" value={text} onChangeText={setText}
                 multiline editable={!busy} maxLength={20000} style={styles.paste} />
               <Button label="Check pasted bill" icon="arrow-right" busy={busy === 'paste'} disabled={!!busy || !text.trim()} onPress={() => void start('paste')} />
+              {busy === 'paste' && <Button label="Discard import" tone="ghost" disabled={discarding} onPress={discardImport} />}
             </Card>}
           </ScrollView>
         </KeyboardAvoidingView>}

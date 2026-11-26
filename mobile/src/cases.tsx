@@ -1,18 +1,18 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import { TouchableRipple } from 'react-native-paper';
 import { CaseTray } from './case-tray';
 import { cloudBuild } from './cloud-auth';
-import { request, type CasePage } from './api';
+import { deleteCase, request, type CasePage } from './api';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
-import { Button, LoadingState, Message, color, ui } from './ui';
+import { Button, LoadingState, Message, IconButton, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
-export function CaseList({ onStart, onOpen, onScroll, clearance }: { onStart: () => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
+export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { onStart: () => void; onDeleted: (id: string) => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
@@ -31,6 +31,22 @@ export function CaseList({ onStart, onOpen, onScroll, clearance }: { onStart: ()
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  function confirmDelete(id: string) {
+    Alert.alert(`Delete case ${id.slice(-6).toUpperCase()}?`, 'This permanently removes the bill, uploaded documents and review history.', [
+      { text: 'Keep case', style: 'cancel' },
+      { text: 'Delete case', style: 'destructive', onPress: async () => {
+        setBusy(true);
+        setError('');
+        try {
+          await deleteCase(id);
+          setCases(items => items.filter(item => item.id !== id));
+          onDeleted(id);
+        } catch (cause) { setError((cause as Error).message); }
+        finally { setBusy(false); }
+      } },
+    ]);
+  }
 
   const filtered = cases.filter((item) => filter === 'all'
     || (item.investigated_revision === item.revision) === (filter === 'complete'));
@@ -64,8 +80,8 @@ export function CaseList({ onStart, onOpen, onScroll, clearance }: { onStart: ()
         const reference = item.id.slice(-6).toUpperCase();
         const title = item.sample ? 'Sample investigation' : 'Hospital bill';
         const status = reviewed ? 'Reviewed' : 'In review';
-        return <TouchableRipple key={item.id} accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
-          onPress={() => onOpen(item.id)} style={styles.card}>
+        return <View key={item.id} style={[styles.card, ui.row]}><TouchableRipple accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
+          disabled={busy} onPress={() => onOpen(item.id)} style={ui.grow}>
           <View style={styles.file}>
             <View style={[styles.spine, reviewed && styles.finishedSpine]} />
             <View style={[styles.stamp, !reviewed && styles.openStamp]}>
@@ -78,7 +94,9 @@ export function CaseList({ onStart, onOpen, onScroll, clearance }: { onStart: ()
             </View>
             <AppIcon name="chevron-right" size={18} color={color.muted} />
           </View>
-        </TouchableRipple>;
+        </TouchableRipple>
+          {!busy && <IconButton label={`Delete case ${reference}`} icon="trash-2" onPress={() => confirmDelete(item.id)} />}
+        </View>;
       })}
       {!busy && !error && !filtered.length && <View style={styles.empty}>
         <CaseTray />

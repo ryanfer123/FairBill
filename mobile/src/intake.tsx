@@ -10,8 +10,8 @@ import { CaptureOptions } from './capture-options';
 import { Disclosure } from './disclosure';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
-export function Intake({ busy, startKind, onClose, onPaste, onFile }:
-  { busy: boolean; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
+export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, onDiscard }:
+  { busy: boolean; discarding: boolean; onDiscard: () => void; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
     onFile: (kind: Kind, asset: PickedDocument) => Promise<void> }) {
   const [kind, setKind] = useState<Kind>(startKind);
   const [body, setBody] = useState('');
@@ -47,7 +47,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
   }
 
   return <Sheet title="Add evidence" onClose={() => { if (!disabled) onClose(); }}>
-    {scanning ? <ScanPreview asset={scanning} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    {scanning ? <ScanPreview asset={scanning} onDiscard={onDiscard} discarding={discarding} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <View style={ui.stack}>
           <Text style={ui.title}>Add a document</Text>
@@ -74,7 +74,7 @@ export function Intake({ busy, startKind, onClose, onPaste, onFile }:
             multiline maxLength={20000} editable={!disabled} />
           <Button label="Review pasted text" icon="arrow-right" tone="ghost" disabled={disabled || !body.trim()} onPress={() => void paste()} />
         </Card>
-        {busy && <LoadingState label="Reading document…" />}
+        {busy && <><LoadingState label={discarding ? 'Finishing discard…' : 'Reading document…'} /><Button label="Discard import" tone="ghost" disabled={discarding} onPress={onDiscard} /></>}
       </ScrollView>
     </KeyboardAvoidingView>}
   </Sheet>;

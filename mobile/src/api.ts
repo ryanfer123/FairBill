@@ -259,7 +259,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const requestHeaders = new Headers(options.headers);
     for (const [key, value] of Object.entries(auth)) requestHeaders.set(key, value);
     if (backend.prefix && options.method && options.method !== 'GET') {
-      requestHeaders.set('Idempotency-Key', Crypto.randomUUID());
+      if (!requestHeaders.has('Idempotency-Key')) requestHeaders.set('Idempotency-Key', Crypto.randomUUID());
     }
     const url = `${backend.origin}${backend.prefix}${path}`;
     const init = { ...options, headers: requestHeaders, signal: control.signal };
@@ -285,12 +285,14 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
 export const getCase = (id: string) => request<Case>(`/cases/${id}`);
 export const createCase = (sample: boolean) => postCase('/cases', { sample });
-export function postCase(path: string, data: object | FormData) {
+export const deleteCase = (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' });
+export const newImportId = () => Crypto.randomUUID().replace(/-/g, '');
+export function postCase(path: string, data: object | FormData, importId?: string) {
   const multipart = data instanceof FormData;
   return request<Case>(path, {
     method: 'POST',
     body: multipart ? data : JSON.stringify(data),
-    headers: multipart ? {} : { 'Content-Type': 'application/json' },
+    headers: { ...(multipart ? {} : { 'Content-Type': 'application/json' }), ...(importId ? { 'Idempotency-Key': `import-${importId}` } : {}) },
   });
 }
 
