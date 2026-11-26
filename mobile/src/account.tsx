@@ -206,7 +206,7 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
         {embedded && <Text accessibilityRole="header" style={settings.title}>Settings</Text>}
         {user && <Pressable accessibilityRole="button" accessibilityLabel="Open your profile" onPress={() => show('profile')}
           style={({ pressed }) => [settings.profile, pressed && settings.pressed]}>
-          <View style={settings.identity}>{displayName ? <Text style={settings.initial}>{Array.from(displayName)[0].toLocaleUpperCase()}</Text>
+          <View style={settings.identity}>{displayName ? <Text style={settings.initial}>{Array.from(displayName)[0]?.toLocaleUpperCase()}</Text>
             : <AppIcon name="user" size={24} color={color.paper} />}</View>
           <View style={ui.grow}>
             <Text style={settings.caption}>Your profile</Text>
