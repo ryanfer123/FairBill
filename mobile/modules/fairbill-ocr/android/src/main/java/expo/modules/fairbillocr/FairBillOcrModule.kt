@@ -52,7 +52,7 @@ class FairBillOcrModule : Module() {
       val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
       require(options.outWidth in 1..10000 && options.outHeight in 1..10000 &&
-        options.outWidth.toLong() * options.outHeight <= 24_000_000) { "Resize the image and retry." }
+        options.outWidth.toLong() * options.outHeight <= 16_000_000) { "Resize the image and retry." }
       val image = InputImage.fromFilePath(context, uri)
       val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
       try {
