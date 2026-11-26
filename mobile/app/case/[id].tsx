@@ -30,6 +30,7 @@ type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: Histo
 type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
   | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'india-aid' } | { type: 'follow-ups' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
 type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
+const tabLabel: Record<Tab, string> = { Review: 'Review', Evidence: 'Evidence', Timeline: 'Timeline', Act: 'Next steps' };
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export default function CaseScreen() {
@@ -292,10 +293,10 @@ export default function CaseScreen() {
     <ConnectionStatus problemsOnly />
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}
       contentContainerStyle={styles.tabs} accessibilityRole="tablist">
-      {((canAct ? ['Review', 'Evidence', 'Timeline', 'Act'] : ['Review', 'Evidence', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={name}
+      {((canAct ? ['Review', 'Evidence', 'Timeline', 'Act'] : ['Review', 'Evidence', 'Timeline']) as Tab[]).map((name) => <TouchableRipple key={name} accessibilityRole="tab" accessibilityLabel={tabLabel[name]}
         accessibilityState={{ selected: activeTab === name }} onPress={() => { setRevealedRevision(undefined); setTab(name); }}
         style={[styles.tab, compact && styles.compactTab, name === activeTab && styles.tabActive]}>
-        <Text style={[styles.tabLabel, name === activeTab && styles.tabLabelActive]}>{name}</Text>
+        <Text style={[styles.tabLabel, name === activeTab && styles.tabLabelActive]}>{tabLabel[name]}</Text>
       </TouchableRipple>)}
     </ScrollView>
     <ScrollView key={activeTab === 'Review' ? `review-${revision}` : activeTab} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
@@ -304,13 +305,14 @@ export default function CaseScreen() {
         {ready ? <ReviewHeadline data={data} animate={revealedRevision === revision} /> : <>
           <Text accessibilityRole="header" style={ui.title}>Case review</Text>
           <View style={ui.card}>
-            <Text style={ui.label}>{pending ? 'Document needs confirmation' : hasInvoice ? 'Ready to investigate' : 'Add your hospital invoice'}</Text>
-            <Text style={ui.body}>{pending ? 'Review the source and confirm the extracted rows.' : hasInvoice
+            <Text style={ui.small}>{pending ? 'Step 2 of 3 · Confirm charges' : hasInvoice ? 'Step 3 of 3 · Check the bill' : 'Step 1 of 3 · Add a bill'}</Text>
+            <Text style={ui.label}>{pending ? 'Check what we read' : hasInvoice ? 'Ready to check your bill' : 'Add your hospital invoice'}</Text>
+            <Text style={ui.body}>{pending ? 'Compare each charge with the original and correct any misreads.' : hasInvoice
               ? 'Check the confirmed documents for billing questions and insurance deductions.'
               : 'Scan a printed invoice, import a file, or paste the text to start.'}</Text>
-            {pending ? <Button label="Review document" icon="arrow-right" disabled={!!busy}
+            {pending ? <Button label="Check extracted charges" icon="arrow-right" disabled={!!busy}
                 onPress={() => setOverlay({ type: 'review', id: pending.id })} />
-              : hasInvoice ? <Button label={data.history.length ? 'Re-run investigation' : 'Run investigation'} icon="search"
+              : hasInvoice ? <Button label={data.history.length ? 'Check again with new evidence' : 'Check for billing issues'} icon="search"
                 busy={busy === 'investigate'} disabled={!!busy} onPress={() => void run()} />
                 : canAddEvidence && <Button label="Add invoice" icon="plus" onPress={addEvidence} />}
           </View>
@@ -335,13 +337,19 @@ export default function CaseScreen() {
             <Button label="Add second lab order" icon="plus" tone="ghost" busy={busy === 'sample-order'} disabled={!!busy}
               onPress={() => { void update('sample-order', '/documents/sample-order', { revision }).then(reviewNew).catch(report); }} />
           </Card>}
+          {canAct && <Card>
+            <Text style={ui.label}>Ready to follow up?</Text>
+            <Text style={ui.body}>Draft questions for billing or save a redacted PDF. Nothing is sent automatically.</Text>
+            <Button label="See next steps" icon="arrow-right" tone="light" disabled={!!busy}
+              onPress={() => { setRevealedRevision(undefined); setTab('Act'); }} />
+          </Card>}
           <SectionHeader>Insurance review</SectionHeader>
           {insuranceFindings.map((finding) => <FindingCard key={finding.id} finding={finding}
             onPress={openEvidence} />)}
           {!insuranceFindings.length && <Text style={ui.body}>{hasSettlement
             ? 'No deductions were flagged in the confirmed statement.'
             : 'Add a settlement statement to check deductions.'}</Text>}
-          {live && indiaReview && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
+          {live && indiaReview && <Button label="Check hospital prices and policy" icon="search" tone="light" disabled={!!busy}
             onPress={() => setOverlay({ type: 'india-review' })} />}
         </>}
         {(ready || (live && policyLookup)) && versioned && (!cloudBuild || !data.sample) && <Card tone="tonal">

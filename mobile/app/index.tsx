@@ -26,19 +26,13 @@ const destinations = [
 ] as const;
 type Destination = typeof destinations[number]['key'];
 
-function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
+function TabDock({ current, busy, compact, bottom, typing, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; typing: boolean; onSelect: (tab: Destination) => void }) {
   const { color } = useFairBillTheme();
   const styles = useStyles();
   const { width, fontScale } = useWindowDimensions();
   const narrow = compact && fontScale <= 1.3;
   const dockWidth = Math.min(width * 0.92, 410);
   const size = useAnimatedStyle(() => ({ width: withTiming(narrow ? Math.min(214, dockWidth) : dockWidth, dockTiming) }));
-  const [typing, setTyping] = useState(() => Keyboard.isVisible());
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
   const index = destinations.findIndex(tab => tab.key === current);
   const slide = useAnimatedStyle(() => ({
     start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, dockTiming),
@@ -116,7 +110,15 @@ export default function Home() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const { bottom } = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
-  const clearance = bottom + 86 + Math.max(0, fontScale - 1) * 32;
+  const [typing, setTyping] = useState(() => Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  // Keep the dock outside the scrolling viewport so it can't cover an actionable row.
+  const dockSpace = typing ? 0 : bottom + 78 + Math.max(0, fontScale - 1) * 32;
+  const scrollEndSpacing = 16;
   const [compact, setCompact] = useState(false);
   const anchor = useRef(0);
   useEffect(() => { anchor.current = 0; setCompact(false); }, [destination]);
@@ -252,7 +254,7 @@ export default function Home() {
     : recent ? 'Add a bill to begin' : 'Pick up where you left off';
 
   return (
-    <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[ui.safe, { paddingBottom: dockSpace }]} edges={['top', 'left', 'right']}>
       <View style={[ui.between, styles.appBar]}>
         <Text accessibilityRole="header" style={styles.brand}>Fair<Text style={styles.brandAccent}>Bill</Text></Text>
         <View style={styles.headerActions}>
@@ -268,7 +270,7 @@ export default function Home() {
           </Pressable>
         </View>
       </View>
-      {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
+      {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: scrollEndSpacing }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
         <Animated.View entering={highlightReveal}>
           <Text accessibilityRole="header" style={styles.summaryTitle}>Summary</Text>
@@ -288,7 +290,7 @@ export default function Home() {
             <Illustration name="scan" size={54} />
             <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
           </View>
-          <Text style={styles.scanHint}>{Platform.OS === 'android' ? 'Hold the itemised bill steady with all four corners in view for auto capture.' : 'Start with the page that lists each service and its charge.'}</Text>
+          <Text style={styles.scanHint}>{Platform.OS === 'android' ? 'Use the page that lists each charge. After scanning, you’ll confirm the amounts before FairBill checks them.' : 'Use the page that lists each charge. You’ll confirm the amounts before FairBill checks them.'}</Text>
           <TouchableRipple accessibilityRole="button" accessibilityState={{ disabled: !!busy, busy: busy === 'camera' }}
             disabled={!!busy} style={styles.scanAction} onPress={hostedBuild ? () => setDestination('settings') : () => void start('camera')}>
             <View style={styles.scanButton}>
@@ -306,7 +308,7 @@ export default function Home() {
             <Divider />
             <CaseLink title="Paste text" label="Paste text" detail="Copied from an itemised bill" icon="file-text" disabled={!!busy} onPress={() => chooseCapture('paste')} />
             {cloudBuild && <><Divider />
-              <CaseLink title="On-device review" label="On-device review" detail="Enter charges without uploading a bill"
+              <CaseLink title="Enter charges manually" label="Enter charges manually" detail="Check the total without uploading anything"
                 icon="receipt" disabled={!!busy} onPress={() => setGuest(true)} />
             </>}
           </View>
@@ -321,12 +323,12 @@ export default function Home() {
         onBack={archiveOpen ? () => setArchiveOpen(false) : undefined} onDeleted={id => {
         if (latest === id) { setLatest(null); setRecent(null); void forgetCase().catch(() => undefined); }
         if (blank.current?.id === id) blank.current = null;
-      }} onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
+      }} onStart={() => setDestination('check')} onScroll={onScroll} clearance={scrollEndSpacing} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
       }} />}
-      {destination === 'settings' && !archiveOpen && <AccountSettings onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
+      {destination === 'settings' && !archiveOpen && <AccountSettings onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={scrollEndSpacing} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
@@ -343,7 +345,7 @@ export default function Home() {
         {scanning ? <ScanPreview asset={scanning} stage={scanStage} discarding={discarding} onDiscard={discardImport} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             {error ? <Message text={error} onClose={() => setError('')} /> : null}
-            <Text style={ui.body}>Use an itemised bill that lists each service and its charge.</Text>
+            <Text style={ui.body}>Choose the page that lists each service and its charge. You’ll confirm the extracted amounts next.</Text>
             <View style={styles.note}>
               <AppIcon name="lock" size={16} color={color.primary} />
               <Text style={[ui.small, ui.grow]}>{cloudBuild ? 'Bills are saved to your private account.' : 'Use fictional documents in this build.'}</Text>
@@ -357,13 +359,13 @@ export default function Home() {
             </View> : <Card>
               <Input label="Itemised bill text" accessibilityLabel="Itemised bill text" value={text} onChangeText={setText}
                 multiline editable={!busy} maxLength={20000} style={styles.paste} />
-              <Button label="Check pasted bill" icon="arrow-right" busy={busy === 'paste'} disabled={!!busy || !text.trim()} onPress={() => void start('paste')} />
+              <Button label="Read bill lines" icon="arrow-right" busy={busy === 'paste'} disabled={!!busy || !text.trim()} onPress={() => void start('paste')} />
               {busy === 'paste' && <Button label="Discard import" tone="ghost" disabled={discarding} onPress={discardImport} />}
             </Card>}
           </ScrollView>
         </KeyboardAvoidingView>}
       </Sheet>}
-      <TabDock compact={compact} bottom={bottom + 8} current={destination} busy={!!busy} onSelect={(tab) => {
+      <TabDock compact={compact} typing={typing} bottom={bottom + 8} current={destination} busy={!!busy} onSelect={(tab) => {
           if (tab === 'cases' && !versioned) {
             if (latest) open(latest);
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
