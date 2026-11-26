@@ -59,4 +59,25 @@ def delete_account_page():
     return page("Delete your FairBill account", body, script=script + (PAGE_ASSETS / "delete_account.js").read_text())
 
 
+def patient_page(origin: str, publishable_key: str):
+    body = (PAGE_ASSETS / "patient.html").read_text()
+    config = f"const authOrigin = {json.dumps(origin)};\nconst authKey = {json.dumps(publishable_key)};\n"
+    response = page("FairBill patient portal", body, script=config + (PAGE_ASSETS / "patient.js").read_text())
+    response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    return response
+
+
+@app.get("/patient")
+def patient_portal():
+    origin = os.getenv("FAIRBILL_SUPABASE_URL", "")
+    key = os.getenv("FAIRBILL_SUPABASE_PUBLISHABLE_KEY", "")
+    if (os.getenv("FAIRBILL_WEB_PATIENT") != "1"
+            or not re.fullmatch(r"https://[a-z0-9-]+\.supabase\.co", origin)
+            or not re.fullmatch(r"sb_publishable_[A-Za-z0-9_-]+", key)):
+        result = page("FairBill patient portal", "<p>The patient portal is unavailable.</p>", status=404)
+        result.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+        return result
+    return patient_page(origin, key)
+
+
 app.mount("/", api)

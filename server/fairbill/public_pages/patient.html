@@ -1,0 +1,35 @@
+<p id="patient-status" role="status" aria-live="polite"></p>
+<section id="login" aria-labelledby="login-title">
+  <h2 id="login-title">Sign in</h2>
+  <form id="email-form">
+    <label for="patient-email">Email address</label>
+    <input id="patient-email" type="email" autocomplete="email" required>
+    <button type="submit">Request email code</button>
+  </form>
+  <form id="code-form" hidden>
+    <label for="patient-code">Email code</label>
+    <input id="patient-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" maxlength="10" required>
+    <button type="submit">Verify code</button>
+    <button type="button" id="use-other-email">Use a different email</button>
+  </form>
+</section>
+<section id="case-library" aria-labelledby="library-title" hidden>
+  <h2 id="library-title" tabindex="-1">Your cases</h2>
+  <button type="button" id="new-case">New bill review</button>
+  <button type="button" id="sign-out">Sign out</button>
+  <ul id="case-list"></ul>
+  <button type="button" id="more-cases" hidden>Load more cases</button>
+</section>
+<section id="bill-review" aria-labelledby="review-title" hidden>
+  <h2 id="review-title" tabindex="-1">Bill review</h2>
+  <button type="button" id="case-back">Back to cases</button>
+  <form id="upload-bill">
+    <label for="bill-file">Itemised bill (PDF or photo)</label>
+    <input id="bill-file" type="file" accept="application/pdf,image/jpeg,image/png" required>
+    <button type="submit">Upload bill</button>
+  </form>
+  <div id="case-documents"></div>
+  <button type="button" id="investigate" hidden>Run investigation</button>
+  <div id="case-findings"></div>
+  <button type="button" id="export-packet" hidden>Download redacted PDF</button>
+</section>
