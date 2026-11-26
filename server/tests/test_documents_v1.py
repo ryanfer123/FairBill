@@ -175,3 +175,26 @@ def test_model_claim_rejection_uses_template_and_records_reason(monkeypatch):
     assert resolution.OPENINGS[0] in draft["text"]
     assert "982341" not in draft["text"]
     assert any(entry["detail"] == "unsupported_claim" for entry in case["timeline"])
+
+
+def test_timed_out_image_retries_with_source_coordinates(monkeypatch):
+    import subprocess
+    from xml.etree import ElementTree
+    from fairbill import document_media
+
+    sizes = []
+
+    def recognize(data):
+        pixels = pymupdf.Pixmap(data)
+        sizes.append((pixels.width, pixels.height))
+        if len(sizes) == 1:
+            raise subprocess.TimeoutExpired("tesseract", 25)
+        return ElementTree.fromstring('<p class="ocr_line" title="bbox 5 10 50 25">'
+                                      '<b class="ocrx_word">Test</b></p>')
+
+    monkeypatch.setattr(document_media, "_hocr", recognize)
+    original = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 200, 300), False)
+    original.clear_with(255)
+    lines = document_media._ocr_lines(original, pymupdf.Matrix(1, 1))
+    assert sizes == [(200, 300), (100, 150)]
+    assert lines[0]["bbox"] == [10, 20, 100, 50]

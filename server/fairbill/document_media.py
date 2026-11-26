@@ -1,8 +1,10 @@
 """Bounded extraction and source locations for versioned imports."""
 import math
+import os
 import re
 import shutil
 import statistics
+from collections import Counter
 import subprocess
 from xml.etree import ElementTree
 
@@ -59,7 +61,7 @@ def enhanced_pixmap(pixmap):
     if pixmap.alpha:
         # MuPDF samples are premultiplied. Composite transparent areas on white.
         pixels = bytes(gray + 255 - alpha for gray, alpha in zip(pixels[::2], pixels[1::2]))
-    histogram = [pixels.count(level) for level in range(256)]
+    histogram = Counter(pixels)
     cutoff = max(1, len(pixels) // 100)
     low, high = 0, 255
     for levels, direction in [(range(256), 1), (range(255, -1, -1), -1)]:
@@ -88,17 +90,26 @@ def _hocr(data: bytes) -> ElementTree.Element:
     try:
         result = subprocess.run(
             ["tesseract", "stdin", "stdout", "-l", "eng", "--psm", "6", "hocr"],
-            input=data, capture_output=True, timeout=15, check=True,
+            input=data, capture_output=True, timeout=25, check=True,
+            env={**os.environ, "OMP_THREAD_LIMIT": "1"},
         )
         return ElementTree.fromstring(result.stdout)
-    except (subprocess.SubprocessError, OSError, ElementTree.ParseError) as exc:
+    except (subprocess.CalledProcessError, OSError, ElementTree.ParseError) as exc:
         raise ValueError("The image could not be read. Retake it or paste the text.") from exc
 
 
 def _ocr_lines(pixmap, source_transform: pymupdf.Matrix) -> list[dict]:
     prepared = enhanced_pixmap(pixmap)
     transform = pymupdf.Matrix(pixmap.width / prepared.width, pixmap.height / prepared.height) * source_transform
-    markup = _hocr(prepared.tobytes("png"))
+    try:
+        markup = _hocr(prepared.tobytes("png"))
+    except subprocess.TimeoutExpired:
+        prepared = pymupdf.Pixmap(prepared, max(1, prepared.width // 2), max(1, prepared.height // 2))
+        transform = pymupdf.Matrix(pixmap.width / prepared.width, pixmap.height / prepared.height) * source_transform
+        try:
+            markup = _hocr(prepared.tobytes("png"))
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError("Reading this page timed out. Crop to the itemised charges and try again.") from exc
     baselines = []
     for line in markup.iter():
         if line.get("class") != "ocr_line":
@@ -113,8 +124,12 @@ def _ocr_lines(pixmap, source_transform: pymupdf.Matrix) -> list[dict]:
             page = canvas.new_page(width=prepared.width, height=prepared.height)
             page.insert_image(page.rect, pixmap=prepared)
             rotated = page.get_pixmap(matrix=rotation, colorspace=pymupdf.csGRAY)
-        markup = _hocr(rotated.tobytes("png"))
-        transform = pymupdf.Matrix(1, 0, 0, 1, rotated.x, rotated.y) * ~rotation * transform
+        try:
+            markup = _hocr(rotated.tobytes("png"))
+        except subprocess.TimeoutExpired:
+            pass  # Keep the first pass and its original coordinates.
+        else:
+            transform = pymupdf.Matrix(1, 0, 0, 1, rotated.x, rotated.y) * ~rotation * transform
 
     lines = []
     for line in markup.iter():
