@@ -1,7 +1,7 @@
 import { AppIcon } from './icons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -74,6 +74,15 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
     void load(null);
     return () => requests.invalidate();
   }, [load, requests]));
+
+  useEffect(() => {
+    if (!options) return;
+    const closeMenu = BackHandler.addEventListener('hardwareBackPress', () => {
+      setOptions(undefined);
+      return true;
+    });
+    return () => closeMenu.remove();
+  }, [options]);
 
   async function toggleArchive(id: string) {
     setOptions(undefined);

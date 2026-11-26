@@ -126,7 +126,7 @@ export function CaseAssistant(props: Props) {
         {checked && <Text style={ui.small}>{openFindings} open {openFindings === 1 ? 'question' : 'questions'}
           {withdrawn ? ` · ${withdrawn} withdrawn after review` : ''}</Text>}
         <SectionHeader>Next steps</SectionHeader>
-        {plan.steps.map((step) => <View key={step} style={ui.row}>
+        {plan.steps.filter((step) => step !== plan.next?.label).map((step) => <View key={step} style={ui.row}>
           <View style={styles.dot} /><Text style={[ui.body, ui.grow]}>{step}</Text>
         </View>)}
         {!!plan.explanation && <Text style={ui.body}>{plan.explanation}</Text>}
