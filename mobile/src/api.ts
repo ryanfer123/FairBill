@@ -168,7 +168,7 @@ async function discover(origin: string): Promise<Backend> {
     const response = prefix ? versioned : await fetch(`${origin}/health`, { signal: signal.signal });
     const result: Partial<Omit<V1['Health'], 'profile'>> & { profile?: string } = await response.json();
     if (!response.ok || result.status !== 'ok'
-      || (cloudBuild ? result.profile !== 'hosted' : result.demo !== 'synthetic' || (hostedBuild && result.profile !== 'fixtures'))) {
+      || (cloudBuild ? result.profile !== 'hosted' || result.demo !== null : result.demo !== 'synthetic' || (hostedBuild && result.profile !== 'fixtures'))) {
       throw new Error('FairBill server health check failed.');
     }
     return {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case, Kind } from './api';
 import { classifyRequest, type Intent } from './case-intent';
-import { Button, Card, Input, Sheet, color, ui } from './ui';
+import { Button, Card, Input, SectionHeader, Sheet, color, ui } from './ui';
 
 export type AssistantAction =
   | { type: 'intake'; kind: Kind }
@@ -85,6 +85,11 @@ export function CaseAssistant(props: Props) {
   const saved = props.savedPlan;
   const matching = saved?.request === request.trim() ? saved : undefined;
   const intent = matching?.intent;
+  const confirmed = props.data.documents.filter(doc => doc.confirmed).length;
+  const pending = props.data.documents.length - confirmed;
+  const checked = props.data.investigated_revision === props.data.revision;
+  const openFindings = props.data.findings.filter(finding => finding.status === 'active').length;
+  const withdrawn = props.data.findings.filter(finding => finding.status === 'withdrawn').length;
   const plan = intent && intent !== 'unknown' ? makePlan(intent, props) : undefined;
 
   function submit(text: string, goal?: Goal) {
@@ -96,6 +101,12 @@ export function CaseAssistant(props: Props) {
   return <Sheet title="Case assistant" onClose={props.onClose}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
       <Text accessibilityRole="header" style={ui.title}>What would you like to do?</Text>
+      {!matching && <View style={ui.stack}>
+        <Button label={pending ? 'Check the extracted lines' : 'Check the bill for issues'}
+          icon="check" tone="light" onPress={() => submit(pending ? goals.review[1] : goals.investigate[1], pending ? 'review' : 'investigate')} />
+        <Button label="Request an itemised bill" icon="mail" tone="ghost"
+          onPress={() => submit('Ask the hospital for an itemised bill', 'letter')} />
+      </View>}
       <Text style={ui.small}>Your request is processed on this device.</Text>
       <Input label="Ask about this case" accessibilityLabel="Ask about this case" value={request}
         maxLength={240} onChangeText={setRequest}
@@ -106,7 +117,15 @@ export function CaseAssistant(props: Props) {
       {plan && intent && intent !== 'unknown' && <Card>
         <Text accessibilityRole="header" style={ui.heading}>{goals[intent][0]}</Text>
         {matching && matching.revision !== props.data.revision &&
-          <Text style={ui.small}>Plan updated for the current case revision.</Text>}
+          <Text style={ui.small}>{pending ? 'New evidence needs confirmation. Review those lines before continuing.'
+            : checked ? 'FairBill checked the updated case. The remaining steps use the current findings.'
+            : 'The confirmed evidence changed. Run the checks again before continuing.'}</Text>}
+        <SectionHeader>Case status</SectionHeader>
+        <Text style={ui.body}>{confirmed} {confirmed === 1 ? 'document confirmed' : 'documents confirmed'}
+          {pending ? ` · ${pending} awaiting confirmation` : ''}</Text>
+        {checked && <Text style={ui.small}>{openFindings} open {openFindings === 1 ? 'question' : 'questions'}
+          {withdrawn ? ` · ${withdrawn} withdrawn after review` : ''}</Text>}
+        <SectionHeader>Next steps</SectionHeader>
         {plan.steps.map((step) => <View key={step} style={ui.row}>
           <View style={styles.dot} /><Text style={[ui.body, ui.grow]}>{step}</Text>
         </View>)}

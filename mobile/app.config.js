@@ -1,11 +1,16 @@
 module.exports = ({ config }) => {
+  const play = process.env.FAIRBILL_PLAY_BUILD === '1';
+  const expoExtra = { ...config.extra };
+  for (const key of ['fairbillLocalApi', 'fairbillHostedApi', 'fairbillSupabaseUrl', 'fairbillSupabaseKey', 'fairbillPrivacyUrl']) {
+    delete expoExtra[key];
+  }
   if (process.env.FAIRBILL_LOCAL_DEV === '1') {
-    if (process.env.FAIRBILL_PLAY_BUILD === '1') {
+    if (play) {
       throw new Error('A Play build must use the hosted FairBill service.');
     }
     return {
       ...config,
-      extra: { ...config.extra, fairbillLocalApi: 'http://127.0.0.1:8765' },
+      extra: { ...expoExtra, fairbillLocalApi: 'http://127.0.0.1:8765' },
       plugins: config.plugins.map((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties'
         ? [plugin[0], { ...plugin[1], android: { ...plugin[1].android, usesCleartextTraffic: true } }]
         : plugin),
@@ -24,6 +29,7 @@ module.exports = ({ config }) => {
   }
 
   const cloud = process.env.FAIRBILL_CLOUD_BUILD !== '0';
+  if (play && !cloud) throw new Error('A Play build must use the hosted FairBill service, not the tester fixture service.');
   const supabaseUrl = process.env.FAIRBILL_SUPABASE_URL ?? 'https://ehqolzlwsjvnwiervyid.supabase.co';
   const supabaseKey = process.env.FAIRBILL_SUPABASE_PUBLISHABLE_KEY;
   const privacyUrl = process.env.FAIRBILL_PRIVACY_URL ?? `${api.origin}/privacy`;
@@ -36,7 +42,7 @@ module.exports = ({ config }) => {
   return {
     ...config,
     extra: {
-      ...config.extra, fairbillHostedApi: api.origin,
+      ...expoExtra, fairbillHostedApi: api.origin,
       ...(cloud ? { fairbillSupabaseUrl: supabaseUrl, fairbillSupabaseKey: supabaseKey, fairbillPrivacyUrl: privacyUrl } : {}),
     },
     android: {

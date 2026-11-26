@@ -1,16 +1,18 @@
 import { AppIcon } from './icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CaseListRow } from './case-list-row';
 import { CaseTray } from './case-tray';
+import { createCasePageRequests, mergeCasePage, syncArchivePage, type CaseCursor } from './case-page-state';
 import { accountUser, cloudBuild } from './cloud-auth';
 import { deleteCase, request, type CasePage } from './api';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
-import { Button, LoadingState, Message, Sheet, color, ui } from './ui';
+import { Button, Input, LoadingState, Message, Sheet, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
@@ -20,12 +22,16 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [failedCursor, setFailedCursor] = useState<CaseCursor>();
+  const requests = useMemo(createCasePageRequests, []);
   const [filter, setFilter] = useState('all');
 
   const [archive, setArchive] = useState<Set<string>>(new Set());
   const archiveView = !!onBack;
   const [pendingDelete, setPendingDelete] = useState<string>();
   const [options, setOptions] = useState<string>();
+  const [labelDraft, setLabelDraft] = useState<{ id: string; value: string }>();
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
   const acting = useRef(false);
   const owner = cloudBuild ? accountUser()?.id : 'installation';
@@ -34,21 +40,40 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
     return `fairbill.archive.${owner}.${id}`;
   }, [owner]);
 
-  const load = useCallback(async (cursor?: string) => {
+  const labelKey = useCallback((id: string) => `${archiveKey(id)}.label`, [archiveKey]);
+
+  const load = useCallback(async (cursor: CaseCursor) => {
+    const attempt = requests.start(cursor);
     setBusy(true);
     setError('');
+    setFailedCursor(undefined);
     try {
-      const page = await request<CasePage>(`/cases?limit=20${cursor ? `&after=${encodeURIComponent(cursor)}` : ''}`);
-      const states = await Promise.all(page.cases.map(async item =>
-        (await SecureStore.getItemAsync(archiveKey(item.id))) === '1' ? item.id : null));
-      setArchive(current => new Set([...(cursor ? current : []), ...states.filter((id): id is string => id !== null)]));
-      setCases((items) => cursor ? [...items, ...page.cases] : page.cases);
+      const page = await request<CasePage>(`/cases?limit=20${cursor === null ? '' : `&after=${encodeURIComponent(cursor)}`}`);
+      if (!requests.isCurrent(attempt)) return;
+      const details = await Promise.all(page.cases.map(async item => {
+        const [archived, label] = await Promise.all([
+          SecureStore.getItemAsync(archiveKey(item.id)), SecureStore.getItemAsync(labelKey(item.id)),
+        ]);
+        return { id: item.id, archived: archived === '1', label: label ?? '' };
+      }));
+      if (!requests.isCurrent(attempt)) return;
+      setArchive(current => syncArchivePage(current, page.cases, details.map(item => item.archived ? item.id : null), cursor));
+      setLabels(current => ({ ...(cursor === null ? {} : current), ...Object.fromEntries(details.map(item => [item.id, item.label])) }));
+      setCases(current => mergeCasePage(current, page.cases, cursor));
       setAfter(page.next_after);
-    } catch (cause) { setError((cause as Error).message); }
-    finally { setBusy(false); }
-  }, [archiveKey]);
+    } catch (cause) {
+      if (!requests.isCurrent(attempt)) return;
+      setFailedCursor(attempt.cursor);
+      setError((cause as Error).message);
+    } finally {
+      if (requests.isCurrent(attempt)) setBusy(false);
+    }
+  }, [archiveKey, labelKey, requests]);
 
-  useEffect(() => { void load(); }, [load]);
+  useFocusEffect(useCallback(() => {
+    void load(null);
+    return () => requests.invalidate();
+  }, [load, requests]));
 
   async function toggleArchive(id: string) {
     setOptions(undefined);
@@ -71,6 +96,21 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
     finally { setBusy(false); acting.current = false; }
   }
 
+  async function saveLabel() {
+    if (!labelDraft || acting.current) return;
+    acting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const value = labelDraft.value.trim();
+      if (value) await SecureStore.setItemAsync(labelKey(labelDraft.id), value);
+      else await SecureStore.deleteItemAsync(labelKey(labelDraft.id));
+      setLabels(current => ({ ...current, [labelDraft.id]: value }));
+      setLabelDraft(undefined);
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setBusy(false); acting.current = false; }
+  }
+
   function confirmDelete(id: string) {
     setOptions(undefined);
     setError('');
@@ -88,6 +128,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
       onDeleted(id);
       setNotice('Case deleted.');
       setPendingDelete(undefined);
+      if (labels[id]) void SecureStore.deleteItemAsync(labelKey(id)).catch(() => undefined);
       if (archive.has(id)) void SecureStore.deleteItemAsync(archiveKey(id)).catch(() => undefined);
     } catch (cause) { setError((cause as Error).message); }
     finally { setBusy(false); acting.current = false; }
@@ -123,9 +164,13 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
         </Pressable>;
       })}
     </View>
-    {error && !pendingDelete ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
+    {error && !pendingDelete && !labelDraft ? <><Message text={error} />
+      {failedCursor !== undefined && <Button label="Retry" icon="refresh-cw" onPress={() => void load(failedCursor)} />}
+    </> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
-      {filtered.map(item => <CaseListRow key={item.id} item={item} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
+      {filtered.map(item => <CaseListRow key={item.id} item={item} label={labels[item.id]} onRename={() => {
+          setOptions(undefined); setError(''); setLabelDraft({ id: item.id, value: labels[item.id] ?? '' });
+        }} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
         onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)}
         optionsVisible={options === item.id} onDismissOptions={() => setOptions(undefined)} onArchive={() => void toggleArchive(item.id)}
         onDelete={() => confirmDelete(item.id)} />)}
@@ -138,6 +183,15 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
     </Animated.View>
     {busy && <LoadingState label="Loading cases" />}
     {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
+    {labelDraft && <Sheet title="Edit case label" bottom compact onClose={() => { if (!busy) { setLabelDraft(undefined); setError(''); } }}>
+      <View style={ui.content}>
+        <Input label="Case label" accessibilityLabel="Case label" value={labelDraft.value} maxLength={64} editable={!busy}
+          onChangeText={(value) => setLabelDraft({ ...labelDraft, value })} />
+        <Text style={ui.small}>The label appears on this device. Clear the field to use the default name.</Text>
+        {error ? <Message text={error} /> : null}
+        <Button label="Save case label" icon="check" busy={busy} onPress={() => void saveLabel()} />
+      </View>
+    </Sheet>}
     {pendingDelete && <Sheet title={`Delete case ${pendingDelete.slice(-6).toUpperCase()}?`} bottom compact
       onClose={() => { if (!acting.current) { setError(''); setPendingDelete(undefined); } }}>
       <View style={ui.content}>

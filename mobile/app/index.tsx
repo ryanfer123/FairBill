@@ -1,4 +1,4 @@
-import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { AppIcon, type IconName } from '../src/icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +9,7 @@ import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
+import { dockTiming, highlightReveal, surfaceReveal } from '../src/motion';
 import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
@@ -26,7 +27,7 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
   const { width, fontScale } = useWindowDimensions();
   const narrow = compact && fontScale <= 1.3;
   const dockWidth = Math.min(width * 0.92, 410);
-  const size = useAnimatedStyle(() => ({ width: withTiming(narrow ? Math.min(214, dockWidth) : dockWidth, { duration: 200, reduceMotion: ReduceMotion.System }) }));
+  const size = useAnimatedStyle(() => ({ width: withTiming(narrow ? Math.min(214, dockWidth) : dockWidth, dockTiming) }));
   const [typing, setTyping] = useState(() => Keyboard.isVisible());
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
@@ -35,7 +36,7 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
   }, []);
   const index = destinations.findIndex(tab => tab.key === current);
   const slide = useAnimatedStyle(() => ({
-    start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, { duration: 180, reduceMotion: ReduceMotion.System }),
+    start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, dockTiming),
   }));
   if (typing) return null;
   return <Animated.View style={[styles.dock, { bottom }, size]}>
@@ -43,7 +44,7 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
       <Animated.View pointerEvents="none" style={[styles.selection, slide]} />
       {destinations.map(tab => {
         const selected = tab.key === current;
-        const tint = selected ? color.onPrimaryContainer : color.paper;
+        const tint = selected ? color.primary : color.muted;
         return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
           accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
           style={styles.tab}>
@@ -88,10 +89,12 @@ export default function Home() {
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
   const importing = useRef(false);
+  const committedImport = useRef(false);
   const discarded = useRef(false);
   const uploadControl = useRef<AbortController | null>(null);
   const [discarding, setDiscarding] = useState(false);
   function discardImport() {
+    if (!importing.current || committedImport.current) return;
     discarded.current = true;
     uploadControl.current?.abort();
     setDiscarding(true);
@@ -145,6 +148,7 @@ export default function Home() {
   async function start(action: CaptureMethod | 'paste' | 'sample') {
     if (importing.current) return;
     importing.current = true;
+    committedImport.current = false;
     discarded.current = false;
     setDiscarding(false);
     setBusy(action);
@@ -173,8 +177,9 @@ export default function Home() {
         ? await postCase(`/cases/${id}/documents/file`, form, undefined, signal)
         : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text }, undefined, signal);
       if (discarded.current) return;
+      committedImport.current = true;
       blank.current = null;
-      await rememberCase(result.id);
+      await rememberCase(result.id).catch(() => undefined);
       setText('');
       setCapture(null);
       open(result.id, { document: result.documents.at(-1)?.id });
@@ -186,8 +191,9 @@ export default function Home() {
           const uploaded = current.documents.find((document) => document.kind === 'invoice' && !document.confirmed);
           if (discarded.current) return;
           if (uploaded) {
+            committedImport.current = true;
             blank.current = null;
-            await rememberCase(current.id);
+            await rememberCase(current.id).catch(() => undefined);
             setText('');
             setCapture(null);
             open(current.id, { document: uploaded.id });
@@ -252,19 +258,23 @@ export default function Home() {
       </View>
       {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
-        {!!latest && <View style={ui.stack}>
+        <Animated.View entering={highlightReveal}>
+          <Text accessibilityRole="header" style={styles.summaryTitle}>Summary</Text>
+        </Animated.View>
+        {!!latest && <Animated.View entering={surfaceReveal} style={ui.stack}>
           <SectionHeader>{recent && !reviewed ? 'Needs your attention' : 'Recent case'}</SectionHeader>
           <View style={styles.recentCase}>
-            <CaseLink title={recent?.sample ? 'Sample investigation' : 'Hospital bill'} label="Resume last case"
+            <CaseLink title={recent?.sample ? 'Sample investigation' : 'Hospital bill'} label={reviewed ? 'See findings' : recent?.documents.some(doc => !doc.confirmed) ? 'Confirm bill lines'
+                : recent?.documents.length ? 'Continue bill review' : 'Open case'}
               featured icon="receipt" disabled={!!busy} onPress={() => open(latest)}
               progress={progress} detail={activeQuestions ? `${recentDetail} · ${activeQuestions} ${activeQuestions === 1 ? 'question' : 'questions'}` : recentDetail}
               amount={conditionalAmount != null ? money(conditionalAmount) : undefined} />
           </View>
-        </View>}
-        <View style={styles.scanPanel}>
+        </Animated.View>}
+        <Animated.View entering={surfaceReveal} style={styles.scanPanel}>
           <View style={styles.scanTop}>
             <View style={styles.viewfinder} accessible={false} importantForAccessibility="no-hide-descendants">
-              <AppIcon name="receipt" size={43} color={color.paper} />
+              <AppIcon name="receipt" size={30} color={color.primary} />
               <View style={styles.cornerStart} /><View style={styles.cornerEnd} />
             </View>
             <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
@@ -279,7 +289,7 @@ export default function Home() {
               <AppIcon name="arrow-right" size={20} color={color.primary} />
             </View>
           </TouchableRipple>
-        </View>
+        </Animated.View>
         {!hostedBuild && <View style={ui.stack}>
           <SectionHeader>Other ways to add a bill</SectionHeader>
           <View style={styles.methods}>
@@ -357,14 +367,15 @@ const styles = StyleSheet.create({
   headerAction: { alignItems: 'center', justifyContent: 'center', minWidth: 46, minHeight: 46, borderRadius: 23 },
   headerPressed: { backgroundColor: color.surfaceContainer },
   homeContent: { gap: 20, paddingTop: 16 },
-  scanPanel: { backgroundColor: color.primary, borderRadius: 26, padding: 22, gap: 16 },
+  summaryTitle: { ...ui.title, fontFamily: font.uiSans, fontSize: 36, lineHeight: 42 },
+  scanPanel: { backgroundColor: color.card, borderColor: color.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: 24, padding: 20, gap: 13 },
   scanTop: { gap: 17, alignItems: 'flex-start' },
-  viewfinder: { height: 56, width: 66, justifyContent: 'center', alignItems: 'center' },
+  viewfinder: { height: 42, width: 48, justifyContent: 'center', alignItems: 'center' },
   cornerStart: { position: 'absolute', top: 0, left: 0, width: 17, height: 17, borderLeftWidth: 2, borderTopWidth: 2, borderTopLeftRadius: 6, borderColor: color.inversePrimary },
   cornerEnd: { position: 'absolute', right: 0, bottom: 0, width: 17, height: 17, borderRightWidth: 2, borderBottomWidth: 2, borderBottomRightRadius: 6, borderColor: color.inversePrimary },
-  headline: { fontFamily: font.display, fontSize: 44, lineHeight: 45, letterSpacing: -1, color: color.paper },
-  scanHint: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, color: color.primaryContainer },
-  scanAction: { backgroundColor: color.paper, borderRadius: 15, overflow: 'hidden', marginTop: 3 },
+  headline: { fontFamily: font.uiSans, fontSize: 29, lineHeight: 35, letterSpacing: -0.7, color: color.ink },
+  scanHint: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, color: color.muted },
+  scanAction: { backgroundColor: color.primaryContainer, borderRadius: 15, overflow: 'hidden', marginTop: 3 },
   scanButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, gap: 12, minHeight: 52 },
   scanLabel: { color: color.primary, flex: 1 },
   methods: { borderRadius: 18, borderWidth: 1, borderColor: color.line, overflow: 'hidden', backgroundColor: color.card },
@@ -383,7 +394,7 @@ const styles = StyleSheet.create({
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   dock: { alignSelf: 'center', position: 'absolute', zIndex: 2,
-    padding: 5, backgroundColor: color.onPrimaryContainer, borderRadius: 34, elevation: 5,
+    padding: 5, backgroundColor: color.card, borderRadius: 34, elevation: 5,
     shadowColor: color.ink, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, shadowOpacity: 0.17 },
   tabTrack: { flexDirection: 'row', position: 'relative' },
   selection: { position: 'absolute', width: '33.333333%', top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },

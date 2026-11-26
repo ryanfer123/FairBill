@@ -101,7 +101,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
               <Illustration name={call ? 'identity' : 'letter'} size={42} />
               <View style={ui.grow}>
                 <SectionHeader>{call ? 'Review the call plan' : 'Review the exact letter'}</SectionHeader>
-                <Text style={ui.small}>{receipt ? 'Sent' : approved ? 'Approved' : 'Draft'}</Text>
+                <Text style={ui.small}>{!live && receipt ? 'Recorded in simulation' : approved ? 'Approved' : 'Draft'}</Text>
               </View>
             </View>
           </Card>
@@ -124,9 +124,9 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
             <Text style={ui.small}>{call ? 'Check the number against your bill. You place the call in your dialer.'
               : 'Check the address against your bill. You send the letter from your email app.'}</Text>
           </Card>}
-          {receipt && <Card tone="tonal">
+          {!live && receipt && <Card tone="tonal">
             <Text style={ui.label}>Reference {receipt.id}</Text>
-            <Text style={ui.body}>The send was recorded in the case timeline.</Text>
+            <Text style={ui.body}>The simulated handoff was recorded in the case timeline.</Text>
           </Card>}
         </>}
     </ScrollView>

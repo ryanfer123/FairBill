@@ -11,6 +11,8 @@ import { color, material, ui } from './theme';
 
 type Props = {
   scrollGesture: ReturnType<typeof Gesture.Native>;
+  label?: string;
+  onRename: () => void;
   item: CasePage['cases'][number];
   archived: boolean;
   disabled: boolean;
@@ -22,7 +24,7 @@ type Props = {
   optionsVisible: boolean;
 };
 
-export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
+export function CaseListRow({ item, label, onRename, archived, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
   const offset = useSharedValue(0);
   const reduced = useReducedMotion();
   const translation = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }));
@@ -49,7 +51,8 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
   const reviewed = item.investigated_revision === item.revision;
   const status = reviewed ? 'Reviewed' : 'In review';
   const reference = item.id.slice(-6).toUpperCase();
-  const title = item.sample ? 'Sample investigation' : 'Hospital bill';
+  const title = label || (item.sample ? 'Sample investigation' : 'Hospital bill');
+  const next = reviewed ? 'See findings' : 'Continue review';
   return <GestureDetector gesture={gesture}><View collapsable={false} style={styles.container}>
     <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={styles.actions}>
       <View style={styles.archiveAction}><AppIcon name={archived ? 'restore' : 'archive'} color={color.onPrimary} size={22} />
@@ -59,7 +62,7 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
     </View>
     <Animated.View style={[styles.row, translation]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
-        accessibilityHint="Opens the case. Hold for more actions." disabled={disabled}
+        accessibilityHint={next} disabled={disabled}
         onPress={onOpen} onLongPress={onOptions} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
         <View style={[styles.stamp, reviewed && styles.finished]}>
           {reviewed ? <AppIcon name="shield" size={26} color={color.primary} /> :
@@ -69,6 +72,7 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
           <Text style={styles.title}>{title}</Text>
           <View style={styles.meta}><Text style={styles.reference}>#{reference}</Text>
             <View style={[styles.dot, reviewed && styles.finishedDot]} /><Text style={styles.status}>{status}</Text></View>
+          <Text style={styles.next}>{next}</Text>
         </View>
       </Pressable>
       <Menu visible={optionsVisible} onDismiss={onDismissOptions} anchorPosition="bottom"
@@ -80,6 +84,8 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
         </Pressable>}>
         <Menu.Item title={archived ? 'Restore' : 'Archive'} onPress={onArchive}
           leadingIcon={({ size, color: tint }) => <AppIcon name={archived ? 'restore' : 'archive'} size={size} color={tint} />} />
+        <Menu.Item title="Edit case label" onPress={onRename}
+          leadingIcon={({ size, color: tint }) => <AppIcon name="edit-2" size={size} color={tint} />} />
         <Menu.Item title="Delete case" onPress={onDelete} titleStyle={styles.destructive}
           leadingIcon={({ size }) => <AppIcon name="trash-2" size={size} color={material.colors.error} />} />
       </Menu>
@@ -101,6 +107,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: font.uiSans, fontSize: 19, color: color.ink },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 3 },
   reference: { fontFamily: font.mono, color: color.muted, fontSize: 12 },
+  next: { fontFamily: font.medium, color: color.primary, fontSize: 13, marginTop: 5 },
   status: { fontFamily: font.medium, color: color.muted, fontSize: 13 },
   dot: { height: 5, width: 5, borderRadius: 3, backgroundColor: color.question, marginStart: 4 },
   finishedDot: { backgroundColor: color.primary },
