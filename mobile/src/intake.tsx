@@ -7,8 +7,11 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { Document, Kind, KINDS, money, parseRupees, Row, RowType } from './api';
 import { ScanPreview } from './scan-preview';
 import { CaptureOptions } from './capture-options';
+import Animated from 'react-native-reanimated';
+import { evidenceReveal } from './motion';
+import { font } from './typography';
 import { Disclosure } from './disclosure';
-import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
+import { ActionBar, Badge, Button, Card, Divider, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
 
 export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, onDiscard }:
   { busy: boolean; discarding: boolean; onDiscard: () => void; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
@@ -116,7 +119,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
   { doc: Document; busy: boolean; onClose: () => void; onConfirm: (rows: Row[]) => Promise<void>;
     onDiscard: () => Promise<void>; initialRowId?: string; readOnly?: boolean }) {
   const [rows, setRows] = useState(doc.rows);
-  const [source, setSource] = useState(false);
+  const [source, setSource] = useState(!doc.rows.length);
   const [openLine, setOpenLine] = useState<string | null>(initialRowId ?? null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [fields, setFields] = useState<EditFields | null>(null);
@@ -219,71 +222,82 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
   return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-          <View style={ui.stack}>
-            <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : 'Confirm document lines'}</Text>
-            <Text style={ui.body}>{readOnly ? 'Compare the supplied rows with the document.' : 'Open a source line to see the extracted text, then correct anything that was misread.'}</Text>
+        <View style={styles.intro}>
+          <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : 'Confirm document lines'}</Text>
+          <View style={styles.metadata}>
+            <Text style={ui.small}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
+            <Text accessibilityElementsHidden importantForAccessibility="no" style={ui.small}>·</Text>
+            <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
+            {(changed || editing || doc.confirmed) && <Badge tone={changed || editing ? 'amber' : 'green'}>
+              {changed || editing ? 'Unsaved' : 'Confirmed'}
+            </Badge>}
           </View>
-          <View style={styles.readSummary}>
-            <Illustration name="confirm" size={40} />
-            <View style={ui.grow}>
-              <Text style={ui.label}>{rows.length} {rows.length === 1 ? 'document line' : 'document lines'}</Text>
-              <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
-            </View>
-            <Badge tone={changed || editing ? 'amber' : 'neutral'}>{changed || editing ? 'Unsaved' : doc.confirmed ? 'Confirmed' : 'Pending'}</Badge>
+        </View>
+        {selectedRow && <View style={[ui.stack, styles.highlight]}>
+          <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
+          <Text selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1] || 'No text found on this line.'}</Text>
+        </View>}
+        {rows.length > 0 ? <View style={styles.ledger}>
+          {rows.map((row, index) => {
+            const isTotal = row.type === 'invoice_total';
+            const isOpen = openLine === row.id;
+            const flagged = doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `));
+            const units = row.units === null ? '' : `${row.units} ${row.units === 1 ? 'unit' : 'units'}`;
+            const detail = [units && row.unit_price !== null ? `${units} × ${money(row.unit_price)}` : units,
+              isTotal || row.type === 'charge' ? '' : ROW_LABEL[row.type], flagged ? 'Needs review' : '',
+              row.received === false ? 'Service not received' : ''].filter(Boolean).join(' · ');
+            return <View key={row.id} style={[index > 0 && styles.lineRule, isTotal && styles.totalStrip]}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Source for ${row.description}, page ${row.page}, line ${row.line}`}
+                accessibilityValue={{ text: [row.amount !== null ? money(row.amount) : '', detail].filter(Boolean).join(', ') }}
+                accessibilityHint="Opens the source text and available actions" accessibilityState={{ expanded: isOpen }}
+                onPress={() => setOpenLine(isOpen ? null : row.id)} style={({ pressed }) => [styles.ledgerLine, pressed && styles.pressed]}>
+                <View style={styles.lineSummary}>
+                  <Text style={isTotal ? styles.totalLabel : styles.lineTitle}>{row.description}</Text>
+                  {!!detail && <Text style={ui.small}>{detail}</Text>}
+                </View>
+                {row.amount !== null && <Text style={[styles.amount, isTotal && styles.totalAmount]}>{money(row.amount)}</Text>}
+                <AppIcon name={isOpen ? 'chevron-up' : 'chevron-down'} size={15} color={color.muted} />
+              </Pressable>
+              {isOpen && <Animated.View entering={evidenceReveal} style={styles.lineDetails}>
+                <Text style={ui.kicker}>Page {row.page}, line {row.line}</Text>
+                <Text selectable style={styles.quote}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
+                  || 'No text found on this line.'}</Text>
+                {!!row.reference && <Text style={ui.small}>{row.reference}</Text>}
+                {!readOnly && !editing && !busy && <Button label={`Edit ${row.description}`} icon="edit-2" tone="ghost" onPress={() => edit(row)} />}
+                {!readOnly && row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service"
+                  disabled={!!editing || busy} accessibilityState={{ checked: row.received === false, disabled: !!editing || busy }}
+                  onPress={() => setRows((current) => current.map((item) => item.id === row.id
+                    ? { ...item, received: item.received === false ? null : false } : item))}
+                  style={styles.received}>
+                  <AppIcon name={row.received === false ? 'check-square' : 'square'} size={19} color={color.primary} />
+                  <Text style={ui.small}>I did not receive this service</Text>
+                </Pressable>}
+              </Animated.View>}
+              {editing?.id === row.id && <View style={styles.lineDetails}>{editor}</View>}
+            </View>;
+          })}
+        </View> : <View style={styles.empty}>
+          <Illustration name="confirm" size={46} />
+          <Text style={ui.heading}>{doc.pages.some((page) => page.trim()) ? 'Review the original text' : 'No readable text found'}</Text>
+          <Text style={ui.body}>{doc.pages.some((page) => page.trim())
+            ? (readOnly ? 'The text below could not be grouped into bill lines.' : 'Use the text below to add each line you recognise.')
+            : (readOnly ? 'This document contains no readable lines.' : 'Try a sharper photo or paste the itemised text.')}</Text>
+        </View>}
+        {doc.notes.length > 0 && <View style={styles.notes}>
+          <AppIcon name="alert-circle" size={17} color={color.question} />
+          <View style={[ui.grow, {gap: 4}]}>
+            {doc.notes.slice(0, source ? undefined : 1).map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
+            {!source && doc.notes.length > 1 && <Text style={ui.small}>Open extracted text for all {doc.notes.length} notes.</Text>}
           </View>
-          <Button label={source ? 'Hide extracted text' : 'Show extracted text'} icon="file-text" tone="ghost"
-            onPress={() => setSource(!source)} />
-          {source && doc.pages.map((page, index) => <View key={index} style={ui.card}>
-            <Text style={ui.kicker}>PAGE {index + 1}</Text>
-            <Text selectable style={ui.small}>{page.split('\n').map((line, i) => `${i + 1}  ${line}`).join('\n') || 'No text found'}</Text>
-          </View>)}
-          {doc.notes.length > 0 && <View style={styles.extractionNotice}>
-            <AppIcon name="alert-circle" size={18} color={color.onTertiaryContainer} />
-            <View style={[ui.grow, ui.stack]}>
-              <Text style={ui.label}>Check the extraction</Text>
-              {doc.notes.slice(0, source ? undefined : 4).map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
-              {!source && doc.notes.length > 4 && <Text style={ui.small}>Show extracted text to read the remaining notes.</Text>}
-            </View>
-          </View>}
-          {!rows.length && !editing && <EmptyState>No rows were extracted. Add a row using the source text.</EmptyState>}
-          {selectedRow && <View style={[ui.stack, styles.highlight]}>
-            <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
-            <Text selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1]
-              || 'No extracted text at this position.'}</Text>
-          </View>}
-          {rows.length > 0 && <View style={ui.card}>
-          {rows.map((row, index) => <View key={row.id} style={ui.stack}>
-            {index > 0 && <Divider />}
-            <View style={ui.between}>
-              <View style={ui.grow}>
-                <Text style={ui.kicker}>{ROW_LABEL[row.type]}</Text>
-                <Text style={ui.label}>{row.description}</Text>
-              </View>
-              {row.amount !== null && <Text style={ui.money}>{money(row.amount)}</Text>}
-              {!readOnly && !editing && !busy && <IconButton label={`Edit ${row.description}`} icon="edit-2" onPress={() => edit(row)} />}
-            </View>
-            {row.units !== null && <Text style={ui.small}>{row.units} {row.units === 1 ? 'unit' : 'units'}</Text>}
-            {doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `)) &&
-              <Text style={ui.small}>Extraction needs review</Text>}
-            {!readOnly && row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service" disabled={!!editing || busy}
-              accessibilityState={{ checked: row.received === false, disabled: !!editing || busy }}
-              onPress={() => setRows((current) => current.map((item) => item.id === row.id
-                ? { ...item, received: item.received === false ? null : false } : item))}
-              style={[ui.row, { minHeight: 44 }]}>
-              <AppIcon name={row.received === false ? 'check-square' : 'square'} size={17} color={color.ink} />
-              <Text style={ui.small}>I did not receive this service</Text>
-            </Pressable>}
-            {!!row.reference && <Badge>{row.reference}</Badge>}
-            <Disclosure label={`Page ${row.page}, line ${row.line}`}
-              accessibilityLabel={`Source for ${row.description}, page ${row.page}, line ${row.line}`}
-              open={openLine === row.id} onToggle={() => setOpenLine(openLine === row.id ? null : row.id)}>
-              <Text style={ui.kicker}>Extracted text</Text>
-              <Text selectable style={ui.body}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
-                || 'No extracted text at this position.'}</Text>
-            </Disclosure>
-            {editing?.id === row.id && editor}
-          </View>)}
-          </View>}
+        </View>}
+        {doc.pages.some((page) => page.trim()) && <View>
+          <Disclosure label={source ? 'Hide extracted text' : 'Show extracted text'} open={source} onToggle={() => setSource(!source)}>
+            {doc.pages.map((page, index) => <View key={index} style={styles.original}>
+              <Text style={ui.kicker}>Page {index + 1}</Text>
+              <Text selectable style={styles.raw}>{page.trim() ? page.split(/\r?\n/).map((line, i) => `${i + 1}  ${line}`).join('\n') : 'No text found'}</Text>
+            </View>)}
+          </Disclosure>
+        </View>}
           {editing && !editingExisting && <View style={ui.card}>{editor}</View>}
           {!readOnly && ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
             tone="ghost" disabled={busy || !!editing} onPress={() => add(type)} />)}
@@ -300,9 +314,26 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
 }
 
 const styles = StyleSheet.create({
-  readSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.secondaryContainer, borderRadius: 16, padding: 12 },
+  intro: { gap: 6 },
+  metadata: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
+  ledger: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
+  lineRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
+  ledgerLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 15, gap: 8, minHeight: 60 },
+  lineSummary: { flexGrow: 1, flexBasis: 125, gap: 3 },
+  lineTitle: { fontFamily: font.semibold, fontSize: 17, lineHeight: 22, color: color.ink },
+  amount: { fontFamily: font.mono, fontSize: 15, color: color.ink, fontVariant: ['tabular-nums'], flexShrink: 1 },
+  totalStrip: { backgroundColor: color.primaryContainer },
+  totalLabel: { fontFamily: font.display, fontSize: 23, color: color.onPrimaryContainer },
+  totalAmount: { fontSize: 17, color: color.onPrimaryContainer },
+  lineDetails: { gap: 8, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 16 },
+  quote: { borderLeftWidth: 2, borderLeftColor: color.primary, paddingLeft: 10, fontFamily: font.regular, color: color.ink, fontSize: 15, lineHeight: 21 },
+  received: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
+  pressed: { opacity: 0.7 },
+  notes: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2 },
+  empty: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: color.line, paddingVertical: 17, gap: 6 },
+  original: { gap: 5 },
+  raw: { fontFamily: font.mono, fontSize: 13, lineHeight: 20, color: color.ink },
   highlight: { padding: 12, backgroundColor: color.tertiaryContainer, borderRadius: 8 },
-  extractionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: color.tertiaryContainer, borderRadius: 12, padding: 12 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
   selected: { backgroundColor: color.secondaryContainer },
 });
