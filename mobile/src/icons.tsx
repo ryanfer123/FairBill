@@ -9,7 +9,7 @@ const glyphs = {
   'arrow-up-right': 'arrow-forward', camera: 'camera-outline', check: 'checkmark',
   'check-circle': 'checkmark-circle-outline', 'check-square': 'checkbox-outline',
   'chevron-down': 'chevron-down', 'chevron-right': 'chevron-forward', 'chevron-up': 'chevron-up',
-  circle: 'ellipse-outline', 'edit-2': 'pencil-outline', 'external-link': 'open-outline',
+  circle: 'ellipse-outline', download: 'download-outline', 'edit-2': 'pencil-outline', 'external-link': 'open-outline',
   'file-plus': 'document-attach-outline', 'file-text': 'document-text-outline', folder: 'file-tray-full-outline',
   heart: 'heart-outline', 'help-circle': 'help-circle-outline', image: 'image-outline', key: 'key-outline',
   layers: 'layers-outline', link: 'link-outline', lock: 'lock-closed-outline', 'log-out': 'log-out-outline',

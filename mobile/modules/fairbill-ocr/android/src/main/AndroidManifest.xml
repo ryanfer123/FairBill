@@ -1,1 +1,13 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <provider
+      android:name="expo.modules.fairbillocr.FairBillPacketProvider"
+      android:authorities="${applicationId}.fairbill.packets"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/fairbill_packet_paths" />
+    </provider>
+  </application>
+</manifest>

@@ -1,6 +1,5 @@
 import { AppIcon } from '../../src/icons';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { supportsLocalPacketActions, performPacketAction, type PacketAction } from '../../src/redacted-pdf';
 import Animated from 'react-native-reanimated';
 import { evidenceReveal } from '../../src/motion';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,7 +15,7 @@ import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { accountUser, cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
-import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, apiUrl, getBackend, getCase, headers, hostedBuild, newImportId, postCase, request } from '../../src/api';
+import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, getBackend, getCase, hostedBuild, newImportId, postCase, request } from '../../src/api';
 import { documentForm, type PickedDocument } from '../../src/document-picker';
 import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
@@ -26,7 +25,7 @@ import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, Loadin
 
 type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
 type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
-  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
+  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
 type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -39,6 +38,7 @@ export default function CaseScreen() {
   const [versioned, setVersioned] = useState(false);
   const [indiaReview, setIndiaReview] = useState(false);
   const [busy, setBusy] = useState('');
+  const [packetNotice, setPacketNotice] = useState('');
   const working = useRef(false);
   const cancelRequested = useRef(false);
   const uploadControl = useRef<AbortController | null>(null);
@@ -110,6 +110,7 @@ export default function CaseScreen() {
 
   const revision = data.revision;
   const ready = revision === data.investigated_revision;
+  const canExportPacket = ready && overlay?.type === 'packet' && overlay.revision === revision && overlay.lines.length > 0;
   const canAct = ready && (!cloudBuild || !data.sample);
   const activeTab = !canAct && tab === 'Act' ? 'Review' : tab;
   const pending = data.documents.find((doc) => !doc.confirmed);
@@ -212,26 +213,17 @@ export default function CaseScreen() {
     } catch (cause) { report(cause); }
   }
 
-  async function share() {
-    if (working.current) return;
+  async function handlePacket(action: PacketAction) {
+    if (working.current || !canExportPacket || overlay?.type !== 'packet') return;
     working.current = true;
-    setBusy('share');
+    setBusy(action);
     setError('');
+    setPacketNotice('');
     try {
-      const directory = FileSystem.cacheDirectory;
-      if (!directory || !(await Sharing.isAvailableAsync())) throw new Error('File sharing is unavailable on this device.');
-      const filename = `${directory}FairBill-evidence.pdf`;
-      await FileSystem.deleteAsync(filename, { idempotent: true });
-      const result = await FileSystem.downloadAsync(
-        await apiUrl(`/cases/${id}/packet?revision=${revision}`), filename, { headers: await headers() },
-      );
-      if (result.status !== 200 || !result.headers['Content-Type']?.includes('pdf')
-        && !result.headers['content-type']?.includes('pdf')) {
-        await FileSystem.deleteAsync(filename, { idempotent: true });
-        throw new Error('The evidence packet could not be downloaded for this revision.');
-      }
-      await Sharing.shareAsync(result.uri, { mimeType: 'application/pdf', dialogTitle: 'Share redacted FairBill packet' });
-    } catch (cause) { report(cause); } finally { setBusy(''); working.current = false; }
+      const saved = await performPacketAction(id, overlay.revision, action);
+      if (saved) setPacketNotice('PDF saved to the selected location.');
+    } catch (cause) { report(cause); }
+    finally { setBusy(''); working.current = false; }
   }
 
   async function previewPacket() {
@@ -239,9 +231,10 @@ export default function CaseScreen() {
     working.current = true;
     setBusy('preview');
     setError('');
+    setPacketNotice('');
     try {
       const result = await request<{ lines: string[] }>(`/cases/${id}/packet?revision=${revision}&preview=true`);
-      setOverlay({ type: 'packet', lines: result.lines });
+      setOverlay({ type: 'packet', lines: result.lines, revision });
     } catch (cause) {
       report(cause);
     } finally {
@@ -427,7 +420,20 @@ export default function CaseScreen() {
         </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
       </ScrollView>
       <ActionBar>
-        <Button label="Share redacted PDF" icon="share-2" busy={busy === 'share'} disabled={!ready || !!busy || !overlay.lines.length} onPress={() => void share()} />
+        {!!packetNotice && <Text accessibilityLiveRegion="polite" style={[ui.small, styles.packetNotice]}>{packetNotice}</Text>}
+        {supportsLocalPacketActions && <Button label="Open PDF" icon="file-text" busy={busy === 'open'}
+          disabled={!canExportPacket || !!busy} onPress={() => void handlePacket('open')} />}
+        <View style={supportsLocalPacketActions && !compact ? ui.row : ui.stack}>
+          {supportsLocalPacketActions && <View style={!compact && ui.grow}>
+            <Button label="Save a copy" icon="download" tone="light" busy={busy === 'save'}
+              disabled={!canExportPacket || !!busy} onPress={() => void handlePacket('save')} />
+          </View>}
+          <View style={supportsLocalPacketActions && !compact && ui.grow}>
+            <Button label={supportsLocalPacketActions ? 'Share PDF' : 'Share redacted PDF'} icon="share-2"
+              tone={supportsLocalPacketActions ? 'ghost' : 'primary'} busy={busy === 'share'}
+              disabled={!canExportPacket || !!busy} onPress={() => void handlePacket('share')} />
+          </View>
+        </View>
       </ActionBar>
     </Sheet>}
   </Screen>;
@@ -436,6 +442,7 @@ export default function CaseScreen() {
 const styles = StyleSheet.create({
   toolbar: { paddingHorizontal: 16, paddingVertical: 6, gap: 8 },
   paperCopy: { color: color.ink },
+  packetNotice: { color: color.primary },
   tabBar: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: color.line },
   tabs: { flexGrow: 1, flexDirection: 'row', paddingHorizontal: 8 },
   tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 8,
