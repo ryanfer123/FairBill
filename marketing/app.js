@@ -25,13 +25,14 @@
     byId('revision').textContent = added ? 'Revision 2' : 'Revision 1';
     const active = byId(added ? 'stageOrder' : 'stageBill');
     const inactive = byId(added ? 'stageBill' : 'stageOrder');
-    inactive.removeAttribute('aria-current');
-    active.setAttribute('aria-current', 'step');
-    byId('stageBill').classList.toggle('stage-complete', added);
-    byId('stageBillState').textContent = added ? 'Completed' : 'Current step';
-    byId('stageOrderState').textContent = added ? 'Current step' : 'Not added yet';
-    pulse(active, [{opacity:.68,transform:'translateY(3px)'},{opacity:1,transform:'none'}], 210);
-
+    if (active && inactive) {
+      inactive.removeAttribute('aria-current');
+      active.setAttribute('aria-current', 'step');
+      byId('stageBill').classList.toggle('stage-complete', added);
+      byId('stageBillState').textContent = added ? 'Completed' : 'Current step';
+      byId('stageOrderState').textContent = added ? 'Current step' : 'Not added yet';
+      pulse(active, [{opacity:.68,transform:'translateY(3px)'},{opacity:1,transform:'none'}], 210);
+    }
     byId('conditional').textContent = added ? '₹12,800' : '₹11,900';
     byId('duplicateIcon').textContent = added ? '✓' : '?';
     byId('duplicateIcon').classList.toggle('resolved', added);
