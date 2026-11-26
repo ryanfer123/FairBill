@@ -5,7 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Ellipse } from 'react-native-svg';
 import { ScanPreview, type ScanStage } from '../src/scan-preview';
 import { Illustration } from '../src/illustrations';
 import { CaseList } from '../src/cases';
@@ -28,6 +28,7 @@ const destinations = [
   { key: 'settings', title: 'Settings', icon: 'settings' },
 ] as const;
 type Destination = typeof destinations[number]['key'];
+const dockFadeRings = Array.from({ length: 18 }, (_, index) => 0.99 - index * 0.047);
 
 function TabDock({ current, busy, compact, bottom, typing, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; typing: boolean; onSelect: (tab: Destination) => void }) {
   const { color, dark } = useFairBillTheme();
@@ -44,15 +45,9 @@ function TabDock({ current, busy, compact, bottom, typing, onSelect }: { compact
   return <Animated.View style={[styles.dockPosition, { bottom }, size]}>
     <View style={[styles.dockSurround, { bottom: -bottom }]} pointerEvents="none" accessible={false}
       accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <RadialGradient id="dock-surround" cx="50%" cy="53%" rx="50%" ry="52%">
-            <Stop offset="0%" stopColor={color.card} stopOpacity={dark ? 0.68 : 0.96} />
-            <Stop offset="62%" stopColor={color.card} stopOpacity={dark ? 0.42 : 0.68} />
-            <Stop offset="100%" stopColor={color.card} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#dock-surround)" />
+      <Svg width="100%" height="100%" viewBox="0 0 320 120" preserveAspectRatio="none">
+        {dockFadeRings.map(scale => <Ellipse key={scale} cx={160} cy={60}
+          rx={160 * scale} ry={60 * scale} fill={color.card} fillOpacity={dark ? 0.05 : 0.07} />)}
       </Svg>
     </View>
     <View style={styles.dock}>
