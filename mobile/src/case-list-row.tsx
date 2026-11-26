@@ -1,12 +1,15 @@
-import { useMemo, useRef } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { scheduleOnRN } from 'react-native-worklets';
 import { AppIcon } from './icons';
 import { type CasePage } from './api';
 import { font } from './typography';
 import { color, material, ui } from './theme';
 
 type Props = {
+  scrollGesture: ReturnType<typeof Gesture.Native>;
   item: CasePage['cases'][number];
   archived: boolean;
   disabled: boolean;
@@ -16,41 +19,42 @@ type Props = {
   onOptions: () => void;
 };
 
-export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDelete, onOptions }: Props) {
-  const offset = useRef(new Animated.Value(0)).current;
+export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDelete, onOptions, scrollGesture }: Props) {
+  const offset = useSharedValue(0);
   const reduced = useReducedMotion();
-  const gesture = useMemo(() => {
-    const reset = () => {
-      if (reduced) offset.setValue(0);
-      else Animated.timing(offset, { toValue: 0, duration: 140, useNativeDriver: true }).start();
-    };
-    return PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, { dx, dy, numberActiveTouches }) =>
-        !disabled && numberActiveTouches === 1 && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.7,
-      onPanResponderGrant: () => offset.stopAnimation(),
-      onPanResponderMove: (_, { dx }) => offset.setValue(Math.max(-108, Math.min(108, dx))),
-      onPanResponderRelease: (_, { dx, dy }) => {
-        reset();
-        if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-        if (dx > 0) onArchive();
-        else onDelete();
-      },
-      onPanResponderTerminate: reset,
-      onPanResponderTerminationRequest: () => true,
-    });
-  }, [disabled, offset, reduced, onArchive, onDelete]);
+  const translation = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }));
+  const gesture = useMemo(() => Gesture.Pan()
+    .enabled(!disabled)
+    .maxPointers(1)
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-10, 10])
+    .blocksExternalGesture(scrollGesture)
+    .onUpdate(event => {
+      'worklet';
+      offset.value = Math.max(-108, Math.min(108, event.translationX));
+    })
+    .onEnd((event, success) => {
+      'worklet';
+      if (!success || Math.abs(event.translationX) < 64) return;
+      if (event.translationX > 0) scheduleOnRN(onArchive);
+      else scheduleOnRN(onDelete);
+    })
+    .onFinalize(() => {
+      'worklet';
+      offset.value = reduced ? 0 : withTiming(0, { duration: 140 });
+    }), [disabled, offset, reduced, scrollGesture, onArchive, onDelete]);
   const reviewed = item.investigated_revision === item.revision;
   const status = reviewed ? 'Reviewed' : 'In review';
   const reference = item.id.slice(-6).toUpperCase();
   const title = item.sample ? 'Sample investigation' : 'Hospital bill';
-  return <View style={styles.container} {...gesture.panHandlers}>
+  return <GestureDetector gesture={gesture}><View collapsable={false} style={styles.container}>
     <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={styles.actions}>
       <View style={styles.archiveAction}><AppIcon name={archived ? 'restore' : 'archive'} color={color.onPrimary} size={22} />
         <Text style={styles.actionLabel}>{archived ? 'Restore' : 'Archive'}</Text></View>
       <View style={styles.deleteAction}><AppIcon name="trash-2" color={color.onPrimary} size={22} />
         <Text style={styles.actionLabel}>Delete</Text></View>
     </View>
-    <Animated.View style={[styles.row, { transform: [{ translateX: offset }] }]}>
+    <Animated.View style={[styles.row, translation]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
         accessibilityHint="Opens the case. Hold for more actions." disabled={disabled}
         onPress={onOpen} onLongPress={onOptions} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
@@ -68,7 +72,7 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
         <AppIcon name="more" size={23} color={color.muted} />
       </Pressable>
     </Animated.View>
-  </View>;
+  </View></GestureDetector>;
 }
 
 const styles = StyleSheet.create({

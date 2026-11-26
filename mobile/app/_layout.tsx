@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
@@ -13,9 +14,9 @@ export default function Layout() {
   const session = useSyncExternalStore(listenAccount, accountState);
   const [fontReady, fontError] = useFonts(fonts);
   if (!fontReady && !fontError) return null;
-  return <PaperProvider theme={material}>
+  return <GestureHandlerRootView style={{ flex: 1 }}><PaperProvider theme={material}>
     <StatusBar style="dark" />
     <FirstRun>{cloudBuild && session !== 'signed-in' ? <SignIn restoring={session === 'loading'} />
       : <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.paper } }} />}</FirstRun>
-  </PaperProvider>;
+  </PaperProvider></GestureHandlerRootView>;
 }

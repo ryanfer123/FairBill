@@ -1,8 +1,9 @@
 import { AppIcon } from './icons';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CaseListRow } from './case-list-row';
 import { CaseTray } from './case-tray';
 import { accountUser, cloudBuild } from './cloud-auth';
@@ -14,6 +15,7 @@ import { Button, LoadingState, Message, Sheet, color, ui } from './ui';
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
 export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { onStart: () => void; onDeleted: (id: string) => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
+  const scrollGesture = useMemo(() => Gesture.Native(), []);
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
@@ -94,7 +96,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
     || (item.investigated_revision === item.revision) === (filter === 'complete'));
 
   const inReview = visible.filter(item => item.investigated_revision !== item.revision).length;
-  return <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
+  return <GestureDetector gesture={scrollGesture}><ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
     <Animated.View entering={enterShelf} style={styles.cover}>
       <View style={ui.between}>
         <View style={ui.grow}>
@@ -123,7 +125,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
     </View>
     {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
-      {filtered.map(item => <CaseListRow key={item.id} item={item} archived={archiveView} disabled={busy}
+      {filtered.map(item => <CaseListRow key={item.id} item={item} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
         onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)} onArchive={() => void toggleArchive(item.id)}
         onDelete={() => confirmDelete(item.id)} />)}
       {!busy && !error && !filtered.length && <View style={styles.empty}>
@@ -142,7 +144,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
         <Button label="Delete case" icon="trash-2" tone="destructive" onPress={() => confirmDelete(options)} />
       </View>
     </Sheet>}
-  </ScrollView>;
+  </ScrollView></GestureDetector>;
 }
 
 const styles = StyleSheet.create({
