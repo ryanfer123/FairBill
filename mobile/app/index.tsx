@@ -89,9 +89,11 @@ export default function Home() {
   const [text, setText] = useState('');
   const importing = useRef(false);
   const discarded = useRef(false);
+  const uploadControl = useRef<AbortController | null>(null);
   const [discarding, setDiscarding] = useState(false);
   function discardImport() {
     discarded.current = true;
+    uploadControl.current?.abort();
     setDiscarding(true);
   }
   const blank = useRef<{ id: string; revision: number } | null>(null);
@@ -164,9 +166,11 @@ export default function Home() {
       const { id, revision } = blank.current;
       const form = asset ? await documentForm('invoice', revision, asset) : undefined;
       if (discarded.current) return;
+      uploadControl.current = new AbortController();
+      const signal = uploadControl.current.signal;
       const result = form
-        ? await postCase(`/cases/${id}/documents/file`, form)
-        : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text });
+        ? await postCase(`/cases/${id}/documents/file`, form, undefined, signal)
+        : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text }, undefined, signal);
       if (discarded.current) return;
       blank.current = null;
       await rememberCase(result.id);
@@ -203,6 +207,7 @@ export default function Home() {
           setError('Could not finish discarding this case. Open Cases and delete case ' + current?.id.slice(-6).toUpperCase() + ' to retry.');
         }
       }
+      uploadControl.current = null;
       setDiscarding(false);
       setScanning(null);
       setBusy(null);

@@ -37,6 +37,7 @@ export default function CaseScreen() {
   const [busy, setBusy] = useState('');
   const working = useRef(false);
   const cancelRequested = useRef(false);
+  const uploadControl = useRef<AbortController | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
@@ -144,9 +145,11 @@ export default function CaseScreen() {
       const form = typeof source === 'string' ? undefined : await documentForm(kind, revision, source);
       if (cancelRequested.current) return;
       submitted = true;
+      uploadControl.current = new AbortController();
+      const signal = uploadControl.current.signal;
       const result = form
-        ? await postCase(`/cases/${id}/documents/file`, form, importId)
-        : await postCase(`/cases/${id}/documents/text`, { kind, revision, text: source }, importId);
+        ? await postCase(`/cases/${id}/documents/file`, form, importId, signal)
+        : await postCase(`/cases/${id}/documents/text`, { kind, revision, text: source }, importId, signal);
       if (!cancelRequested.current) {
         setData(result);
         reviewNew(result);
@@ -169,6 +172,7 @@ export default function CaseScreen() {
         await refresh();
         throw new Error('Could not confirm discard. Check Evidence for the pending document before trying again.');
       } finally {
+        uploadControl.current = null;
         setBusy('');
         setDiscarding(false);
         working.current = false;
@@ -330,7 +334,7 @@ export default function CaseScreen() {
       </>}
     </ScrollView>
     {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
-      discarding={discarding} onDiscard={() => { cancelRequested.current = true; setDiscarding(true); }}
+      discarding={discarding} onDiscard={() => { cancelRequested.current = true; uploadControl.current?.abort(); setDiscarding(true); }}
       onPaste={importEvidence} onFile={importEvidence} />}
     {reviewing && overlay?.type === 'review' && <Review key={reviewing.id} doc={reviewing}
       initialRowId={overlay.rowId} readOnly={hostedBuild || !!overlay.returnTo || (cloudBuild && data.sample)} busy={!!busy}

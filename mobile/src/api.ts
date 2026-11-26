@@ -254,7 +254,10 @@ async function readWithRetry(url: string, init: RequestInit, signal: AbortSignal
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const [backend, auth] = await Promise.all([getBackend(), headers()]);
   const control = new AbortController();
-  const timer = setTimeout(() => control.abort(), 65000);
+  const abort = () => control.abort();
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, 65000);
   try {
     const requestHeaders = new Headers(options.headers);
     for (const [key, value] of Object.entries(auth)) requestHeaders.set(key, value);
@@ -280,6 +283,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     throw new Error(networkError);
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abort);
   }
 }
 
@@ -287,10 +291,10 @@ export const getCase = (id: string) => request<Case>(`/cases/${id}`);
 export const createCase = (sample: boolean) => postCase('/cases', { sample });
 export const deleteCase = (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' });
 export const newImportId = () => Crypto.randomUUID().replace(/-/g, '');
-export function postCase(path: string, data: object | FormData, importId?: string) {
+export function postCase(path: string, data: object | FormData, importId?: string, signal?: AbortSignal) {
   const multipart = data instanceof FormData;
   return request<Case>(path, {
-    method: 'POST',
+    method: 'POST', signal,
     body: multipart ? data : JSON.stringify(data),
     headers: { ...(multipart ? {} : { 'Content-Type': 'application/json' }), ...(importId ? { 'Idempotency-Key': `import-${importId}` } : {}) },
   });
