@@ -58,6 +58,69 @@ def test_versioned_parser_preserves_recorded_arithmetic_and_manually_reviewed_te
     assert document["notes"] == ["Page 1, line 2 needs manual review."]
 
 
+ITEMISED_BILL = "\n".join((
+    "ITEMISED HOSPITAL BILL", "Currency: INR", "Description Qty Rate Amount",
+    "Consultation 1 500.00 500.00", "Blood count 2 120.00 240.00", "Grand Total 740.00",
+))
+
+
+def test_ordinary_itemised_invoice_creates_reviewable_rows():
+    document = make_document("bill", "invoice", ITEMISED_BILL.encode(), pasted=True, versioned=True)
+    assert [(row["description"], row["units"], row["unit_price"], row["amount"]) for row in document["rows"]] == [
+        ("Consultation", 1, 50000, 50000), ("Blood count", 2, 12000, 24000), ("Grand Total", None, None, 74000),
+    ]
+    assert [row["id"] for row in document["rows"]] == ["p1-l4", "p1-l5", "p1-l6"]
+    assert [excerpt(document, row) for row in document["rows"]] == ITEMISED_BILL.splitlines()[3:]
+    assert not any(row["code"] or row["service_date"] for row in document["rows"])
+    assert not document["confirmed"]
+    assert not make_document("bill", "settlement", ITEMISED_BILL.encode(), pasted=True, versioned=True)["rows"]
+    assert not make_document("bill", "invoice", ITEMISED_BILL.encode(), pasted=True)["rows"]
+
+
+def test_ordinary_invoice_ignores_summary_and_ambiguous_lines():
+    data = "\n".join((
+        "Miscellaneous 1 100 100", "S. No. | Description | Quantity | Unit Rate (Rs.) | Line Amount (INR)",
+        "1 | Room 12 | | 900 | 900", "2 | Blood count | 2 | 120.50 | 240.00",
+        "3 | CT | 1 | $750.00 | $750.00", "4 | Lab work | 1\N{VULGAR FRACTION ONE HALF} | 200 | 300",
+        "Subtotal 240.00", "GST 1 0 0", "Discount 1 0 0", "Net Payable 240.00", "Invoice Total:240.00",
+    )).encode()
+    document = make_document("bill", "invoice", data, pasted=True, versioned=True)
+    assert [(row["line"], row["type"], row["amount"]) for row in document["rows"]] == [
+        (4, "charge", 24000), (11, "invoice_total", 24000),
+    ]
+    assert document["rows"][0]["unit_price"] == 12050
+    assert document["extracted_lines"][2]["needs_manual_entry"]
+    assert document["extracted_lines"][5]["needs_manual_entry"]
+
+
+def test_ordinary_invoice_requires_stated_rupees_and_an_unambiguous_total():
+    text = "Description Qty Rate Amount\nConsultation 1 500.00 500.00\nGrand Total 500.00"
+    assert not make_document("bill", "invoice", text.encode(), pasted=True, versioned=True)["rows"]
+    text = "Description Qty Rate Amount\nConsultation 1 Rs 500.00 INR 500.00\nGrand Total: ₹500.00\nTotal ₹500.00"
+    document = make_document("bill", "invoice", text.encode(), pasted=True, versioned=True)
+    assert [row["type"] for row in document["rows"]] == ["charge"]
+    assert "More than one invoice total" in " ".join(document["notes"])
+
+
+def test_ordinary_invoice_tolerates_ocr_qty_letter_confusion_only_in_header():
+    data = ITEMISED_BILL.replace("Qty", "Oty").encode()
+    document = make_document("bill", "invoice", data, pasted=True, versioned=True)
+    assert len(document["rows"]) == 3
+
+
+@pytest.mark.skipif(not shutil.which("tesseract"), reason="Tesseract is needed for local OCR")
+def test_ordinary_itemised_invoice_from_real_ocr():
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=550, height=320)
+        page.insert_text((36, 45), ITEMISED_BILL, fontsize=22)
+        image = page.get_pixmap(dpi=144).tobytes("png")
+    document = make_document("bill", "invoice", image, versioned=True)
+    assert [(row["type"], row["amount"]) for row in document["rows"]] == [
+        ("charge", 50000), ("charge", 24000), ("invoice_total", 74000),
+    ]
+    assert all(line["source"] == "ocr" and line["bbox"] for line in document["extracted_lines"])
+
+
 def test_rejects_invalid_media_encryption_and_oversized_dimensions():
     data = (DEMO / "invoice.pdf").read_bytes()
     with pytest.raises(ValueError, match="declared media type"):

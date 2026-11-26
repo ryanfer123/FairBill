@@ -78,6 +78,29 @@ LABELS = {
     "CLAUSE": "clause", "ORDER": "order", "QUANTITY": "quantity",
 }
 
+RUPEE_MARK = r"(?:₹|INR\b|Rs\.?(?![A-Za-z]))"
+NUMBER = r"(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+|[0-9]{1,2}(?:,[0-9]{2})+,[0-9]{3})(?:\.[0-9]{1,2})?"
+RUPEE_AMOUNT = rf"(?:{RUPEE_MARK}\s*)?{NUMBER}"
+COLUMN_CURRENCY = rf"(?:\s*\(\s*{RUPEE_MARK}\s*\)|\s+{RUPEE_MARK})"
+ITEM_HEADER = re.compile(
+    rf"(?:(?P<serial>s\.?\s*no\.?|sr\.?\s*no\.?|#)\s+)?"
+    rf"(?:(?:item|service)\s+)?description\s+(?:[qo]ty\.?|quantity)\s+"
+    rf"(?:rate|unit\s+(?:price|rate))(?P<rate_currency>{COLUMN_CURRENCY})?\s+"
+    rf"(?:line\s+)?amount(?P<amount_currency>{COLUMN_CURRENCY})?", re.IGNORECASE,
+)
+ITEM_ROW = re.compile(
+    rf"(?P<description>.+?)\s+(?P<quantity>[0-9]{{1,4}})\s+(?P<rate>{RUPEE_AMOUNT})\s+(?P<amount>{RUPEE_AMOUNT})",
+    re.IGNORECASE,
+)
+INVOICE_TOTAL = re.compile(
+    rf"(?P<label>(?:(?:grand|invoice|bill)\s+)?total)(?:\s*:\s*|\s+)(?P<amount>{RUPEE_AMOUNT})", re.IGNORECASE,
+)
+SUMMARY = re.compile(
+    r"(?:sub\s?total\b|total\b|grand\s+total\b|invoice\s+total\b|bill\s+total\b|(?:[ics]?gst|vat|tax)\b|"
+    r"discount\b|round[ -]?off|(?:net|balance|amount)\s+(?:due|payable)|(?:advance|payment)\s+(?:received|paid))",
+    re.IGNORECASE,
+)
+
 
 def paise(raw: str) -> int | None:
     raw = raw.strip().replace(",", "").removeprefix("₹").removeprefix("INR").strip()
@@ -92,6 +115,80 @@ def paise(raw: str) -> int | None:
     except InvalidOperation:
         pass
     raise ValueError("Use a rupee amount with at most two decimal places.")
+
+
+def invoice_money(raw: str, currency_stated: bool) -> int:
+    prefix = re.match(RUPEE_MARK, raw, re.IGNORECASE)
+    if not currency_stated and prefix is None:
+        raise ValueError("Missing rupee currency")
+    amount = paise(raw[prefix.end():] if prefix else raw)
+    if amount is None:
+        raise ValueError("Missing amount")
+    return amount
+
+
+def observed_invoice_rows(pages: list[str]) -> tuple[list[dict], list[str]]:
+    rows = []
+    totals = []
+    notes = []
+    for page, body in enumerate(pages, 1):
+        lines = body.splitlines()
+        page_currency = any(re.fullmatch(rf"\s*currency\s*:\s*{RUPEE_MARK}\s*", raw, re.IGNORECASE) for raw in lines)
+        header = None
+        has_charges = False
+        summary = False
+        for line, raw in enumerate(lines, 1):
+            divider = r"[|｜│¦]" if re.search(r"[|｜│¦]", raw) else r"\t"
+            cells = [cell.strip() for cell in re.split(divider, raw.strip().strip("|｜│¦"))]
+            text = " ".join(" ".join(cells).split())
+            if not text:
+                continue
+            current_header = ITEM_HEADER.fullmatch(text)
+            if current_header:
+                header = current_header
+                has_charges = False
+                summary = False
+                continue
+            if header is None:
+                continue
+            location = {"id": f"p{page}-l{line}", "page": page, "line": line}
+            total = INVOICE_TOTAL.fullmatch(text)
+            item = ITEM_ROW.fullmatch(text)
+            try:
+                summary_text = re.sub(r"^[0-9]+\.?\s+", "", text) if header["serial"] else text
+                if SUMMARY.match(summary_text):
+                    summary = True
+                    if total and has_charges:
+                        total_currency = page_currency or bool(header["amount_currency"])
+                        row = ObservedRow(**location, type="invoice_total", description=total["label"],
+                                          amount=invoice_money(total["amount"], total_currency))
+                        totals.append(row.model_dump())
+                elif item and not summary:
+                    description = item["description"]
+                    if len(cells) > 1:
+                        expected = 5 if header["serial"] else 4
+                        observed_values = [" ".join(cell.split()) for cell in cells[-3:]]
+                        if (len(cells) != expected or any(not cell for cell in cells)
+                                or observed_values != list(item.group("quantity", "rate", "amount"))):
+                            raise ValueError("Invalid invoice table cells")
+                    if header["serial"]:
+                        serial, _, description = description.partition(" ")
+                        if not serial.rstrip(".").isascii() or not serial.rstrip(".").isdigit():
+                            raise ValueError("Missing item number")
+                    row = ObservedRow(
+                        **location, type="charge", description=description, units=int(item["quantity"]),
+                        unit_price=invoice_money(item["rate"], page_currency or bool(header["rate_currency"])),
+                        amount=invoice_money(item["amount"], page_currency or bool(header["amount_currency"])),
+                    )
+                    rows.append(row.model_dump())
+                    has_charges = True
+            except ValueError:
+                notes.append(f"Page {page}, line {line} needs manual review.")
+    if len(totals) == 1:
+        rows.extend(totals)
+    elif totals:
+        notes.append("More than one invoice total was found. Choose the correct total during review.")
+    return sorted(rows, key=lambda row: (row["page"], row["line"])), notes
 
 
 def read_rows(pages: list[str], kind: Kind, *, observed: bool = False) -> tuple[list[dict], list[str]]:
@@ -135,6 +232,9 @@ def read_rows(pages: list[str], kind: Kind, *, observed: bool = False) -> tuple[
                 rows.append(row.model_dump())
             except (ValueError, IndexError):
                 notes.append(f"Page {page}, line {line} needs manual review.")
+    if not rows and observed and kind == "invoice":
+        rows, table_notes = observed_invoice_rows(pages)
+        notes.extend(table_notes)
     if not rows:
         notes.append("Add rows manually using the extracted text.")
     return rows, notes
