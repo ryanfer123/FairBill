@@ -201,7 +201,7 @@ const useStyles = themedStyles(({ color }) => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: color.backdrop },
   bottomSheet: { height: '88%', backgroundColor: color.sheet, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
   compactSheet: { height: 'auto', maxHeight: '90%' },
-  confirmationBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: color.backdrop },
+  confirmationBackdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: color.backdrop },
   confirmationScroll: { flex: 1 },
   confirmationInset: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   confirmationCard: { alignSelf: 'center', width: '100%', maxWidth: 420, padding: 20, gap: 12,
