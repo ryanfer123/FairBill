@@ -316,3 +316,11 @@ def test_timed_out_image_retries_with_source_coordinates(monkeypatch):
     lines = document_media._ocr_lines(original, pymupdf.Matrix(1, 1))
     assert sizes == [(200, 300), (100, 150)]
     assert lines[0]["bbox"] == [10, 20, 100, 50]
+
+
+def test_packet_preserves_rupee_symbol_and_paise():
+    amounts = [0, 1, 123456789, -125]
+    labels = [resolution.money(amount) for amount in amounts]
+    assert labels == ["₹0.00", "₹0.01", "₹12,34,567.89", "−₹1.25"]
+    with pymupdf.open(stream=resolution.evidence_packet(labels), filetype="pdf") as pdf:
+        assert pdf[0].get_text().splitlines() == labels

@@ -2,6 +2,7 @@ import hashlib
 import os
 import textwrap
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Literal
 
 import pymupdf
@@ -18,8 +19,18 @@ CLOSINGS = ("Please send a written response with any supporting records.",
 
 
 def money(amount: int) -> str:
-    whole, fraction = divmod(amount, 100)
-    return f"INR {whole:,}.{fraction:02d}"
+    whole, fraction = divmod(abs(amount), 100)
+    leading, tail = divmod(whole, 1000)
+    digits = str(whole)
+    if leading:
+        groups = [f"{tail:03d}"]
+        while leading >= 100:
+            leading, group = divmod(leading, 100)
+            groups.append(f"{group:02d}")
+        groups.append(str(leading))
+        digits = ",".join(reversed(groups))
+    sign = "−" if amount < 0 else ""
+    return f"{sign}₹{digits}.{fraction:02d}"
 
 
 def approved_points(case):
@@ -121,6 +132,7 @@ def packet_lines(case: dict) -> list[str]:
 
 
 def evidence_packet(lines: list[str]) -> bytes:
+    font_path = Path(__file__).with_name("fonts") / "PTSans-Regular.ttf"
     with pymupdf.open() as pdf:
         page = None
         y = 0
@@ -130,8 +142,9 @@ def evidence_packet(lines: list[str]) -> bytes:
                     page = pdf.new_page(width=595, height=842)
                     y = 55
                 title = line.startswith("FairBill  /")
+                font = "PacketSans" if "₹" in part else ("hebo" if title else "helv")
                 page.insert_text((46, y), part, fontsize=18 if title else 10.5,
-                                 fontname="hebo" if title else "helv", color=(0.10, 0.20, 0.19))
+                                 fontname=font, fontfile=str(font_path) if font == "PacketSans" else None, color=(0.10, 0.20, 0.19))
                 y += 28 if title else 16
         return pdf.tobytes(garbage=4, deflate=True)
 
