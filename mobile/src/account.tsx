@@ -6,12 +6,11 @@ import { BillReviewSteps } from './first-run';
 import { AppearanceChoices } from './appearance';
 import { GuestReview } from './guest-review';
 import Constants from 'expo-constants';
-import { Chip } from 'react-native-paper';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
-import { updateProfile, accountUser, type PreferredEvidence, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet } from './ui';
 
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
@@ -99,7 +98,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   </Screen>;
 }
 
-const panelTitles = { main: 'Settings', profile: 'Your profile', appearance: 'Appearance', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
+const panelTitles = { main: 'Settings', management: 'Account management', appearance: 'Appearance', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
 function SettingRow({ label, icon, onPress, disabled, danger = false, external = false }:
   { label: string; icon: IconName; onPress: () => void; disabled: boolean; danger?: boolean; external?: boolean }) {
@@ -114,7 +113,7 @@ function SettingRow({ label, icon, onPress, disabled, danger = false, external =
   </Pressable>;
 }
 
-export function AccountSettings({ onClose, onArchive, onInvite, embedded = false, onScroll, clearance }: { onArchive?: () => void; onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
+export function AccountSettings({ onClose, onArchive, onInvite, onProfile, embedded = false, onScroll, clearance }: { onArchive?: () => void; onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; onProfile?: () => void; embedded?: boolean }) {
   const { ui, color } = useFairBillTheme();
   const settings = useSettings();
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
@@ -124,13 +123,6 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
   const [error, setError] = useState('');
   const pending = useRef(false);
   const user = accountUser();
-  const displayName = typeof user?.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '';
-  const homeState = typeof user?.user_metadata?.home_state === 'string' ? user.user_metadata.home_state : '';
-  const storedEvidence = user?.user_metadata?.preferred_evidence;
-  const preferredEvidence = storedEvidence === 'settlement' || storedEvidence === 'policy' ? storedEvidence : 'service_record';
-  const [name, setName] = useState(displayName);
-  const [region, setRegion] = useState(homeState);
-  const [evidence, setEvidence] = useState<PreferredEvidence>(preferredEvidence);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -156,11 +148,6 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
   function show(next: keyof typeof panelTitles) {
     setError('');
     setConfirmation('');
-    if (next === 'profile') {
-      setName(displayName);
-      setRegion(homeState);
-      setEvidence(preferredEvidence);
-    }
     setPanel(next);
   }
 
@@ -176,16 +163,9 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
       </Card>}
       {panel === 'main' && <>
         {embedded && <Text accessibilityRole="header" style={settings.title}>Settings</Text>}
-        {user && <Pressable accessibilityRole="button" accessibilityLabel="Open your profile" onPress={() => show('profile')}
-          style={({ pressed }) => [settings.profile, pressed && settings.pressed]}>
-          <View style={settings.identity}>{displayName ? <Text style={settings.initial}>{Array.from(displayName)[0]?.toLocaleUpperCase()}</Text>
-            : <AppIcon name="user" size={24} color={color.paper} />}</View>
-          <View style={ui.grow}>
-            <Text style={settings.caption}>Your profile</Text>
-            <Text style={settings.email}>{displayName || user.email || 'FairBill account'}</Text>
-          </View>
-          <AppIcon name="chevron-right" size={18} color={color.primary} />
-        </Pressable>}
+        {user && onProfile && <View style={settings.group}>
+          <SettingRow label="Profile" icon="user" disabled={busy} onPress={onProfile} />
+        </View>}
         <View style={settings.group}>
           <SettingRow label="Appearance" icon="settings" disabled={busy} onPress={() => show('appearance')} />
         </View>
@@ -209,39 +189,19 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
           <View style={settings.group}>
             {privacyUrl && <SettingRow label="Privacy notice" icon="shield" external disabled={busy} onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
             {!!privacyUrl && user && <Divider />}
-            {user && <SettingRow label="Sign out" icon="log-out" disabled={busy} onPress={() => void run(() => endSession(false))} />}
+            {user && <SettingRow label="Account management" icon="lock" disabled={busy} onPress={() => show('management')} />}
           </View>
         </View>}
-        {user && <View style={settings.danger}><SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} /></View>}
       </>}
       {panel === 'appearance' && <Card>
         <AppearanceChoices />
         <Text style={ui.small}>System follows this device’s appearance setting.</Text>
       </Card>}
-      {panel === 'profile' && user && <>
-        <Card>
-          <SectionHeader>Personal details</SectionHeader>
-          <Input label="Display name" accessibilityLabel="Display name" value={name} onChangeText={setName}
-            maxLength={80} autoCapitalize="words" editable={!busy} />
-          <Text style={ui.label}>Sign-in email</Text>
-          <Text selectable style={ui.body}>{user.email}</Text>
-        </Card>
-        <Card>
-          <SectionHeader>Review preferences</SectionHeader>
-          <Input label="State or union territory" accessibilityLabel="State or union territory" value={region}
-            onChangeText={setRegion} maxLength={60} autoCapitalize="words" editable={!busy} />
-          <Text style={ui.small}>FairBill uses this optional detail to surface available local assistance resources.</Text>
-          <Text style={ui.label}>Start with this type of evidence</Text>
-          <View style={settings.chips}>
-            {([['service_record', 'Service record'], ['settlement', 'Settlement'], ['policy', 'Insurance policy']] as const).map(([key, label]) =>
-              <Chip key={key} selected={evidence === key} accessibilityState={{ selected: evidence === key }}
-                disabled={busy} onPress={() => setEvidence(key)}>{label}</Chip>)}
-          </View>
-        </Card>
-        <Button label="Save profile" icon="check" busy={busy}
-          disabled={name.trim() === displayName && region.trim() === homeState && evidence === preferredEvidence}
-          onPress={() => void run(async () => { await updateProfile({ name, state: region, evidence }); show('main'); })} />
-      </>}
+      {panel === 'management' && user && <View style={settings.group}>
+        <SettingRow label="Sign out" icon="log-out" disabled={busy} onPress={() => void run(() => endSession(false))} />
+        <Divider />
+        <SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} />
+      </View>}
       {panel === 'help' && <Card>
         <SectionHeader>Review a bill</SectionHeader>
         <BillReviewSteps detailed />
@@ -263,27 +223,22 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
           onClose();
         })} />
       </Card>}
-      {panel !== 'main' && <Button label={panel === 'delete' ? 'Cancel' : 'Back to settings'} tone="ghost" disabled={busy} onPress={() => show('main')} />}
+      {panel !== 'main' && <Button label={panel === 'delete' ? 'Cancel' : 'Back to settings'} tone="ghost" disabled={busy} onPress={() => show(panel === 'delete' ? 'management' : 'main')} />}
     </ScrollView>
     </KeyboardAvoidingView>;
 
   if (embedded && panel === 'main') return content;
   return <Sheet title={panelTitles[panel]} onClose={() => {
     if (busy) return;
-    if (embedded) show('main'); else onClose();
+    if (panel === 'delete') show('management');
+    else if (embedded) show('main');
+    else onClose();
   }}>{content}</Sheet>;
 }
 
 const useSettings = themedStyles(({ color }) => StyleSheet.create({
   title: { color: color.ink, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 20, backgroundColor: color.primaryContainer },
-  identity: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
-  initial: { color: color.paper, fontFamily: font.semibold, fontSize: 22 },
-  caption: { color: color.primary, fontFamily: font.regular, fontSize: 14 },
-  email: { color: color.onPrimaryContainer, fontFamily: font.semibold, fontSize: 18 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   group: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
   row: { minHeight: 54, paddingHorizontal: 16, paddingVertical: 12, gap: 14, alignItems: 'center', flexDirection: 'row' },
   pressed: { opacity: 0.62 },
-  danger: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line },
 }));

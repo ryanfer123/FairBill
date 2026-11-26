@@ -286,10 +286,13 @@ export default function Home() {
             style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
             <AppIcon name="maximize" color={color.ink} size={26} />
           </Pressable>}
-          <Pressable accessibilityRole="button" accessibilityLabel="Open account settings"
-            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => { setArchiveOpen(false); setDestination('settings'); }}
+          <Pressable accessibilityRole="button" accessibilityLabel={cloudBuild ? "Open profile" : "Open settings"}
+            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => {
+              if (cloudBuild) router.push('/profile');
+              else { setArchiveOpen(false); setDestination('settings'); }
+            }}
             style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
-            <AppIcon name="user" color={color.ink} size={25} />
+            <AppIcon name={cloudBuild ? 'user' : 'settings'} color={color.ink} size={25} />
           </Pressable>
         </View>
       </View>
@@ -352,7 +355,7 @@ export default function Home() {
           setDestination('check'); setError(cause.message);
         });
       }} />}
-      {destination === 'settings' && !archiveOpen && <AccountSettings onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={scrollEndSpacing} embedded onClose={() => setDestination('check')} onInvite={() => {
+      {destination === 'settings' && !archiveOpen && <AccountSettings onProfile={cloudBuild ? () => router.push('/profile') : undefined} onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={scrollEndSpacing} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
