@@ -138,7 +138,7 @@ export function GuestReview({ onClose, onAdopted }: {
         <SectionHeader>Bill charges</SectionHeader>
         {rows.map((row, index) => <View key={index} style={ui.stack}>
           <Text style={ui.label}>{row.description}</Text>
-          <CurrencyText style={ui.small}>{`${row.units} units · ${money(row.amount)}`}</CurrencyText>
+          <CurrencyText style={ui.small}>{`${row.units} ${row.units === 1 ? 'unit' : 'units'} · ${money(row.amount)}`}</CurrencyText>
           {!locked && <Button label={`Remove charge ${index + 1}`} tone="ghost" disabled={busy}
             onPress={() => void run(() => save({ ...currentLedger(), rows: rows.filter((_, position) => index !== position) }))} />}
         </View>)}

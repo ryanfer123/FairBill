@@ -21,9 +21,12 @@ export function Card({ children, tone = 'outline' }: { children: ReactNode; tone
   return <Surface elevation={0} style={[ui.card, tone === 'tonal' && styles.tonal]}>{children}</Surface>;
 }
 
-export function Input({ style, ...props }: ComponentProps<typeof TextInput>) {
+export function Input({ style, label, accessibilityLabel, ...props }: ComponentProps<typeof TextInput>) {
   const { ui, dark } = useFairBillTheme();
-  return <TextInput keyboardAppearance={dark ? 'dark' : 'light'} {...props} mode="outlined" style={[ui.input, style]} />;
+  const currencyLabel = typeof label === 'string' && label.includes('₹') ? label : undefined;
+  return <TextInput keyboardAppearance={dark ? 'dark' : 'light'} {...props}
+    label={currencyLabel ? <CurrencyText>{currencyLabel}</CurrencyText> : label}
+    accessibilityLabel={accessibilityLabel ?? currencyLabel} mode="outlined" style={[ui.input, style]} />;
 }
 
 export function CurrencyText({ children, ...props }: TextProps & { children: string }) {
@@ -109,7 +112,7 @@ export function Message({ text, onClose }: { text: string; onClose?: () => void 
   return (
     <View accessibilityRole="alert" style={styles.error}>
       <AppIcon name="alert-circle" size={18} color={color.onErrorContainer} />
-      <Text style={[ui.small, ui.grow, { color: color.onErrorContainer }]}>{text}</Text>
+      <CurrencyText style={[ui.small, ui.grow, { color: color.onErrorContainer }]}>{text}</CurrencyText>
       {onClose && <Pressable accessibilityLabel="Dismiss message" accessibilityRole="button" onPress={onClose} style={styles.dismiss}>
         <AppIcon name="x" size={17} color={color.onErrorContainer} />
       </Pressable>}
