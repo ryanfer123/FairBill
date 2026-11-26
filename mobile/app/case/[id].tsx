@@ -45,6 +45,7 @@ export default function CaseScreen() {
   const [policyLookup, setPolicyLookup] = useState(false);
   const [reportLinks, setReportLinks] = useState(false);
   const [followUps, setFollowUps] = useState(false);
+  const [outreachConsent, setOutreachConsent] = useState(false);
   const [busy, setBusy] = useState('');
   const [packetNotice, setPacketNotice] = useState('');
   const working = useRef(false);
@@ -80,6 +81,7 @@ export default function CaseScreen() {
       setPolicyLookup(backend.policyLookup === true);
       setReportLinks(backend.reportLinks === true);
       setFollowUps(backend.followUps === true);
+      setOutreachConsent(backend.outreachConsent === true);
       setData(snapshot);
     } catch (cause) { setError((cause as Error).message); }
   }, [id]);
@@ -412,6 +414,12 @@ export default function CaseScreen() {
       onApprove={() => {
         if (draft) void update('approve', '/approvals', { action, revision, hash: draft.hash }).catch(report);
       }}
+      onAuthorize={live && outreachConsent && draft ? async () => {
+        await update('handoff', '/handoffs/authorize', { action, revision, hash: draft.hash, confirmed: true });
+      } : undefined}
+      onWithdrawApproval={live && outreachConsent && draft ? () => {
+        void update('withdraw-approval', '/approvals/withdraw', { action, revision, hash: draft.hash }).catch(report);
+      } : undefined}
       onSimulate={(step) => void simulate(step)}
       onEdit={versioned && !hostedBuild && action === 'letter' ? async (text) => {
         try { await update('edit-letter', '/drafts/letter', { revision, text }, 'PATCH'); }

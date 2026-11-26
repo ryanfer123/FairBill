@@ -52,9 +52,10 @@ function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
   </View>;
 }
 
-export function Outreach({ action, draft, receipt, approved, busy, error, live = false, onDismissError, onClose, onApprove, onSimulate, onEdit }:
+export function Outreach({ action, draft, receipt, approved, busy, error, live = false, onDismissError, onClose, onApprove, onAuthorize, onWithdrawApproval, onSimulate, onEdit }:
   { action: Action; draft?: Draft; receipt?: Receipt; approved: boolean; busy: string; error: string; live?: boolean;
     onDismissError: () => void; onClose: () => void; onApprove: () => void;
+    onAuthorize?: () => Promise<void>; onWithdrawApproval?: () => void;
     onSimulate: (step: SimulationStep) => void; onEdit?: (text: string) => Promise<void> }) {
   const { ui } = useFairBillTheme();
   const styles = useStyles();
@@ -84,6 +85,11 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
     const target = call ? destination.replace(/[\s()-]/g, '') : destination.trim();
     if (call ? !/^\+?\d{6,15}$/.test(target) : !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(target)) {
       setHandoffError(call ? 'Enter the billing desk’s phone number.' : 'Enter the billing desk’s email address.');
+      return;
+    }
+    try { await onAuthorize?.(); }
+    catch (cause) {
+      setHandoffError((cause as Error).message);
       return;
     }
     try {
@@ -130,6 +136,8 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
               autoCapitalize="none" autoCorrect={false} maxLength={call ? 30 : 320} />
             <Text style={ui.small}>{call ? 'Check the number against your bill. You place the call in your dialer.'
               : 'Check the address against your bill. You send the letter from your email app.'}</Text>
+            {onWithdrawApproval && <Button label="Withdraw approval" tone="ghost" disabled={!!busy}
+              onPress={() => { setDestination(''); onWithdrawApproval(); }} />}
           </Card>}
           {!live && receipt && <Card tone="tonal">
             <Text style={ui.label}>Reference {receipt.id}</Text>

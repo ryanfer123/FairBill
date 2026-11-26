@@ -133,6 +133,7 @@ export interface Backend {
   reportLinks?: boolean;
   followUps?: boolean;
   guestAdoption?: boolean;
+  outreachConsent?: boolean;
 }
 
 async function createToken() {
@@ -184,6 +185,7 @@ async function discover(origin: string): Promise<Backend> {
       reportLinks: features.includes('report-links'),
       followUps: features.includes('follow-ups'),
       guestAdoption: features.includes('guest-adoption'),
+      outreachConsent: features.includes('outreach-consent'),
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {

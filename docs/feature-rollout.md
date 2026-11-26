@@ -7,7 +7,7 @@
 | Approved follow-ups and outcomes | Implemented on the feature branch | Patient-owned due dates, status changes, reference numbers and confirmed outcomes. Stage and test in the Android app. Live delivery remains gated separately. |
 | Guest and device-only review | Implemented on the feature branch | Manual on-device ledger and total comparison. Account transfer needs explicit consent and binds retries to the selected account. Verify storage and transfer on the Android emulator and an isolated staging account. |
 | Web patient experience | Implemented on the feature branch | Chromium passed an isolated typed-code session, small viewport, PDF upload, editing and confirmation, evidence, export, expiry and account separation. Verify with staged auth before enabling the portal. |
-| Live advocate | Partial | Keep isolated opt-in previews and sandbox destinations until sender identity, caller identity, providers, configuration, consent, and operational safeguards are approved. |
+| Live advocate | Partial | Device handoff checks the exact approved wording and evidence revision. Patients can withdraw approval. Provider delivery awaits a provider, sender and caller identities, a consent process, and controlled test destinations. |
 | Employer programme | Not shipped | Decide whether an employer receives aggregate reporting only. Explicitly define participant consent and access boundaries before a pilot. |
 | Payments or success fees | Not shipped | Define what counts as verified savings, how consent and disputes work, and the financial obligations before choosing a payment provider. |
 
@@ -42,3 +42,16 @@ A transfer is bound to its target account before upload. If the response is ambi
 The patient portal is disabled unless `FAIRBILL_WEB_PATIENT=1` is explicitly set on the hosted server. The portal uses the configured Supabase publishable credential to request typed email codes. Access tokens and case data stay in the browser page session, with no local or session storage writes. The portal clears the visible case and file selection when the service rejects an expired session.
 
 Local Chromium verification used two fictional accounts behind an isolated auth fixture and generated itemised PDFs. The provider did not send any email. Verify code delivery and expiry in an authorized staging account before making the route available.
+
+
+## Outreach approval and delivery
+
+The hosted app validates the destination locally. On a backend that advertises `outreach-consent`, opening the device email app or dialer requires an explicit handoff tied to the current revision and approved draft hash. The patient can withdraw that approval before opening the external app. The case timeline records the patient's authorisation or withdrawal. The destination and delivery result stay out of that request, and the patient places the call or sends the letter from their own app.
+
+Before connecting any delivery provider, approve sender and caller identities, test with controlled destinations, bind each approved action to the exact wording and verified recipient, and define cancellation, consent withdrawals, audit access and provider receipt handling. Obtain a separate decision on processing patient records with any external model or call provider.
+
+## Pilot decisions
+
+An employer pilot can start with a participation invitation and simulated aggregate reporting. Define opt-in consent, aggregation thresholds, suppression for small groups and retention before using real participation data. Keep cases, bills, contact details and individual outcomes private to patients.
+
+A payment pilot requires a definition of verified savings and an independently checkable final bill or settlement, an explicit acceptance step, clear fees, and refund and dispute handling before any payment activation. Keep pricing and provider selection outside the patient flow until those decisions are made.

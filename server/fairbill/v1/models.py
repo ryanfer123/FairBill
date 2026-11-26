@@ -127,6 +127,17 @@ class ApprovalInput(DraftInput):
     hash: Hash
 
 
+class HandoffInput(ApprovalInput):
+    confirmed: Literal[True]
+
+    @field_validator("confirmed", mode="before")
+    @classmethod
+    def explicit_confirmation(cls, value):
+        if value is not True:
+            raise ValueError("Confirm the device handoff.")
+        return value
+
+
 class Simulate(ApprovalInput):
     step: Literal["start", "identity", "identity_failed", "activate", "finish"] = "start"
 

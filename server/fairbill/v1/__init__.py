@@ -132,7 +132,7 @@ def health(response: Response):
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     if current == "hosted":
-        features = ["india-review", "policy-lookup", "follow-ups", "guest-adoption"]
+        features = ["india-review", "policy-lookup", "follow-ups", "guest-adoption", "outreach-consent"]
         if report_links.enabled():
             features.append("report-links")
         response.headers["X-FairBill-Features"] = ", ".join(features)
@@ -543,6 +543,47 @@ def approve(case_id: str, data: m.ApprovalInput, owner: Owner, key: Key = None):
             event(case, f"{data.action.title()} approved", "The patient approved this revision's exact wording.", "Patient")
 
     return mutate(owner, case_id, key, "approve", data, apply)
+
+
+def require_handoff_approval(case, data):
+    from ..api import exact_draft
+
+    current = exact_draft(case, data)
+    approval = case["approvals"].get(data.action)
+    if case["sample"] or not approval or approval["revision"] != data.revision or approval["hash"] != current["hash"]:
+        raise HTTPException(409, "Approve the exact wording for this revision before opening a phone app.")
+
+
+@app.post("/cases/{case_id}/approvals/withdraw", response_model=m.Case)
+def withdraw_approval(case_id: str, data: m.ApprovalInput, owner: Owner, key: Key = None):
+    from ..api import exact_draft
+
+    for_local()
+
+    def apply(case):
+        current = exact_draft(case, data)
+        approval = case["approvals"].get(data.action)
+        if approval and approval["revision"] == data.revision and approval["hash"] == current["hash"]:
+            del case["approvals"][data.action]
+            event(case, f"{data.action.title()} approval withdrawn", "You withdrew approval for this wording.", "Patient")
+
+    return mutate(owner, case_id, key, "withdraw-approval", data, apply)
+
+
+@app.post("/cases/{case_id}/handoffs/authorize", response_model=m.Case)
+def authorize_handoff(case_id: str, data: m.HandoffInput, owner: Owner, key: Key = None):
+    for_local()
+    if not key:
+        raise HTTPException(400, "An idempotency key is required for a handoff.")
+
+    def apply(case):
+        require_handoff_approval(case, data)
+        event(case, f"{data.action.title()} handoff authorized", "You confirmed opening a phone app for this revision.", "Patient")
+
+    mutate(owner, case_id, key, "authorize-device-handoff", data, apply)
+    current = store.get(owner, case_id)
+    require_handoff_approval(current, data)
+    return current
 
 
 @app.post("/cases/{case_id}/simulations", response_model=m.Case)
