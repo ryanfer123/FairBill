@@ -4,9 +4,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScanPreview } from '../src/scan-preview';
 import { CaseList } from '../src/cases';
 import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
-import { documentForm, pickDocument, type CaptureMethod } from '../src/document-picker';
+import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
 import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
@@ -47,7 +48,7 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
           accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
           style={styles.tab}>
           {({ pressed }) => <View style={[styles.tabContents, pressed && styles.tabPressed]}>
-            <AppIcon name={tab.icon} color={tint} size={20} />
+            <AppIcon name={tab.icon} selected={selected} color={tint} size={22} />
             {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
           </View>}
         </Pressable>;
@@ -83,6 +84,7 @@ export default function Home() {
   const [latest, setLatest] = useState<string | null>(null);
   const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
+  const [scanning, setScanning] = useState<PickedDocument | null>(null);
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
   const importing = useRef(false);
@@ -148,6 +150,7 @@ export default function Home() {
       const asset = action !== 'paste' ? await pickDocument(action) : undefined;
       if (action !== 'paste' && !asset) return;
       if (action === 'paste' && !text.trim()) return;
+      if (asset) setScanning(asset);
       if (!blank.current) blank.current = await createCase(false);
       const { id, revision } = blank.current;
       const result = asset
@@ -175,6 +178,7 @@ export default function Home() {
       }
       setError((cause as Error).message);
     } finally {
+      setScanning(null);
       setBusy(null);
       importing.current = false;
     }
@@ -222,7 +226,7 @@ export default function Home() {
             </View>
             <Text accessibilityRole="header" style={styles.headline}>Check a hospital bill</Text>
           </View>
-          <Text style={styles.scanHint}>Start with the page that lists each service and its charge.</Text>
+          <Text style={styles.scanHint}>{Platform.OS === 'android' ? 'Hold the itemised bill steady with all four corners in view for auto capture.' : 'Start with the page that lists each service and its charge.'}</Text>
           <TouchableRipple accessibilityRole="button" accessibilityState={{ disabled: !!busy, busy: busy === 'camera' }}
             disabled={!!busy} style={styles.scanAction} onPress={hostedBuild ? () => setDestination('settings') : () => void start('camera')}>
             <View style={styles.scanButton}>
@@ -247,7 +251,7 @@ export default function Home() {
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onScroll={onScroll} clearance={clearance} onOpen={(id) => {
+      {destination === 'cases' && <CaseList onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
         void rememberCase(id).then(() => open(id)).catch((cause: Error) => {
           setDestination('check'); setError(cause.message);
         });
@@ -256,12 +260,12 @@ export default function Home() {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
-      {capture && <Sheet title={capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
+      {(capture || scanning) && <Sheet title={scanning ? 'Scan document' : capture === 'upload' ? 'Upload a bill' : 'Paste an itemised bill'} onClose={() => {
         if (importing.current) return;
         setCapture(null);
         setError('');
       }}>
-        <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {scanning ? <ScanPreview asset={scanning} /> : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
             {error ? <Message text={error} onClose={() => setError('')} /> : null}
             <Text style={ui.body}>Use an itemised bill that lists each service and its charge.</Text>
@@ -281,7 +285,7 @@ export default function Home() {
               <Button label="Check pasted bill" icon="arrow-right" busy={busy === 'paste'} disabled={!!busy || !text.trim()} onPress={() => void start('paste')} />
             </Card>}
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingView>}
       </Sheet>}
       <TabDock compact={compact} bottom={bottom + 8} current={destination} busy={!!busy} onSelect={(tab) => {
           if (tab === 'cases' && !versioned) {

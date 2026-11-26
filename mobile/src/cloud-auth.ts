@@ -10,7 +10,7 @@ export const cloudBuild = !!(origin && key);
 
 const refreshKey = 'fairbill_cloud_refresh';
 const verifierKey = 'fairbill_cloud_sign_in_verifier';
-type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string } };
+type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string; user_metadata?: { display_name?: string } } };
 type Current = { accessToken: string; expiresAt: number; user: Session['user'] };
 type AccountState = 'loading' | 'signed-out' | 'signed-in';
 type Listener = () => void;
@@ -35,7 +35,7 @@ class AuthError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-async function auth<T>(path: string, data: object, accessToken?: string): Promise<T> {
+async function auth<T>(path: string, data: object, accessToken?: string, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
   if (!origin || !key) throw new Error('Account sign-in is unavailable in this build.');
   const headers = new Headers({ apikey: key, 'Content-Type': 'application/json' });
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
@@ -43,10 +43,10 @@ async function auth<T>(path: string, data: object, accessToken?: string): Promis
   const timeout = setTimeout(() => control.abort(), 45000);
   try {
     const response = await fetch(`${origin}/auth/v1/${path}`, {
-      method: 'POST', headers, body: JSON.stringify(data), signal: control.signal,
+      method, headers, body: JSON.stringify(data), signal: control.signal,
     });
     if (!response.ok) {
-      const message = response.status === 429 ? 'Too many attempts. Wait a moment and try again.'
+      const message = path === 'user' ? 'Could not save your profile. Please try again.' : response.status === 429 ? 'Too many attempts. Wait a moment and try again.'
         : response.status >= 500 ? 'Sign-in is temporarily unavailable. Try again.'
         : path === 'verify' ? 'That code is invalid or has expired. Request a new code.'
         : 'FairBill could not complete the sign-in request.';
@@ -56,6 +56,7 @@ async function auth<T>(path: string, data: object, accessToken?: string): Promis
     return await response.json() as T;
   } catch (cause) {
     if (cause instanceof AuthError) throw cause;
+    if (path === 'user') throw new Error('Could not save your profile. Check your connection and retry.');
     if (control.signal.aborted) throw new Error('Sign-in took longer than expected. Check your email before requesting another link.');
     throw new Error('FairBill could not reach sign-in. Check your connection and retry.');
   } finally {
@@ -121,6 +122,16 @@ export async function cloudAuthorization() {
 }
 
 export const accountUser = () => current?.user;
+
+export async function updateDisplayName(value: string) {
+  const name = value.trim();
+  if (name.length > 80) throw new Error('Use 80 characters or fewer.');
+  const account = await restoreAccount();
+  if (!account) throw new Error('Sign in to edit your profile.');
+  const user = await auth<Session['user']>('user', { data: { display_name: name } }, account.accessToken, 'PUT');
+  if (current?.user.id !== account.user.id || user.id !== account.user.id) throw new Error('Your session changed. Open your profile again.');
+  publish({ ...current, user });
+}
 
 export async function rejectAccount(authorization: string | undefined) {
   if (!current || authorization !== `Bearer ${current.accessToken}` || refresh) return;

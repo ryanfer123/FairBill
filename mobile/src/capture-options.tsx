@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
 import type { CaptureMethod } from './document-picker';
 import { AppIcon, type IconName } from './icons';
@@ -15,7 +15,7 @@ export function CaptureOptions({ pending, disabled, onChoose }:
     <View style={styles.scan}>
       <Button label="Scan bill photo" icon="camera" busy={pending === 'camera'} disabled={disabled}
         onPress={() => onChoose('camera')} />
-      <Text style={[ui.small, styles.hint]}>Keep the full page in frame.</Text>
+      <Text style={[ui.small, styles.hint]}>{Platform.OS === 'android' ? 'Hold the page steady for auto capture.' : 'Keep the full page in frame.'}</Text>
     </View>
     {alternatives.map(({ method, label, icon }) => <View key={method}>
       <Divider />

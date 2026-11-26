@@ -1,14 +1,16 @@
 import * as SecureStore from 'expo-secure-store';
 import Animated from 'react-native-reanimated';
 import { Illustration } from './illustrations';
+import { AppIcon, type IconName } from './icons';
+import { font } from './typography';
 import { surfaceReveal } from './motion';
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View, type ScrollViewProps } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
-import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
-import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, ui } from './ui';
+import { updateDisplayName, accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from './ui';
 
 const welcomeSteps = [
   { title: 'Welcome to FairBill', body: 'Check hospital bills against your records.', art: 'welcome' },
@@ -138,7 +140,18 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   </Screen>;
 }
 
-const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
+const panelTitles = { main: 'Settings', profile: 'Your profile', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
+
+function SettingRow({ label, icon, onPress, disabled, danger = false, external = false }:
+  { label: string; icon: IconName; onPress: () => void; disabled: boolean; danger?: boolean; external?: boolean }) {
+  const tint = danger ? color.onErrorContainer : color.primary;
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
+    accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [settings.row, pressed && settings.pressed]}>
+    <AppIcon name={icon} size={21} color={tint} />
+    <Text style={[ui.label, ui.grow, danger && { color: tint }]}>{label}</Text>
+    <AppIcon name={external ? 'external-link' : 'chevron-right'} size={16} color={tint} />
+  </Pressable>;
+}
 
 export function AccountSettings({ onClose, onInvite, embedded = false, onScroll, clearance }: { onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
@@ -148,6 +161,8 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   const [error, setError] = useState('');
   const pending = useRef(false);
   const user = accountUser();
+  const displayName = typeof user?.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '';
+  const [name, setName] = useState(displayName);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -173,6 +188,7 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   function show(next: keyof typeof panelTitles) {
     setError('');
     setConfirmation('');
+    if (next === 'profile') setName(displayName);
     setPanel(next);
   }
 
@@ -187,32 +203,44 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
           onPress={() => void run(() => endSession(true))} />
       </Card>}
       {panel === 'main' && <>
-        <View style={ui.between}>
-          <View style={[ui.grow, ui.stack]}>
-            {embedded && <Text accessibilityRole="header" style={ui.title}>Settings</Text>}
-            <Text style={ui.body}>Manage your account, privacy, and service status.</Text>
+        {embedded && <Text accessibilityRole="header" style={settings.title}>Settings</Text>}
+        {user && <Pressable accessibilityRole="button" accessibilityLabel="Open your profile" onPress={() => show('profile')}
+          style={({ pressed }) => [settings.profile, pressed && settings.pressed]}>
+          <View style={settings.identity}>{displayName ? <Text style={settings.initial}>{Array.from(displayName)[0]?.toLocaleUpperCase()}</Text>
+            : <AppIcon name="user" size={24} color={color.paper} />}</View>
+          <View style={ui.grow}>
+            <Text style={settings.caption}>Your profile</Text>
+            <Text style={settings.email}>{displayName || user.email || 'FairBill account'}</Text>
           </View>
-          <Illustration name="settings" size={54} />
+          <AppIcon name="chevron-right" size={18} color={color.primary} />
+        </Pressable>}
+        <View style={ui.stack}>
+          <SectionHeader>Help &amp; information</SectionHeader>
+          <View style={settings.group}>
+            <SettingRow label="Help with a bill" icon="message-circle" disabled={busy} onPress={() => show('help')} /><Divider />
+            <SettingRow label="Service status" icon="alert-circle" disabled={busy} onPress={() => show('status')} /><Divider />
+            <SettingRow label="About FairBill" icon="file-text" disabled={busy} onPress={() => show('about')} />
+            {hostedBuild && <><Divider /><SettingRow label="Tester access" icon="key" disabled={busy} onPress={() => show('invite')} /></>}
+          </View>
         </View>
-        {user && <Card>
-          <SectionHeader>Account</SectionHeader>
-          {!!user.email && <Text style={ui.body}>{user.email}</Text>}
-          <Button label="Sign out" icon="log-out" tone="ghost" busy={busy} onPress={() => void run(() => endSession(false))} />
-        </Card>}
-        <Card>
-          <SectionHeader>Support</SectionHeader>
-          <Button label="Help with a bill" icon="help-circle" tone="ghost" disabled={busy} onPress={() => show('help')} />
-          <Button label="Service status" icon="alert-circle" tone="ghost" disabled={busy} onPress={() => show('status')} />
-          <Button label="About FairBill" icon="file-text" tone="ghost" disabled={busy} onPress={() => show('about')} />
-          {hostedBuild && <Button label="Tester access" icon="key" tone="ghost" disabled={busy} onPress={() => show('invite')} />}
-        </Card>
-        {(privacyUrl || user) && <Card>
-          <SectionHeader>Privacy and data</SectionHeader>
-          {privacyUrl && <Button label="Privacy notice" icon="shield" tone="ghost" disabled={busy}
-            onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
-          {user && <Button label="Delete account" icon="trash-2" tone="destructive" disabled={busy} onPress={() => show('delete')} />}
-        </Card>}
+        {(privacyUrl || user) && <View style={ui.stack}>
+          <SectionHeader>Account &amp; privacy</SectionHeader>
+          <View style={settings.group}>
+            {privacyUrl && <SettingRow label="Privacy notice" icon="shield" external disabled={busy} onPress={() => void run(() => Linking.openURL(privacyUrl))} />}
+            {!!privacyUrl && user && <Divider />}
+            {user && <SettingRow label="Sign out" icon="log-out" disabled={busy} onPress={() => void run(() => endSession(false))} />}
+          </View>
+        </View>}
+        {user && <View style={settings.danger}><SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} /></View>}
       </>}
+      {panel === 'profile' && user && <Card>
+        <Input label="Display name" accessibilityLabel="Display name" value={name} onChangeText={setName}
+          maxLength={80} autoCapitalize="words" editable={!busy} />
+        <View style={ui.stack}><Text style={ui.label}>Sign-in email</Text>
+          <Text selectable style={ui.body}>{user.email}</Text></View>
+        <Button label="Save profile" icon="check" busy={busy} disabled={name.trim() === displayName}
+          onPress={() => void run(async () => { await updateDisplayName(name); show('main'); })} />
+      </Card>}
       {panel === 'help' && <Card>
         <View style={ui.stack}>
           <Text style={ui.label}>Which bill should I add?</Text>
@@ -251,3 +279,16 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
     if (embedded) show('main'); else onClose();
   }}>{content}</Sheet>;
 }
+
+const settings = StyleSheet.create({
+  title: { color: color.ink, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 20, backgroundColor: color.primaryContainer },
+  identity: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
+  initial: { color: color.paper, fontFamily: font.semibold, fontSize: 22 },
+  caption: { color: color.primary, fontFamily: font.regular, fontSize: 14 },
+  email: { color: color.onPrimaryContainer, fontFamily: font.semibold, fontSize: 18 },
+  group: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
+  row: { minHeight: 54, paddingHorizontal: 16, paddingVertical: 12, gap: 14, alignItems: 'center', flexDirection: 'row' },
+  pressed: { opacity: 0.62 },
+  danger: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line },
+});

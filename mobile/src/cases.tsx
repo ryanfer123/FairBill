@@ -1,9 +1,9 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
-import { SegmentedButtons, TouchableRipple } from 'react-native-paper';
-import { Illustration } from './illustrations';
+import { TouchableRipple } from 'react-native-paper';
+import { CaseTray } from './case-tray';
 import { cloudBuild } from './cloud-auth';
 import { request, type CasePage } from './api';
 import { font } from './typography';
@@ -12,7 +12,7 @@ import { Button, LoadingState, Message, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
-export function CaseList({ onOpen, onScroll, clearance }: { onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
+export function CaseList({ onStart, onOpen, onScroll, clearance }: { onStart: () => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
   const [busy, setBusy] = useState(true);
@@ -43,17 +43,20 @@ export function CaseList({ onOpen, onScroll, clearance }: { onScroll: ScrollView
           <Text accessibilityRole="header" style={styles.title}>Your cases</Text>
           <Text style={styles.subtitle}>{cloudBuild ? 'Bill reviews in your account' : 'Bill reviews on this device'}</Text>
         </View>
-        <Illustration name="cases" size={72} />
+        <AppIcon name="folder" selected size={42} color={color.primaryContainer} />
       </View>
-      {cases.length > 0 && <View style={styles.summary}>
-        <Text style={styles.count}>{inReview} in review</Text>
-        <Text style={styles.count}>{cases.length - inReview} reviewed</Text>
-        {!!after && <Text style={styles.scope}>On loaded pages</Text>}
-      </View>}
     </Animated.View>
-    <SegmentedButtons value={filter} onValueChange={setFilter} buttons={[
-      { value: 'all', label: 'All' }, { value: 'open', label: 'In review' }, { value: 'complete', label: 'Reviewed' },
-    ]} />
+    <View style={styles.filters}>
+      {([{ key: 'all', label: 'All' }, { key: 'open', label: 'In review' }, { key: 'complete', label: 'Reviewed' }] as const).map(tab => {
+        const selected = filter === tab.key;
+        const count = tab.key === 'all' ? cases.length : tab.key === 'open' ? inReview : cases.length - inReview;
+        return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected }}
+          onPress={() => setFilter(tab.key)} style={[styles.filter, selected && styles.selectedFilter]}>
+          <Text style={[styles.filterLabel, selected && styles.activeLabel]}>{tab.label}</Text>
+          {!busy && !error && !after && <Text style={[styles.tally, selected && styles.activeLabel]}>{count}</Text>}
+        </Pressable>;
+      })}
+    </View>
     {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
       {filtered.map(item => {
@@ -65,7 +68,9 @@ export function CaseList({ onOpen, onScroll, clearance }: { onScroll: ScrollView
           onPress={() => onOpen(item.id)} style={styles.card}>
           <View style={styles.file}>
             <View style={[styles.spine, reviewed && styles.finishedSpine]} />
-            <Illustration name={reviewed ? 'corrected' : 'confirm'} size={49} />
+            <View style={[styles.stamp, !reviewed && styles.openStamp]}>
+              <AppIcon name={reviewed ? 'shield' : 'receipt'} size={25} color={reviewed ? color.primary : color.question} />
+            </View>
             <View style={ui.grow}>
               <Text style={styles.reference}>CASE {reference}</Text>
               <Text style={styles.fileTitle}>{title}</Text>
@@ -76,10 +81,11 @@ export function CaseList({ onOpen, onScroll, clearance }: { onScroll: ScrollView
         </TouchableRipple>;
       })}
       {!busy && !error && !filtered.length && <View style={styles.empty}>
-        <Illustration name={filter === 'complete' ? 'corrected' : 'cases'} size={64} />
+        <CaseTray />
         <Text style={ui.heading}>{!cases.length ? 'No cases yet' : filter === 'complete' ? 'No reviewed cases here' : 'No cases in review here'}</Text>
-        <Text style={[ui.body, styles.center]}>{!cases.length ? 'Add a bill from New check to start your first review.'
-          : after ? 'Load more cases to check the next page.' : 'Choose All to see your saved cases.'}</Text>
+        <Text style={[ui.body, styles.center]}>{!cases.length ? 'Your saved hospital bills will appear here.'
+          : after ? 'Load more cases to check the next page.' : 'Change the filter to see your other bills.'}</Text>
+        {!cases.length && <Button label="Start a bill review" onPress={onStart} />}
       </View>}
     </Animated.View>
     {busy && <LoadingState label="Loading cases" />}
@@ -91,9 +97,14 @@ const styles = StyleSheet.create({
   cover: { padding: 20, borderRadius: 24, backgroundColor: color.primary, gap: 18 },
   title: { color: color.paper, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
   subtitle: { color: color.primaryContainer, fontFamily: font.regular, fontSize: 16, marginTop: 4 },
-  summary: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.inversePrimary, paddingTop: 13, flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 5 },
-  count: { color: color.paper, fontFamily: font.semibold, fontSize: 16 },
-  scope: { color: color.primaryContainer, fontFamily: font.regular, fontSize: 14 },
+  filters: { flexDirection: 'row', borderBottomWidth: 1, borderColor: color.line },
+  filter: { flex: 1, minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 5, paddingVertical: 6, borderBottomWidth: 3, borderColor: 'transparent' },
+  selectedFilter: { borderColor: color.primary },
+  filterLabel: { fontFamily: font.semibold, color: color.muted, fontSize: 15 },
+  tally: { fontFamily: font.mono, fontSize: 12, color: color.muted },
+  activeLabel: { color: color.primary },
+  stamp: { width: 45, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primaryContainer },
+  openStamp: { backgroundColor: color.tertiaryContainer },
   shelf: { gap: 10 },
   card: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 17, overflow: 'hidden' },
   file: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
