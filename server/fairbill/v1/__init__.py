@@ -203,9 +203,10 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
     def apply(case):
         nonlocal created
         doc_id = key[7:] if key and re.fullmatch(r"import-[a-f0-9]{32}", key) else uuid4().hex
-        if doc_id in case.get("_cancelled_imports", {}).get(str(data.revision), []):
+        if doc_id in case.get("_cancelled_imports", []):
             raise HTTPException(409, "This import was discarded.")
-        case.pop("_cancelled_imports", None)
+        if any(doc["id"] == doc_id for doc in case["documents"]):
+            raise HTTPException(409, "This document is already in the case.")
         try:
             created = documents.make_document(
                 doc_id, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
@@ -365,15 +366,22 @@ def cancel_import(case_id: str, import_id: str, data: m.Version, owner: Owner, k
             case["documents"].remove(doc)
             revise(case, doc["kind"])
             event(case, "Unconfirmed import discarded", "The document was removed.", "Patient")
-        elif case["revision"] == data.revision:
-            # Invalidate delayed submissions as well as workers already holding the old serial.
-            cancelled = case.get("_cancelled_imports", {}).get(str(data.revision), [])
-            if import_id not in cancelled:
-                cancelled.append(import_id)
-            case["_cancelled_imports"] = {str(data.revision): cancelled}
+        # Fence delayed submissions and prevent reusing the storage path during cleanup.
+        cancelled = case.setdefault("_cancelled_imports", [])
+        if import_id not in cancelled:
+            if len(cancelled) >= 1024:
+                raise HTTPException(422, "This case has reached its discard limit.")
+            cancelled.append(import_id)
         return case
 
-    result = store.mutate(owner, key, "cancel_import", {"import_id": import_id, "revision": data.revision}, apply, case_id)
+    for attempt in range(3):
+        try:
+            result = store.mutate(owner, key, "cancel_import", {"import_id": import_id, "revision": data.revision},
+                                  apply, case_id)
+            break
+        except HTTPException as exc:
+            if attempt == 2 or exc.status_code != 409 or exc.detail != "The case changed. Refresh and try again.":
+                raise
     store.purge_discarded_import(owner, case_id, import_id)
     return result
 
