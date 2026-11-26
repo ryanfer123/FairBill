@@ -15,3 +15,5 @@ Serve `dist/` with a local static web server, or use the configured Sites previe
 FairBill artwork and all interface illustrations here are original markup. Font notices are in `dist/assets/`. The PT Sans web subsets use the modified family name FairBill Ledger Sans.
 
 Motion references: [Cinematic Reveal](https://www.framer.com/marketplace/components/cinematic-reveal/) and [NR Text Reveal](https://www.framer.com/marketplace/components/nr-text-reveal/). FairBill uses original CSS, SVG and Web Animations, not copied components. Animations run once and respect reduced-motion preferences.
+
+The two-step evidence timeline takes its state-label and connector cues from Render Marketplace’s [Voice Agent with Render Workflows](https://render.com/templates/voice-agent-with-render-workflows-python) example. FairBill’s example uses only actual walkthrough states; there is no simulated waiting, background request, or external contact.
