@@ -1,6 +1,6 @@
 import { AppIcon } from './icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -14,7 +14,7 @@ import { Button, LoadingState, Message, Sheet, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
-export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { onStart: () => void; onDeleted: (id: string) => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
+export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBack }: { onStart: () => void; onDeleted: (id: string) => void; onBack?: () => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
   const scrollGesture = useMemo(() => Gesture.Native(), []);
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
@@ -23,7 +23,8 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
   const [filter, setFilter] = useState('all');
 
   const [archive, setArchive] = useState<Set<string>>(new Set());
-  const [archiveView, setArchiveView] = useState(false);
+  const archiveView = !!onBack;
+  const [pendingDelete, setPendingDelete] = useState<string>();
   const [options, setOptions] = useState<string>();
   const [notice, setNotice] = useState('');
   const acting = useRef(false);
@@ -72,23 +73,24 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
 
   function confirmDelete(id: string) {
     setOptions(undefined);
-    Alert.alert(`Delete case ${id.slice(-6).toUpperCase()}?`, 'This permanently removes the bill, uploaded documents and review history.', [
-      { text: 'Keep case', style: 'cancel' },
-      { text: 'Delete case', style: 'destructive', onPress: async () => {
-        if (acting.current) return;
-        acting.current = true;
-        setBusy(true);
-        setError('');
-        try {
-          await deleteCase(id);
-          setCases(items => items.filter(item => item.id !== id));
-          onDeleted(id);
-          setNotice('Case deleted.');
-          if (archive.has(id)) await SecureStore.deleteItemAsync(archiveKey(id));
-        } catch (cause) { setError((cause as Error).message); }
-        finally { setBusy(false); acting.current = false; }
-      } },
-    ]);
+    setError('');
+    setPendingDelete(id);
+  }
+
+  async function removeCase(id: string) {
+    if (acting.current) return;
+    acting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await deleteCase(id);
+      setCases(items => items.filter(item => item.id !== id));
+      onDeleted(id);
+      setNotice('Case deleted.');
+      setPendingDelete(undefined);
+      if (archive.has(id)) void SecureStore.deleteItemAsync(archiveKey(id)).catch(() => undefined);
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setBusy(false); acting.current = false; }
   }
 
   const visible = cases.filter(item => archive.has(item.id) === archiveView);
@@ -103,12 +105,10 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
           <Text accessibilityRole="header" style={styles.title}>{archiveView ? 'Archived cases' : 'Your cases'}</Text>
           <Text style={styles.subtitle}>{archiveView ? 'Saved in the archive on this device' : 'Your hospital bill reviews'}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={archiveView ? 'Back to case inbox' : 'Open archived cases'}
-          onPress={() => { setArchiveView(!archiveView); setOptions(undefined); setFilter('all'); setNotice(''); }}
-          style={({ pressed }) => [styles.archiveButton, pressed && { opacity: 0.72 }]}>
-          <AppIcon name={archiveView ? 'folder' : 'archive'} size={21} color={color.primaryContainer} />
-          <Text style={styles.archiveLabel}>{archiveView ? 'Inbox' : 'Archive'}</Text>
-        </Pressable>
+        {onBack && <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onBack}
+          style={({ pressed }) => [styles.archiveBack, pressed && { opacity: 0.72 }]}>
+          <AppIcon name="arrow-left" size={23} color={color.paper} />
+        </Pressable>}
       </View>
     </Animated.View>
     {!!notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
@@ -123,10 +123,11 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
         </Pressable>;
       })}
     </View>
-    {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
+    {error && !pendingDelete ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
       {filtered.map(item => <CaseListRow key={item.id} item={item} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
-        onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)} onArchive={() => void toggleArchive(item.id)}
+        onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)}
+        optionsVisible={options === item.id} onDismissOptions={() => setOptions(undefined)} onArchive={() => void toggleArchive(item.id)}
         onDelete={() => confirmDelete(item.id)} />)}
       {!busy && !error && !filtered.length && <View style={styles.empty}>
         <CaseTray />
@@ -137,11 +138,13 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
     </Animated.View>
     {busy && <LoadingState label="Loading cases" />}
     {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
-    {options && <Sheet title={`Case ${options.slice(-6).toUpperCase()}`} bottom onClose={() => setOptions(undefined)}>
+    {pendingDelete && <Sheet title={`Delete case ${pendingDelete.slice(-6).toUpperCase()}?`} bottom compact
+      onClose={() => { if (!acting.current) { setError(''); setPendingDelete(undefined); } }}>
       <View style={ui.content}>
-        <Button label={archive.has(options) ? 'Restore to inbox' : 'Archive on this device'}
-          icon={archive.has(options) ? 'restore' : 'archive'} tone="light" onPress={() => void toggleArchive(options)} />
-        <Button label="Delete case" icon="trash-2" tone="destructive" onPress={() => confirmDelete(options)} />
+        <Text style={ui.body}>This permanently removes the bill, uploaded documents, and review history.</Text>
+        {error && <Message text={error} />}
+        <Button label="Delete case" icon="trash-2" tone="destructive" busy={busy} onPress={() => void removeCase(pendingDelete)} />
+        <Button label="Keep case" tone="ghost" disabled={busy} onPress={() => { setPendingDelete(undefined); setError(''); }} />
       </View>
     </Sheet>}
   </ScrollView></GestureDetector>;
@@ -159,8 +162,7 @@ const styles = StyleSheet.create({
   activeLabel: { color: color.primary },
   shelf: { overflow: 'hidden', backgroundColor: color.card, borderRadius: 18, borderColor: color.line, borderWidth: StyleSheet.hairlineWidth },
   notice: { color: color.primary, fontFamily: font.medium },
-  archiveButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48, minWidth: 64, padding: 6, borderRadius: 16, borderWidth: 1, borderColor: color.inversePrimary },
-  archiveLabel: { color: color.primaryContainer, fontSize: 12, fontFamily: font.semibold },
+  archiveBack: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', padding: 22, gap: 10 },
   center: { textAlign: 'center' },
 });

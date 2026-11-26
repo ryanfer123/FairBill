@@ -95,8 +95,8 @@ export function Message({ text, onClose }: { text: string; onClose?: () => void 
   );
 }
 
-export function Sheet({ title, children, onClose, bottom = false }:
-  { title: string; children: ReactNode; onClose: () => void; bottom?: boolean }) {
+export function Sheet({ title, children, onClose, bottom = false, compact = false }:
+  { title: string; children: ReactNode; onClose: () => void; bottom?: boolean; compact?: boolean }) {
   const [reduceMotion, setReduceMotion] = useState(true);
   useEffect(() => {
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
@@ -106,7 +106,7 @@ export function Sheet({ title, children, onClose, bottom = false }:
   return (
     <Modal animationType={reduceMotion ? 'none' : 'slide'} visible transparent={bottom} onRequestClose={onClose}>
       <View style={bottom ? styles.backdrop : ui.grow}>
-      <SafeAreaView style={bottom ? styles.bottomSheet : ui.safe} edges={bottom ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
+      <SafeAreaView style={bottom ? [styles.bottomSheet, compact && styles.compactSheet] : ui.safe} edges={bottom ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
         {bottom && <View style={styles.handle} importantForAccessibility="no" />}
         <View style={[ui.between, styles.sheetHeader]}>
           <Text style={[ui.heading, ui.grow]}>{title}</Text>
@@ -135,6 +135,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12, alignItems: 'center' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: color.backdrop },
   bottomSheet: { height: '88%', backgroundColor: color.paper, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
+  compactSheet: { height: 'auto', maxHeight: '90%' },
   sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomColor: color.line,
     borderBottomWidth: 1, paddingTop: 6 },
 });

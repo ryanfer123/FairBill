@@ -5,11 +5,12 @@ import { AppIcon, type IconName } from './icons';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
 import Constants from 'expo-constants';
+import { Chip } from 'react-native-paper';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
-import { updateDisplayName, accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { updateProfile, accountUser, type PreferredEvidence, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from './ui';
 
 const welcomeSteps = [
@@ -153,7 +154,7 @@ function SettingRow({ label, icon, onPress, disabled, danger = false, external =
   </Pressable>;
 }
 
-export function AccountSettings({ onClose, onInvite, embedded = false, onScroll, clearance }: { onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
+export function AccountSettings({ onClose, onArchive, onInvite, embedded = false, onScroll, clearance }: { onArchive?: () => void; onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
   const [confirmation, setConfirmation] = useState('');
   const [invite, setInvite] = useState('');
@@ -162,7 +163,12 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   const pending = useRef(false);
   const user = accountUser();
   const displayName = typeof user?.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '';
+  const homeState = typeof user?.user_metadata?.home_state === 'string' ? user.user_metadata.home_state : '';
+  const storedEvidence = user?.user_metadata?.preferred_evidence;
+  const preferredEvidence = storedEvidence === 'settlement' || storedEvidence === 'policy' ? storedEvidence : 'service_record';
   const [name, setName] = useState(displayName);
+  const [region, setRegion] = useState(homeState);
+  const [evidence, setEvidence] = useState<PreferredEvidence>(preferredEvidence);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -188,7 +194,11 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   function show(next: keyof typeof panelTitles) {
     setError('');
     setConfirmation('');
-    if (next === 'profile') setName(displayName);
+    if (next === 'profile') {
+      setName(displayName);
+      setRegion(homeState);
+      setEvidence(preferredEvidence);
+    }
     setPanel(next);
   }
 
@@ -214,6 +224,12 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
           </View>
           <AppIcon name="chevron-right" size={18} color={color.primary} />
         </Pressable>}
+        {onArchive && <View style={ui.stack}>
+          <SectionHeader>Case library</SectionHeader>
+          <View style={settings.group}>
+            <SettingRow label="Archived cases" icon="archive" disabled={busy} onPress={onArchive} />
+          </View>
+        </View>}
         <View style={ui.stack}>
           <SectionHeader>Help &amp; information</SectionHeader>
           <View style={settings.group}>
@@ -233,14 +249,30 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
         </View>}
         {user && <View style={settings.danger}><SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} /></View>}
       </>}
-      {panel === 'profile' && user && <Card>
-        <Input label="Display name" accessibilityLabel="Display name" value={name} onChangeText={setName}
-          maxLength={80} autoCapitalize="words" editable={!busy} />
-        <View style={ui.stack}><Text style={ui.label}>Sign-in email</Text>
-          <Text selectable style={ui.body}>{user.email}</Text></View>
-        <Button label="Save profile" icon="check" busy={busy} disabled={name.trim() === displayName}
-          onPress={() => void run(async () => { await updateDisplayName(name); show('main'); })} />
-      </Card>}
+      {panel === 'profile' && user && <>
+        <Card>
+          <SectionHeader>Personal details</SectionHeader>
+          <Input label="Display name" accessibilityLabel="Display name" value={name} onChangeText={setName}
+            maxLength={80} autoCapitalize="words" editable={!busy} />
+          <Text style={ui.label}>Sign-in email</Text>
+          <Text selectable style={ui.body}>{user.email}</Text>
+        </Card>
+        <Card>
+          <SectionHeader>Review preferences</SectionHeader>
+          <Input label="State or union territory" accessibilityLabel="State or union territory" value={region}
+            onChangeText={setRegion} maxLength={60} autoCapitalize="words" editable={!busy} />
+          <Text style={ui.small}>FairBill uses this optional detail to surface available local assistance resources.</Text>
+          <Text style={ui.label}>Start with this type of evidence</Text>
+          <View style={settings.chips}>
+            {([['service_record', 'Service record'], ['settlement', 'Settlement'], ['policy', 'Insurance policy']] as const).map(([key, label]) =>
+              <Chip key={key} selected={evidence === key} accessibilityState={{ selected: evidence === key }}
+                disabled={busy} onPress={() => setEvidence(key)}>{label}</Chip>)}
+          </View>
+        </Card>
+        <Button label="Save profile" icon="check" busy={busy}
+          disabled={name.trim() === displayName && region.trim() === homeState && evidence === preferredEvidence}
+          onPress={() => void run(async () => { await updateProfile({ name, state: region, evidence }); show('main'); })} />
+      </>}
       {panel === 'help' && <Card>
         <View style={ui.stack}>
           <Text style={ui.label}>Which bill should I add?</Text>
@@ -287,6 +319,7 @@ const settings = StyleSheet.create({
   initial: { color: color.paper, fontFamily: font.semibold, fontSize: 22 },
   caption: { color: color.primary, fontFamily: font.regular, fontSize: 14 },
   email: { color: color.onPrimaryContainer, fontFamily: font.semibold, fontSize: 18 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   group: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
   row: { minHeight: 54, paddingHorizontal: 16, paddingVertical: 12, gap: 14, alignItems: 'center', flexDirection: 'row' },
   pressed: { opacity: 0.62 },

@@ -2,16 +2,26 @@ import { AppIcon } from './icons';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { hostedBuild, parseRupees, request, type AssistanceResult } from './api';
+import { accountUser } from './cloud-auth';
 import { ActionBar, Badge, Button, Card, EmptyState, Input, Message, SectionHeader, Sheet, color, ui } from './ui';
+
+const maharashtraScheme = 'https://nhm.maharashtra.gov.in/en/publication/mahatma-jyotirao-phule-jan-arogya-yojana/';
 
 const tataBooklet = 'https://tmc.gov.in/event/upload/12112025_5/TMH_Brochure_%20patient%20booklet.pdf';
 
 export function AssistanceSources({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
+  const state = accountUser()?.user_metadata?.home_state;
   return <Sheet title="Help with paying" onClose={onClose}>
     <ScrollView contentContainerStyle={ui.content}>
       <Text style={ui.body}>Ask your hospital’s billing or medical social work office about financial assistance and what documents they need.</Text>
       {error ? <Message text={error} onClose={() => setError('')} /> : null}
+      {typeof state === 'string' && state.trim().toLowerCase() === 'maharashtra' && <Card>
+        <SectionHeader>Maharashtra public health scheme</SectionHeader>
+        <Text style={ui.body}>Check the published Mahatma Jyotirao Phule Jan Arogya Yojana information for eligibility and covered care.</Text>
+        <Button label="Open Maharashtra scheme information" icon="external-link" tone="ghost"
+          onPress={() => void Linking.openURL(maharashtraScheme).catch(() => setError('Could not open the scheme information.'))} />
+      </Card>}
       <Card>
         <SectionHeader>Tata Memorial Hospital, Mumbai</SectionHeader>
         <Text style={ui.body}>If your bill is from Tata Memorial, section 14.2 of its patient booklet describes the hospital’s patient categories and means assessment.</Text>

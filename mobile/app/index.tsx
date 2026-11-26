@@ -99,6 +99,7 @@ export default function Home() {
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const { bottom } = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const clearance = bottom + 86 + Math.max(0, fontScale - 1) * 32;
@@ -243,7 +244,7 @@ export default function Home() {
             <AppIcon name="maximize" color={color.ink} size={26} />
           </Pressable>}
           <Pressable accessibilityRole="button" accessibilityLabel="Open account settings"
-            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => setDestination('settings')}
+            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => { setArchiveOpen(false); setDestination('settings'); }}
             style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
             <AppIcon name="user" color={color.ink} size={25} />
           </Pressable>
@@ -293,7 +294,8 @@ export default function Home() {
         </View>}
         <ConnectionStatus refresh={connectionRevision} problemsOnly />
       </ScrollView>}
-      {destination === 'cases' && <CaseList onDeleted={id => {
+      {(destination === 'cases' || (destination === 'settings' && archiveOpen)) && <CaseList key={archiveOpen ? 'archive' : 'inbox'}
+        onBack={archiveOpen ? () => setArchiveOpen(false) : undefined} onDeleted={id => {
         if (latest === id) { setLatest(null); setRecent(null); void forgetCase().catch(() => undefined); }
         if (blank.current?.id === id) blank.current = null;
       }} onStart={() => setDestination('check')} onScroll={onScroll} clearance={clearance} onOpen={(id) => {
@@ -301,7 +303,7 @@ export default function Home() {
           setDestination('check'); setError(cause.message);
         });
       }} />}
-      {destination === 'settings' && <AccountSettings onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
+      {destination === 'settings' && !archiveOpen && <AccountSettings onArchive={versioned ? () => setArchiveOpen(true) : undefined} onScroll={onScroll} clearance={clearance} embedded onClose={() => setDestination('check')} onInvite={() => {
         setConnectionRevision((value) => value + 1);
         setError('');
       }} />}
@@ -339,6 +341,7 @@ export default function Home() {
             else setError(cloudBuild ? 'Add a bill to start a case.' : 'Open the sample or add a bill to start a case.');
             return;
           }
+          setArchiveOpen(false);
           setDestination(tab);
         }} />
     </SafeAreaView>

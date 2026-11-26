@@ -11,7 +11,7 @@ import { CaseActions } from '../../src/case-actions';
 import { CaseAssistant, type AssistantAction, type SavedPlan } from '../../src/case-assistant';
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
-import { cloudBuild } from '../../src/cloud-auth';
+import { accountUser, cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, apiUrl, getBackend, getCase, headers, hostedBuild, newImportId, postCase, request } from '../../src/api';
 import { documentForm, type PickedDocument } from '../../src/document-picker';
@@ -252,7 +252,9 @@ export default function CaseScreen() {
     && doc.sha256 === source.sha256 && doc.rows.some((row) =>
       row.id === source.row_id && row.page === source.page && row.line === source.line));
   const openEvidence = (entry: EvidenceView) => setOverlay({ type: 'evidence', entry });
-  const addEvidence = () => setOverlay({ type: 'intake' });
+  const preferredEvidence = accountUser()?.user_metadata?.preferred_evidence;
+  const addEvidence = () => setOverlay({ type: 'intake', kind: hasInvoice &&
+    (preferredEvidence === 'settlement' || preferredEvidence === 'policy') ? preferredEvidence : undefined });
   const showAssistant = () => {
     if (!working.current) setOverlay({ type: 'assistant' });
   };

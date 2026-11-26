@@ -10,7 +10,9 @@ export const cloudBuild = !!(origin && key);
 
 const refreshKey = 'fairbill_cloud_refresh';
 const verifierKey = 'fairbill_cloud_sign_in_verifier';
-type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string; user_metadata?: { display_name?: string } } };
+export type PreferredEvidence = 'service_record' | 'settlement' | 'policy';
+type ProfileMetadata = { display_name?: string; home_state?: string; preferred_evidence?: PreferredEvidence };
+type Session = { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string; user_metadata?: ProfileMetadata } };
 type Current = { accessToken: string; expiresAt: number; user: Session['user'] };
 type AccountState = 'loading' | 'signed-out' | 'signed-in';
 type Listener = () => void;
@@ -123,12 +125,13 @@ export async function cloudAuthorization() {
 
 export const accountUser = () => current?.user;
 
-export async function updateDisplayName(value: string) {
-  const name = value.trim();
-  if (name.length > 80) throw new Error('Use 80 characters or fewer.');
+export async function updateProfile({ name, state, evidence }: { name: string; state: string; evidence: PreferredEvidence }) {
+  const display_name = name.trim();
+  const home_state = state.trim();
+  if (display_name.length > 80 || home_state.length > 60) throw new Error('Check the length of your name and state.');
   const account = await restoreAccount();
   if (!account) throw new Error('Sign in to edit your profile.');
-  const user = await auth<Session['user']>('user', { data: { display_name: name } }, account.accessToken, 'PUT');
+  const user = await auth<Session['user']>('user', { data: { display_name, home_state, preferred_evidence: evidence } }, account.accessToken, 'PUT');
   if (current?.user.id !== account.user.id || user.id !== account.user.id) throw new Error('Your session changed. Open your profile again.');
   publish({ ...current, user });
 }

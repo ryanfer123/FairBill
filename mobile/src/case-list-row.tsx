@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Menu } from 'react-native-paper';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -17,14 +18,16 @@ type Props = {
   onArchive: () => void;
   onDelete: () => void;
   onOptions: () => void;
+  onDismissOptions: () => void;
+  optionsVisible: boolean;
 };
 
-export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDelete, onOptions, scrollGesture }: Props) {
+export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
   const offset = useSharedValue(0);
   const reduced = useReducedMotion();
   const translation = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }));
   const gesture = useMemo(() => Gesture.Pan()
-    .enabled(!disabled)
+    .enabled(!disabled && !optionsVisible)
     .maxPointers(1)
     .activeOffsetX([-12, 12])
     .failOffsetY([-10, 10])
@@ -42,7 +45,7 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
     .onFinalize(() => {
       'worklet';
       offset.value = reduced ? 0 : withTiming(0, { duration: 140 });
-    }), [disabled, offset, reduced, scrollGesture, onArchive, onDelete]);
+    }), [disabled, offset, reduced, scrollGesture, onArchive, onDelete, optionsVisible]);
   const reviewed = item.investigated_revision === item.revision;
   const status = reviewed ? 'Reviewed' : 'In review';
   const reference = item.id.slice(-6).toUpperCase();
@@ -68,10 +71,18 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
             <View style={[styles.dot, reviewed && styles.finishedDot]} /><Text style={styles.status}>{status}</Text></View>
         </View>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Options for case ${reference}`}
-        disabled={disabled} onPress={onOptions} style={({ pressed }) => [styles.more, pressed && styles.pressed]}>
-        <AppIcon name="more" size={23} color={color.muted} />
-      </Pressable>
+      <Menu visible={optionsVisible} onDismiss={onDismissOptions} anchorPosition="bottom"
+        contentStyle={styles.menu} overlayAccessibilityLabel="Dismiss case options"
+        anchor={<Pressable accessibilityRole="button" accessibilityLabel={`Options for case ${reference}`}
+          accessibilityState={{ expanded: optionsVisible }} disabled={disabled} onPress={onOptions}
+          style={({ pressed }) => [styles.more, pressed && styles.pressed]}>
+          <AppIcon name="more" size={23} color={color.muted} />
+        </Pressable>}>
+        <Menu.Item title={archived ? 'Restore' : 'Archive'} onPress={onArchive}
+          leadingIcon={({ size, color: tint }) => <AppIcon name={archived ? 'restore' : 'archive'} size={size} color={tint} />} />
+        <Menu.Item title="Delete case" onPress={onDelete} titleStyle={styles.destructive}
+          leadingIcon={({ size }) => <AppIcon name="trash-2" size={size} color={material.colors.error} />} />
+      </Menu>
     </Animated.View>
   </View></GestureDetector>;
 }
@@ -81,6 +92,8 @@ const styles = StyleSheet.create({
   row: { alignItems: 'center', flexDirection: 'row', backgroundColor: color.card },
   open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, minHeight: 84 },
   pressed: { backgroundColor: color.surfaceContainer },
+  menu: { borderRadius: 14, backgroundColor: color.card },
+  destructive: { color: material.colors.error },
   more: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   rupee: { color: color.question, fontFamily: font.uiSans, fontSize: 25 },
   stamp: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: color.tertiaryContainer },
