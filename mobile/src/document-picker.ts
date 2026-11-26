@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import { File } from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,10 +40,20 @@ export async function pickDocument(method: CaptureMethod) {
 
 export type PickedDocument = NonNullable<Awaited<ReturnType<typeof pickDocument>>>;
 
-export function documentForm(kind: Kind, revision: number, asset: PickedDocument) {
+const deviceReader = Platform.OS === 'android'
+  ? requireOptionalNativeModule<{ readImage(uri: string): Promise<string | null> }>('FairBillOcr')
+  : null;
+
+export async function documentForm(kind: Kind, revision: number, asset: PickedDocument) {
   const form = new FormData();
   form.append('kind', kind);
   form.append('revision', String(revision));
-  form.append('file', new File(asset.uri));
+  const file = new File(asset.uri);
+  form.append('file', file);
+  if (deviceReader && ['image/jpeg', 'image/png'].includes(asset.type) && file.size <= 10 * 1024 * 1024) {
+    // Send the original in the same request even if the device cannot transcribe it.
+    const text = await deviceReader.readImage(asset.uri).catch(() => null);
+    if (text) form.append('device_ocr_text', text);
+  }
   return form;
 }
