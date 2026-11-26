@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
-import { accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
+import { updateDisplayName, accountUser, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
 import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from './ui';
 
 const welcomeSteps = [
@@ -140,7 +140,7 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   </Screen>;
 }
 
-const panelTitles = { main: 'Settings', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
+const panelTitles = { main: 'Settings', profile: 'Your profile', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
 function SettingRow({ label, icon, onPress, disabled, danger = false, external = false }:
   { label: string; icon: IconName; onPress: () => void; disabled: boolean; danger?: boolean; external?: boolean }) {
@@ -161,6 +161,8 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   const [error, setError] = useState('');
   const pending = useRef(false);
   const user = accountUser();
+  const displayName = typeof user?.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '';
+  const [name, setName] = useState(displayName);
 
   async function run(action: () => Promise<unknown>) {
     if (pending.current) return;
@@ -186,6 +188,7 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
   function show(next: keyof typeof panelTitles) {
     setError('');
     setConfirmation('');
+    if (next === 'profile') setName(displayName);
     setPanel(next);
   }
 
@@ -201,13 +204,16 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
       </Card>}
       {panel === 'main' && <>
         {embedded && <Text accessibilityRole="header" style={settings.title}>Settings</Text>}
-        {user && <View style={settings.profile}>
-          <View style={settings.identity}><AppIcon name="user" size={24} color={color.paper} /></View>
+        {user && <Pressable accessibilityRole="button" accessibilityLabel="Open your profile" onPress={() => show('profile')}
+          style={({ pressed }) => [settings.profile, pressed && settings.pressed]}>
+          <View style={settings.identity}>{displayName ? <Text style={settings.initial}>{Array.from(displayName)[0].toLocaleUpperCase()}</Text>
+            : <AppIcon name="user" size={24} color={color.paper} />}</View>
           <View style={ui.grow}>
-            <Text style={settings.caption}>Signed in to FairBill</Text>
-            <Text selectable style={settings.email}>{user.email || 'Your account'}</Text>
+            <Text style={settings.caption}>Your profile</Text>
+            <Text style={settings.email}>{displayName || user.email || 'FairBill account'}</Text>
           </View>
-        </View>}
+          <AppIcon name="chevron-right" size={18} color={color.primary} />
+        </Pressable>}
         <View style={ui.stack}>
           <SectionHeader>Help &amp; information</SectionHeader>
           <View style={settings.group}>
@@ -227,6 +233,14 @@ export function AccountSettings({ onClose, onInvite, embedded = false, onScroll,
         </View>}
         {user && <View style={settings.danger}><SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} /></View>}
       </>}
+      {panel === 'profile' && user && <Card>
+        <Input label="Display name" accessibilityLabel="Display name" value={name} onChangeText={setName}
+          maxLength={80} autoCapitalize="words" editable={!busy} />
+        <View style={ui.stack}><Text style={ui.label}>Sign-in email</Text>
+          <Text selectable style={ui.body}>{user.email}</Text></View>
+        <Button label="Save profile" icon="check" busy={busy} disabled={name.trim() === displayName}
+          onPress={() => void run(async () => { await updateDisplayName(name); show('main'); })} />
+      </Card>}
       {panel === 'help' && <Card>
         <View style={ui.stack}>
           <Text style={ui.label}>Which bill should I add?</Text>
@@ -270,6 +284,7 @@ const settings = StyleSheet.create({
   title: { color: color.ink, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 20, backgroundColor: color.primaryContainer },
   identity: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
+  initial: { color: color.paper, fontFamily: font.semibold, fontSize: 22 },
   caption: { color: color.primary, fontFamily: font.regular, fontSize: 14 },
   email: { color: color.onPrimaryContainer, fontFamily: font.semibold, fontSize: 18 },
   group: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
