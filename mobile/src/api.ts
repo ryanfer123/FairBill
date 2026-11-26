@@ -105,6 +105,7 @@ export interface Case {
   findings: Finding[];
   documents: Document[];
   history: History[];
+  follow_ups?: V1['FollowUp'][];
   timeline: { id: number; revision: number; title: string; detail: string; role: string; at: string }[];
   drafts: Partial<Record<Action, Draft>>;
   approvals: Partial<Record<Action, Draft>>;
@@ -130,6 +131,7 @@ export interface Backend {
   indiaReview?: boolean;
   policyLookup?: boolean;
   reportLinks?: boolean;
+  followUps?: boolean;
 }
 
 async function createToken() {
@@ -179,6 +181,7 @@ async function discover(origin: string): Promise<Backend> {
       indiaReview: features.includes('india-review'),
       policyLookup: features.includes('policy-lookup'),
       reportLinks: features.includes('report-links'),
+      followUps: features.includes('follow-ups'),
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {

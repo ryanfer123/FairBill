@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..documents import Kind, ObservedRow
 
@@ -219,6 +219,69 @@ class Receipt(BaseModel):
     turns: list[Turn] = []
 
 
+Status = Literal["open", "completed", "cancelled"]
+DueDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+Reference = Annotated[str, Field(max_length=100)]
+Outcome = Annotated[str, Field(max_length=500)]
+
+
+class FollowUp(BaseModel):
+    id: str
+    title: str
+    due_on: DueDate
+    status: Status
+    reference: str = ""
+    outcome: str = ""
+    created_at: str
+    updated_at: str
+
+
+class DatedInput(Version):
+    due_on: DueDate
+
+    @field_validator("due_on")
+    @classmethod
+    def valid_date(cls, value):
+        date.fromisoformat(value)
+        return value
+
+
+class CreateFollowUp(DatedInput):
+    title: str = Field(min_length=1, max_length=100)
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, value):
+        title = " ".join(value.split())
+        if not title:
+            raise ValueError("Enter a follow-up title.")
+        return title
+
+
+class UpdateFollowUp(DatedInput):
+    status: Status
+    reference: Reference = ""
+    outcome: Outcome = ""
+    confirmed: Literal[True]
+
+    @field_validator("confirmed", mode="before")
+    @classmethod
+    def explicit_confirmation(cls, value):
+        if value is not True:
+            raise ValueError("Confirm the follow-up change.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_outcome(self):
+        self.reference = self.reference.strip()
+        self.outcome = self.outcome.strip()
+        if self.status == "completed" and not self.outcome:
+            raise ValueError("Record the outcome before completing this follow-up.")
+        if self.status == "open" and (self.reference or self.outcome):
+            raise ValueError("Use a completed or cancelled status to record an outcome.")
+        return self
+
+
 class Case(BaseModel):
     id: str
     sample: bool
@@ -226,6 +289,7 @@ class Case(BaseModel):
     documents: list[Document]
     findings: list[Flag]
     history: list[Investigation]
+    follow_ups: list[FollowUp] = Field(default_factory=list)
     timeline: list[Event]
     scenario: Scenario | None
     agent_mode: Mode | None

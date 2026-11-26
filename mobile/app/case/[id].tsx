@@ -15,6 +15,7 @@ import { CaseAssistant, type AssistantAction, type SavedPlan } from '../../src/c
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { ReportLinks } from '../../src/report-links';
+import { FollowUps } from '../../src/follow-ups';
 import { accountUser, cloudBuild } from '../../src/cloud-auth';
 import { ConnectionStatus } from '../../src/connection';
 import { Action, ApiError, Case, History, KINDS, Kind, Row, Source, getBackend, getCase, hostedBuild, newImportId, postCase, request } from '../../src/api';
@@ -27,7 +28,7 @@ import { ActionBar, Badge, Button, Card, CurrencyText, Divider, EmptyState, Icon
 
 type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
 type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
-  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'india-aid' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
+  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'india-aid' } | { type: 'follow-ups' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
 type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -43,6 +44,7 @@ export default function CaseScreen() {
   const [indiaReview, setIndiaReview] = useState(false);
   const [policyLookup, setPolicyLookup] = useState(false);
   const [reportLinks, setReportLinks] = useState(false);
+  const [followUps, setFollowUps] = useState(false);
   const [busy, setBusy] = useState('');
   const [packetNotice, setPacketNotice] = useState('');
   const working = useRef(false);
@@ -77,6 +79,7 @@ export default function CaseScreen() {
       setIndiaReview(backend.indiaReview === true);
       setPolicyLookup(backend.policyLookup === true);
       setReportLinks(backend.reportLinks === true);
+      setFollowUps(backend.followUps === true);
       setData(snapshot);
     } catch (cause) { setError((cause as Error).message); }
   }, [id]);
@@ -347,6 +350,12 @@ export default function CaseScreen() {
             onPress={() => setOverlay({ type: 'assistance' })} />
         </Card>}
       </>}
+      {live && followUps && (activeTab === 'Review' || activeTab === 'Act') && <Card tone="tonal">
+        <SectionHeader>Follow-ups</SectionHeader>
+        <Text style={ui.body}>Set a date to check back and record what happened.</Text>
+        <Button label="Manage follow-ups" icon="receipt" tone="light" disabled={!!busy}
+          onPress={() => setOverlay({ type: 'follow-ups' })} />
+      </Card>}
       {activeTab === 'Act' && canAct && <CaseActions data={data} busy={busy} live={live}
         prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
       {activeTab === 'Evidence' && <>
@@ -388,6 +397,8 @@ export default function CaseScreen() {
           onPress={(entry) => setOverlay({ type: 'evidence', entry, returnTo: overlay.revision })} />)}
       </ScrollView>
     </Sheet>}
+    {live && followUps && overlay?.type === 'follow-ups' &&
+      <FollowUps data={data} onUpdate={setData} onClose={close} />}
     {live && overlay?.type === 'india-review' && <IndiaReview data={data} initial="tariff" onClose={close} />}
     {live && overlay?.type === 'india-aid' && <IndiaReview data={data} initial="aid"
       onClose={() => setOverlay({ type: 'assistance' })} />}

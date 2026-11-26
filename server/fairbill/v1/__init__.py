@@ -27,7 +27,7 @@ from ..india_pilot import PilotInput, PilotReview, review_case
 from ..rules import run_rules
 from ..sample import fixtures
 from . import models as m
-from . import cloud, report_links, store
+from . import cloud, follow_ups, report_links, store
 from .middleware import RequestContext, error, profile, route_error
 from .operations import add_draft_version, document, edit_draft, for_local, invalidate, is_live_case, make_case, simulated
 
@@ -132,7 +132,7 @@ def health(response: Response):
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     if current == "hosted":
-        features = ["india-review", "policy-lookup"]
+        features = ["india-review", "policy-lookup", "follow-ups"]
         if report_links.enabled():
             features.append("report-links")
         response.headers["X-FairBill-Features"] = ", ".join(features)
@@ -556,6 +556,23 @@ def simulate(case_id: str, data: m.Simulate, owner: Owner, key: Key = None):
         simulated(case, current, data)
 
     return mutate(owner, case_id, key, "simulations", data, apply)
+
+
+@app.post("/cases/{case_id}/follow-ups", response_model=m.Case)
+def create_follow_up(case_id: str, data: m.CreateFollowUp, owner: Owner, key: Key = None):
+    for_local()
+    if not key:
+        raise HTTPException(400, "An idempotency key is required to add a follow-up.")
+    return mutate(owner, case_id, key, "add-follow-up", data, lambda case: follow_ups.create(case, data))
+
+
+@app.patch("/cases/{case_id}/follow-ups/{follow_up_id}", response_model=m.Case)
+def update_follow_up(case_id: str, follow_up_id: str, data: m.UpdateFollowUp, owner: Owner, key: Key = None):
+    for_local()
+    if not key:
+        raise HTTPException(400, "An idempotency key is required to update a follow-up.")
+    return mutate(owner, case_id, key, f"update-follow-up:{follow_up_id}", data,
+                  lambda case: follow_ups.update(case, follow_up_id, data))
 
 
 @app.post("/cases/{case_id}/report-links", response_model=m.CreatedReportLink, status_code=201)

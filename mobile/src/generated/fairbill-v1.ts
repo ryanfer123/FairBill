@@ -347,6 +347,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/follow-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Follow Up */
+        post: operations["create_follow_up_cases__case_id__follow_ups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/follow-ups/{follow_up_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Follow Up */
+        patch: operations["update_follow_up_cases__case_id__follow_ups__follow_up_id__patch"];
+        trace?: never;
+    };
     "/cases/{case_id}/imports/{import_id}/cancel": {
         parameters: {
             query?: never;
@@ -676,6 +710,8 @@ export interface components {
             };
             /** Findings */
             findings: components["schemas"]["Flag"][];
+            /** Follow Ups */
+            follow_ups?: components["schemas"]["FollowUp"][];
             /** History */
             history: components["schemas"]["Investigation"][];
             /** Id */
@@ -736,6 +772,15 @@ export interface components {
         Create: {
             /** Sample */
             sample?: boolean | null;
+        };
+        /** CreateFollowUp */
+        CreateFollowUp: {
+            /** Due On */
+            due_on: string;
+            /** Revision */
+            revision: number;
+            /** Title */
+            title: string;
         };
         /** CreatedReportLink */
         CreatedReportLink: {
@@ -926,6 +971,34 @@ export interface components {
             status: "active" | "withdrawn" | "linked";
             /** Title */
             title: string;
+        };
+        /** FollowUp */
+        FollowUp: {
+            /** Created At */
+            created_at: string;
+            /** Due On */
+            due_on: string;
+            /** Id */
+            id: string;
+            /**
+             * Outcome
+             * @default
+             */
+            outcome: string;
+            /**
+             * Reference
+             * @default
+             */
+            reference: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "completed" | "cancelled";
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** Health */
         Health: {
@@ -1310,6 +1383,33 @@ export interface components {
             speaker: "system" | "patient" | "advocate" | "billing";
             /** Text */
             text: string;
+        };
+        /** UpdateFollowUp */
+        UpdateFollowUp: {
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+            /** Due On */
+            due_on: string;
+            /**
+             * Outcome
+             * @default
+             */
+            outcome: string;
+            /**
+             * Reference
+             * @default
+             */
+            reference: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "completed" | "cancelled";
         };
         /** Version */
         Version: {
@@ -3731,6 +3831,227 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Flag"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    create_follow_up_cases__case_id__follow_ups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-FairBill-Invite"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFollowUp"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    update_follow_up_cases__case_id__follow_ups__follow_up_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-FairBill-Invite"?: string | null;
+            };
+            path: {
+                case_id: string;
+                follow_up_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFollowUp"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
                 };
             };
             /** @description Bad Request */

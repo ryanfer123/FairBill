@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | India assistance policy lookup | Implemented on the feature branch | Check both registered hospital pages from the deployed server and verify the Android sheet before release. Expand the catalog by campus and source after review. |
 | Revocable report links | Implemented on the feature branch | Local API, PostgreSQL grants and deletion, and Chromium download/revocation passed. Apply the migration on isolated staging and verify the existing Android app before enabling the server flag. |
-| Approved follow-ups and outcomes | Partial | Patients can review wording and hand it to an email app or dialer. Add durable follow-up records, explicit approval for each action, and patient-confirmed outcomes. |
+| Approved follow-ups and outcomes | Implemented on the feature branch | Patient-owned due dates, status changes, reference numbers and confirmed outcomes. Stage and test in the Android app. Live delivery remains gated separately. |
 | Guest and device-only review | Not shipped | Define local storage, deletion, offline checks, and an explicit migration into a signed-in account. Prevent cross-account mixing and duplicate cases. |
 | Web patient experience | Not shipped | Build on the same authenticated case contract and verify upload, evidence, export, accessibility and session expiry in browsers. |
 | Live advocate | Partial | Keep isolated opt-in previews and sandbox destinations until sender identity, caller identity, providers, configuration, consent, and operational safeguards are approved. |
