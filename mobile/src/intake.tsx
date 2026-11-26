@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
   ledgerLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 15, gap: 8, minHeight: 60 },
   lineSummary: { flexGrow: 1, flexBasis: 125, gap: 3 },
   lineTitle: { fontFamily: font.semibold, fontSize: 17, lineHeight: 22, color: color.ink },
-  amount: { fontFamily: font.mono, fontSize: 15, color: color.ink, fontVariant: ['tabular-nums'], flexShrink: 1 },
+  amount: { fontFamily: font.uiSans, fontSize: 15, color: color.ink, fontVariant: ['tabular-nums'], flexShrink: 1 },
   totalStrip: { backgroundColor: color.primaryContainer },
   totalLabel: { fontFamily: font.display, fontSize: 23, color: color.onPrimaryContainer },
   totalAmount: { fontSize: 17, color: color.onPrimaryContainer },

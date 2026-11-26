@@ -14,7 +14,7 @@ const glyphs = {
   heart: 'heart-outline', 'help-circle': 'help-circle-outline', image: 'image-outline', key: 'key-outline',
   layers: 'layers-outline', link: 'link-outline', lock: 'lock-closed-outline', 'log-out': 'log-out-outline',
   mail: 'mail-outline', maximize: 'scan-outline', 'message-circle': 'chatbubble-ellipses-outline',
-  phone: 'call-outline', 'phone-call': 'call', plus: 'add', receipt: 'receipt-outline',
+  phone: 'call-outline', 'phone-call': 'call', plus: 'add', receipt: 'document-text-outline',
   'refresh-cw': 'refresh', search: 'search-outline', send: 'paper-plane-outline', settings: 'options-outline',
   'share-2': 'share-outline', shield: 'shield-checkmark-outline', square: 'square-outline',
   'trash-2': 'trash-outline', upload: 'cloud-upload-outline', user: 'person-outline',
@@ -22,7 +22,7 @@ const glyphs = {
 } as const satisfies Record<string, Glyph>;
 
 export type IconName = keyof typeof glyphs;
-const selectedGlyphs: Partial<Record<IconName, Glyph>> = { folder: 'file-tray-full', receipt: 'receipt', settings: 'options' };
+const selectedGlyphs: Partial<Record<IconName, Glyph>> = { folder: 'file-tray-full', receipt: 'document-text', settings: 'options' };
 
 export function AppIcon({ name, size, color, selected }: { name: IconName; size: number; color: string; selected?: boolean }) {
   return <Ionicons name={(selected && selectedGlyphs[name]) || glyphs[name]} size={size} color={color}

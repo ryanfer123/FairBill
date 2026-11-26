@@ -8,6 +8,7 @@ import { TouchableRipple } from 'react-native-paper';
 import { EvidenceDocuments } from '../../src/evidence-documents';
 import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
+import { CaseAssistant, type AssistantAction, type SavedPlan, type SavedPlan } from '../../src/case-assistant';
 import { Assistance, AssistanceSources } from '../../src/assistance';
 import { IndiaReview } from '../../src/india-review';
 import { cloudBuild } from '../../src/cloud-auth';
@@ -21,8 +22,8 @@ import { font } from '../../src/typography';
 import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
 
 type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
-type Overlay = { type: 'intake' } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
-  | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
+type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
+  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[] };
 type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -42,6 +43,7 @@ export default function CaseScreen() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Review');
   const [overlay, setOverlay] = useState<Overlay>();
+  const [assistantPlan, setAssistantPlan] = useState<SavedPlan>();
   const [directed, setDirected] = useState(false);
   const [revealedRevision, setRevealedRevision] = useState<number>();
 
@@ -251,10 +253,29 @@ export default function CaseScreen() {
       row.id === source.row_id && row.page === source.page && row.line === source.line));
   const openEvidence = (entry: EvidenceView) => setOverlay({ type: 'evidence', entry });
   const addEvidence = () => setOverlay({ type: 'intake' });
+  const showAssistant = () => {
+    if (!working.current) setOverlay({ type: 'assistant' });
+  };
+  const takeAssistantAction = (item: AssistantAction) => {
+    if (working.current) return;
+    setError('');
+    switch (item.type) {
+      case 'intake': setOverlay({ type: 'intake', kind: item.kind }); break;
+      case 'document': setOverlay({ type: 'review', id: item.id }); break;
+      case 'evidence': setOverlay(undefined); setTab('Evidence'); break;
+      case 'result': setOverlay(undefined); setTab('Review'); break;
+      case 'investigate': setOverlay(undefined); void run(); break;
+      case 'prepare': setOverlay(undefined); void prepare(item.action); break;
+      case 'packet': setOverlay(undefined); void previewPacket(); break;
+      case 'assistance': setOverlay({ type: 'assistance' }); break;
+      case 'india-review': setOverlay({ type: 'india-review' }); break;
+    }
+  };
   return <Screen>
     <View style={[ui.between, styles.toolbar]}>
       <IconButton label="Back to FairBill" icon="arrow-left" onPress={() => { if (!busy) router.back(); }} />
       <Text accessibilityRole="header" style={[ui.label, ui.grow]}>{data.sample ? 'Sample case' : 'Hospital bill'}</Text>
+      <IconButton label="Case assistant" icon="message-circle" onPress={showAssistant} />
       {canAddEvidence && !compact && <Button label="Add evidence" icon="plus" tone="ghost" disabled={!!busy} onPress={addEvidence} />}
     </View>
     <ConnectionStatus problemsOnly />
@@ -333,7 +354,11 @@ export default function CaseScreen() {
         <Timeline data={data} onRevision={(entry) => setOverlay({ type: 'revision', revision: entry })} />
       </>}
     </ScrollView>
-    {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={hasInvoice ? 'service_record' : 'invoice'} onClose={close}
+    {overlay?.type === 'assistant' && <CaseAssistant data={data} busy={!!busy} canAct={canAct}
+      canAddEvidence={canAddEvidence} canReviewDocuments={!hostedBuild && !(cloudBuild && data.sample)}
+      supportsAssistance={versioned && (!cloudBuild || !data.sample)} supportsIndia={live && indiaReview}
+      live={live} savedPlan={assistantPlan} onPlan={setAssistantPlan} onAction={takeAssistantAction} onClose={close} />}
+    {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={overlay.kind ?? (hasInvoice ? 'service_record' : 'invoice')} onClose={close}
       discarding={discarding} onDiscard={() => { cancelRequested.current = true; uploadControl.current?.abort(); setDiscarding(true); }}
       onPaste={importEvidence} onFile={importEvidence} />}
     {reviewing && overlay?.type === 'review' && <Review key={reviewing.id} doc={reviewing}
@@ -401,7 +426,7 @@ export default function CaseScreen() {
 }
 
 const styles = StyleSheet.create({
-  toolbar: { paddingHorizontal: 16, paddingVertical: 6 },
+  toolbar: { paddingHorizontal: 16, paddingVertical: 6, gap: 8 },
   paperCopy: { color: color.ink },
   tabBar: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: color.line },
   tabs: { flexGrow: 1, flexDirection: 'row', paddingHorizontal: 8 },

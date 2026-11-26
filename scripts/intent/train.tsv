@@ -1,0 +1,105 @@
+source	Show the original page for this charge
+source	Where did that amount come from
+source	Show the evidence behind a finding
+source	I need the source of this number
+source	See my original bill text
+source	Find the page that supports this charge
+source	Can I see where this figure appears
+source	What evidence supports this finding
+source	Which line did you read on the document
+source	Open the source reference
+source	I want proof for this figure
+source	Show supporting bill text
+source	Trace the number to the original
+source	Locate the entry in the scanned page
+source	Show the cited source for that amount
+review	I need to edit a bill line
+review	Correct the quantity you read
+review	The price was transcribed wrong
+review	Review my extracted bill lines
+review	Add a missing charge to the list
+review	Change the service description
+review	Mark a service I did not receive
+review	I never received this treatment
+review	How can I fix a misread amount
+review	Remove a row that was read twice
+review	Confirm the charges from my scan
+review	Your scanner made a typo
+review	Can I correct the units before confirming
+review	Edit what was extracted from the photo
+review	Check the transcription
+investigate	Check if I was charged twice
+investigate	Find duplicate charges on the bill
+investigate	Are there errors in the calculation
+investigate	Investigate my charges
+investigate	Compare what insurance paid to this bill
+investigate	Check for billing mistakes
+investigate	Do the prices add up
+investigate	Check the arithmetic
+investigate	Why is there a difference in the settlement
+investigate	Look for overcharges on this invoice
+investigate	Show your findings from the bill check
+investigate	Are there suspiciously repeated fees
+investigate	Check billed quantity against the unit price
+investigate	Is my total correct
+investigate	Run the checks for my case
+letter	Help me write a letter to billing
+letter	Draft an email to the hospital
+letter	I want to send a dispute letter
+letter	Prepare a written request about the charges
+letter	Write an appeal for the disputed bill
+letter	Show the letter before I send it
+letter	Email my questions to billing
+letter	Draft a message asking for a correction
+letter	How do I contact them in writing
+letter	Compose my billing appeal
+letter	I need a complaint letter
+letter	Write to the insurer about the difference
+letter	Can you prepare some wording for my dispute
+letter	Review my letter draft
+letter	Make a written complaint for this case
+packet	Export the evidence packet
+packet	How can I share my case file
+packet	Create a redacted PDF report
+packet	Download a copy of the case summary
+packet	Share the proof without personal details
+packet	I want to export these findings
+packet	Send me a packet to give the hospital
+packet	Save the report as a PDF
+packet	Collect the evidence into one file
+packet	Make a shareable case report
+packet	Export the documents for my records
+packet	I need a printable case summary
+packet	Generate my evidence bundle
+packet	Share a redacted summary
+packet	Get a copy of the case file
+call	Call the hospital billing office
+call	I want to talk to someone on the phone
+call	Make a phone call about the bill
+call	Open the dialler
+call	Which number should I ring
+call	I need help speaking to the billing team
+call	How do I contact them by phone
+call	Dial the hospital
+call	I would like to speak to the insurer
+call	Prepare me for a billing call
+call	Get the billing desk on the line
+call	Start a call about my dispute
+call	Can I phone the accounts department
+call	Ring the hospital office
+call	Plan my conversation with billing
+assistance	I cannot afford this bill
+assistance	Where can I get financial assistance
+assistance	Am I eligible for hospital aid
+assistance	Help me pay my hospital charges
+assistance	Check charity care eligibility
+assistance	Find financial support for my treatment
+assistance	My family has no money for the bill
+assistance	Is a discount available for low income patients
+assistance	Check which assistance schemes I qualify for
+assistance	What if I cannot pay the amount due
+assistance	I need help paying off the invoice
+assistance	See if I qualify for a fee waiver
+assistance	Could the hospital reduce charges due to hardship
+assistance	Find relief for my hospital expenses
+assistance	Can I apply for charity support

@@ -1,4 +1,5 @@
 export const fonts = {
+  FairBillUISans: require('../assets/fonts/FairBillUISans-Semibold.ttf'),
   FairBillRegular: require('../assets/fonts/PTSans-Regular.ttf'),
   FairBillBold: require('../assets/fonts/PTSans-Bold.ttf'),
   FairBillDisplay: require('../assets/fonts/CrimsonPro-Bold.ttf'),
@@ -7,6 +8,7 @@ export const fonts = {
 };
 
 export const font = {
+  uiSans: 'FairBillUISans',
   regular: 'FairBillRegular',
   medium: 'FairBillBold',
   semibold: 'FairBillBold',

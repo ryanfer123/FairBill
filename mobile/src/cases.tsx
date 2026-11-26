@@ -149,7 +149,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
 
 const styles = StyleSheet.create({
   cover: { padding: 20, borderRadius: 24, backgroundColor: color.primary, gap: 18 },
-  title: { color: color.paper, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
+  title: { color: color.paper, fontFamily: font.uiSans, fontSize: 40, lineHeight: 44 },
   subtitle: { color: color.primaryContainer, fontFamily: font.regular, fontSize: 16, marginTop: 4 },
   filters: { flexDirection: 'row', borderBottomWidth: 1, borderColor: color.line },
   filter: { flex: 1, minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 5, paddingVertical: 6, borderBottomWidth: 3, borderColor: 'transparent' },

@@ -85,7 +85,7 @@ const s = StyleSheet.create({
   receiptTitle: { fontFamily: font.display, color: color.primary, fontSize: 21 },
   rule: { backgroundColor: color.line, height: 1 },
   line: { backgroundColor: '#ADBCAD', height: 4, borderRadius: 2 },
-  rupee: { color: color.primary, fontFamily: font.bold, fontSize: 19 },
+  rupee: { color: color.primary, fontFamily: font.uiSans, fontSize: 19 },
   lens: { position: 'absolute', marginLeft: 132, marginTop: 94, borderRadius: 32, width: 64, height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: color.tertiaryContainer, borderColor: color.primary, borderWidth: 2 },
   step: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', borderTopWidth: 1, borderColor: color.line, paddingTop: 18 },
   icon: { backgroundColor: color.primaryContainer, borderRadius: 14, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },

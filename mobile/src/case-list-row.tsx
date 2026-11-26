@@ -59,7 +59,8 @@ export function CaseListRow({ item, archived, disabled, onOpen, onArchive, onDel
         accessibilityHint="Opens the case. Hold for more actions." disabled={disabled}
         onPress={onOpen} onLongPress={onOptions} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
         <View style={[styles.stamp, reviewed && styles.finished]}>
-          <AppIcon name={reviewed ? 'shield' : 'receipt'} size={26} color={reviewed ? color.primary : color.question} />
+          {reviewed ? <AppIcon name="shield" size={26} color={color.primary} /> :
+            <Text accessible={false} style={styles.rupee}>₹</Text>}
         </View>
         <View style={ui.grow}>
           <Text style={styles.title}>{title}</Text>
@@ -81,9 +82,10 @@ const styles = StyleSheet.create({
   open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, minHeight: 84 },
   pressed: { backgroundColor: color.surfaceContainer },
   more: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  rupee: { color: color.question, fontFamily: font.uiSans, fontSize: 25 },
   stamp: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: color.tertiaryContainer },
   finished: { backgroundColor: color.primaryContainer },
-  title: { fontFamily: font.display, fontSize: 24, color: color.ink },
+  title: { fontFamily: font.uiSans, fontSize: 19, color: color.ink },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 3 },
   reference: { fontFamily: font.mono, color: color.muted, fontSize: 12 },
   status: { fontFamily: font.medium, color: color.muted, fontSize: 13 },

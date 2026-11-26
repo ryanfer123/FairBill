@@ -101,5 +101,5 @@ export const ui = StyleSheet.create({
   card: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: radius.card, padding: space.panel, gap: space.row },
   input: { backgroundColor: color.card, minHeight: 48, fontSize: 16 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: color.line },
-  money: { color: color.ink, fontFamily: font.mono, fontVariant: ['tabular-nums'] },
+  money: { color: color.ink, fontFamily: font.uiSans, fontVariant: ['tabular-nums'] },
 });

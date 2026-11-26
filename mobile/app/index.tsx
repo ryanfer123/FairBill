@@ -235,8 +235,17 @@ export default function Home() {
   return (
     <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
       <View style={[ui.between, styles.appBar]}>
-        <View style={ui.row}><Mark size={36} /><Text style={styles.brand}>FairBill</Text></View>
-        <Text style={ui.small}>INR · ₹</Text>
+        <View style={styles.signature} accessible accessibilityLabel="FairBill">
+          <Mark size={40} />
+          <Text style={styles.brand}>Fair<Text style={styles.brandAccent}>Bill</Text></Text>
+        </View>
+        {!hostedBuild && <Pressable accessibilityRole="button" accessibilityLabel="Open bill scanner"
+          disabled={!!busy} accessibilityState={{ disabled: !!busy }} hitSlop={4}
+          onPress={() => { setDestination('check'); void start('camera'); }}
+          style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
+          <AppIcon name="maximize" color={color.paper} size={19} />
+          <Text style={styles.headerActionText}>Scan</Text>
+        </Pressable>}
       </View>
       {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
@@ -335,8 +344,13 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  appBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
-  brand: { fontFamily: font.display, fontSize: 27, letterSpacing: -0.6, color: color.ink },
+  appBar: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 5, backgroundColor: color.onPrimaryContainer },
+  signature: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: 8 },
+  brand: { flexShrink: 1, fontFamily: font.uiSans, fontSize: 34, letterSpacing: -1.2, color: color.paper },
+  brandAccent: { color: color.inversePrimary },
+  headerAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 44, gap: 7, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: color.primary },
+  headerActionText: { fontFamily: font.uiSans, fontSize: 15, color: color.paper },
+  headerPressed: { backgroundColor: color.primary },
   homeContent: { gap: 20, paddingTop: 16 },
   scanPanel: { backgroundColor: color.primary, borderRadius: 26, padding: 22, gap: 16 },
   scanTop: { gap: 17, alignItems: 'flex-start' },
