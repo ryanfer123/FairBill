@@ -1,8 +1,9 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case, Kind } from './api';
 import { classifyRequest, type Intent } from './case-intent';
-import { Button, Card, Input, SectionHeader, Sheet, color, ui } from './ui';
+import { Button, Card, Input, SectionHeader, Sheet } from './ui';
 
 export type AssistantAction =
   | { type: 'intake'; kind: Kind }
@@ -81,6 +82,8 @@ function makePlan(goal: Goal, props: Props): { steps: string[]; next?: Step; exp
 }
 
 export function CaseAssistant(props: Props) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const [request, setRequest] = useState(props.savedPlan?.request ?? '');
   const saved = props.savedPlan;
   const matching = saved?.request === request.trim() ? saved : undefined;
@@ -142,6 +145,6 @@ export function CaseAssistant(props: Props) {
   </Sheet>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   dot: { backgroundColor: color.primary, borderRadius: 3, width: 6, height: 6 },
-});
+}));

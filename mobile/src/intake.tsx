@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { Illustration } from './illustrations';
 import { AppIcon } from './icons';
 import { cloudBuild } from './cloud-auth';
@@ -11,11 +12,13 @@ import Animated from 'react-native-reanimated';
 import { evidenceReveal } from './motion';
 import { font } from './typography';
 import { Disclosure } from './disclosure';
-import { ActionBar, Badge, Button, Card, Divider, Input, LoadingState, Message, SectionHeader, Sheet, color, ui } from './ui';
+import { ActionBar, Badge, Button, Card, CurrencyText, Divider, Input, LoadingState, Message, SectionHeader, Sheet } from './ui';
 
 export function Intake({ busy, startKind, onClose, onPaste, onFile, discarding, onDiscard }:
   { busy: boolean; discarding: boolean; onDiscard: () => void; startKind: Kind; onClose: () => void; onPaste: (kind: Kind, text: string) => Promise<void>;
     onFile: (kind: Kind, asset: PickedDocument, onStage: (stage: ScanStage) => void) => Promise<void> }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const [kind, setKind] = useState<Kind>(startKind);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
@@ -120,6 +123,8 @@ function editable(row: Row): EditFields {
 export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId, readOnly = false }:
   { doc: Document; busy: boolean; onClose: () => void; onConfirm: (rows: Row[]) => Promise<void>;
     onDiscard: () => Promise<void>; initialRowId?: string; readOnly?: boolean }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const [rows, setRows] = useState(doc.rows);
   const [source, setSource] = useState(!doc.rows.length);
   const [openLine, setOpenLine] = useState<string | null>(initialRowId ?? null);
@@ -240,7 +245,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
         </Animated.View>
         {selectedRow && <Animated.View entering={evidenceReveal} style={[ui.stack, styles.highlight]}>
           <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
-          <Text selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1] || 'No text found on this line.'}</Text>
+          <CurrencyText selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1] || 'No text found on this line.'}</CurrencyText>
         </Animated.View>}
         {rows.length > 0 ? <View style={styles.ledger}>
           {rows.map((row, index) => {
@@ -258,15 +263,15 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
                 onPress={() => setOpenLine(isOpen ? null : row.id)} style={({ pressed }) => [styles.ledgerLine, pressed && styles.pressed]}>
                 <View style={styles.lineSummary}>
                   <Text style={isTotal ? styles.totalLabel : styles.lineTitle}>{row.description}</Text>
-                  {!!detail && <Text style={ui.small}>{detail}</Text>}
+                  {!!detail && <CurrencyText style={ui.small}>{detail}</CurrencyText>}
                 </View>
                 {row.amount !== null && <Text style={[styles.amount, isTotal && styles.totalAmount]}>{money(row.amount)}</Text>}
                 <AppIcon name={isOpen ? 'chevron-up' : 'chevron-down'} size={15} color={color.muted} />
               </Pressable>
               {isOpen && <Animated.View entering={evidenceReveal} style={styles.lineDetails}>
                 <Text style={ui.kicker}>Page {row.page}, line {row.line}</Text>
-                <Text selectable style={styles.quote}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
-                  || 'No text found on this line.'}</Text>
+                <CurrencyText selectable style={styles.quote}>{doc.pages[row.page - 1]?.split(/\r?\n/)[row.line - 1]?.trim()
+                  || 'No text found on this line.'}</CurrencyText>
                 {!!row.reference && <Text style={ui.small}>{row.reference}</Text>}
                 {!readOnly && !editing && !busy && <Button label={`Edit ${row.description}`} icon="edit-2" tone="ghost" onPress={() => edit(row)} />}
                 {!readOnly && row.type === 'charge' && <Pressable accessibilityRole="checkbox" accessibilityLabel="I did not receive this service"
@@ -299,7 +304,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
           <Disclosure label={source ? 'Hide extracted text' : 'Show extracted text'} open={source} onToggle={() => setSource(!source)}>
             {doc.pages.map((page, index) => <View key={index} style={styles.original}>
               <Text style={ui.kicker}>Page {index + 1}</Text>
-              <Text selectable style={styles.raw}>{page.trim() ? page.split(/\r?\n/).map((line, i) => `${i + 1}  ${line}`).join('\n') : 'No text found'}</Text>
+              <CurrencyText selectable style={styles.raw}>{page.trim() ? page.split(/\r?\n/).map((line, i) => `${i + 1}  ${line}`).join('\n') : 'No text found'}</CurrencyText>
             </View>)}
           </Disclosure>
         </View>}
@@ -318,7 +323,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, initialRowId,
   </Sheet>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   introText: { flex: 1, gap: 6 },
   metadata: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
@@ -342,4 +347,4 @@ const styles = StyleSheet.create({
   highlight: { padding: 12, backgroundColor: color.tertiaryContainer, borderRadius: 8 },
   option: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12 },
   selected: { backgroundColor: color.secondaryContainer },
-});
+}));

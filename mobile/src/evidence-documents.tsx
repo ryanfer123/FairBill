@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Chip } from 'react-native-paper';
@@ -6,12 +7,14 @@ import { evidenceReveal } from './motion';
 import { AppIcon } from './icons';
 import { Illustration } from './illustrations';
 import { KINDS, money, type Case } from './api';
-import { Badge, Button, EmptyState, color, ui } from './ui';
+import { Badge, Button, EmptyState } from './ui';
 
 const previewLimit = 8;
 
 export function EvidenceDocuments({ data, busy, onOpen }:
   { data: Case; busy: boolean; onOpen: (id: string, rowId?: string) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const [selected, setSelected] = useState<string>();
   const document = data.documents.find((item) => item.id === selected) ?? data.documents[0];
   if (!document) return <EmptyState>No documents in this case yet.</EmptyState>;
@@ -71,7 +74,7 @@ export function EvidenceDocuments({ data, busy, onOpen }:
   </>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   selector: { minHeight: 44 },
   paper: { backgroundColor: color.card, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: color.line, padding: 12, gap: 6 },
@@ -83,4 +86,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.primaryContainer, padding: 12, borderRadius: 10, gap: 6, marginVertical: 4 },
   total: { fontSize: 19, color: color.onPrimaryContainer },
   corrected: { ...ui.small, color: color.primary },
-});
+}));

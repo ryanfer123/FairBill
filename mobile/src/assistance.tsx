@@ -1,15 +1,17 @@
+import { useFairBillTheme } from './theme';
 import { AppIcon } from './icons';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { hostedBuild, parseRupees, request, type AssistanceResult } from './api';
 import { accountUser } from './cloud-auth';
-import { ActionBar, Badge, Button, Card, EmptyState, Input, Message, SectionHeader, Sheet, color, ui } from './ui';
+import { ActionBar, Badge, Button, Card, EmptyState, Input, Message, SectionHeader, Sheet } from './ui';
 
 const maharashtraScheme = 'https://nhm.maharashtra.gov.in/en/publication/mahatma-jyotirao-phule-jan-arogya-yojana/';
 
 const tataBooklet = 'https://tmc.gov.in/event/upload/12112025_5/TMH_Brochure_%20patient%20booklet.pdf';
 
 export function AssistanceSources({ onClose }: { onClose: () => void }) {
+  const { ui } = useFairBillTheme();
   const [error, setError] = useState('');
   const state = accountUser()?.user_metadata?.home_state;
   return <Sheet title="Help with paying" onClose={onClose}>
@@ -33,6 +35,7 @@ export function AssistanceSources({ onClose }: { onClose: () => void }) {
 }
 
 export function Assistance({ caseId, revision, onClose }: { caseId: string; revision: number; onClose: () => void }) {
+  const { ui, color } = useFairBillTheme();
   const [income, setIncome] = useState('');
   const [size, setSize] = useState('');
   const [result, setResult] = useState<AssistanceResult>();

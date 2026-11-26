@@ -1,11 +1,14 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 import { getBackend } from './api';
 import { cloudBuild } from './cloud-auth';
-import { Button, color, ui } from './ui';
+import { Button } from './ui';
 
 export function ConnectionStatus({ refresh = 0, problemsOnly = false }:
   { refresh?: number; problemsOnly?: boolean }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const [status, setStatus] = useState<'checking' | 'waiting' | 'connected' | 'unavailable'>('checking');
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<string>();
@@ -48,6 +51,6 @@ export function ConnectionStatus({ refresh = 0, problemsOnly = false }:
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   strip: { padding: 12, gap: 6, borderBottomColor: color.line, borderBottomWidth: StyleSheet.hairlineWidth },
-});
+}));

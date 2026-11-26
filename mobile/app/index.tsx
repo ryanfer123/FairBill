@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from '../src/theme';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { AppIcon, type IconName } from '../src/icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -15,7 +16,7 @@ import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
 import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
-import { Button, Card, Divider, Input, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
+import { Button, Card, Divider, Input, Message, SectionHeader, Sheet } from '../src/ui';
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
@@ -25,6 +26,8 @@ const destinations = [
 type Destination = typeof destinations[number]['key'];
 
 function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; onSelect: (tab: Destination) => void }) {
+  const { color } = useFairBillTheme();
+  const styles = useStyles();
   const { width, fontScale } = useWindowDimensions();
   const narrow = compact && fontScale <= 1.3;
   const dockWidth = Math.min(width * 0.92, 410);
@@ -62,6 +65,8 @@ function TabDock({ current, busy, compact, bottom, onSelect }: { compact: boolea
 function CaseLink({ title, label, detail, amount, progress, icon, disabled, pending = false, featured = false, onPress }:
   { title: string; label: string; detail?: string; amount?: string; progress?: number; icon: IconName;
     disabled: boolean; pending?: boolean; featured?: boolean; onPress: () => void }) {
+  const { color, ui } = useFairBillTheme();
+  const styles = useStyles();
   return <TouchableRipple accessibilityRole="button" accessibilityLabel={title === label ? label : `${title}. ${label}`}
     accessibilityHint={[detail, amount, progress != null ? `${progress} of 3 review steps complete` : null].filter(Boolean).join('. ') || undefined}
     accessibilityState={{ disabled, busy: pending }} disabled={disabled} onPress={onPress}>
@@ -83,6 +88,8 @@ function CaseLink({ title, label, detail, amount, progress, icon, disabled, pend
 }
 
 export default function Home() {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const [latest, setLatest] = useState<string | null>(null);
   const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
@@ -358,7 +365,7 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   appBar: { minHeight: 58, paddingStart: 18, paddingEnd: 8, paddingVertical: 4, backgroundColor: color.paper,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
   brand: { flexShrink: 1, fontFamily: font.uiSans, fontSize: 32, letterSpacing: -1.4, color: color.ink },
@@ -399,4 +406,4 @@ const styles = StyleSheet.create({
   tabContents: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 4 },
   tabPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   tabText: { textAlign: 'center', fontFamily: font.semibold, fontSize: 13 },
-});
+}));

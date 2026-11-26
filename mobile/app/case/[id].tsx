@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from '../../src/theme';
 import { AppIcon } from '../../src/icons';
 import { supportsLocalPacketActions, performPacketAction, type PacketAction } from '../../src/redacted-pdf';
 import Animated from 'react-native-reanimated';
@@ -21,7 +22,7 @@ import { Intake, Review } from '../../src/intake';
 import { Outreach, type SimulationStep } from '../../src/outreach';
 import { Evidence, type EvidenceView, FindingCard, ReviewChange, ReviewHeadline, RevisionComparison, ScenarioCard, Timeline, revisionTitle } from '../../src/results';
 import { font } from '../../src/typography';
-import { ActionBar, Badge, Button, Card, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet, color, ui } from '../../src/ui';
+import { ActionBar, Badge, Button, Card, CurrencyText, Divider, EmptyState, IconButton, LoadingState, Message, Screen, SectionHeader, Sheet } from '../../src/ui';
 
 type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
 type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
@@ -30,6 +31,8 @@ type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export default function CaseScreen() {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const { width, fontScale } = useWindowDimensions();
   const compact = width / fontScale < 335;
   const params = useLocalSearchParams<{ id: string; document?: string; section?: string }>();
@@ -414,7 +417,7 @@ export default function CaseScreen() {
           {overlay.lines.slice(1).join('\n').split(/\n{2,}/).filter((section) => section.trim()).map((section, index) =>
             <View key={index} style={ui.stack}>
               <Divider />
-              <Text selectable style={[ui.body, styles.paperCopy]}>{section}</Text>
+              <CurrencyText selectable style={[ui.body, styles.paperCopy]}>{section}</CurrencyText>
             </View>
           )}
         </Card> : <EmptyState>The preview is empty. Close this view and try again.</EmptyState>}
@@ -439,7 +442,7 @@ export default function CaseScreen() {
   </Screen>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   toolbar: { paddingHorizontal: 16, paddingVertical: 6, gap: 8 },
   paperCopy: { color: color.ink },
   packetNotice: { color: color.primary },
@@ -451,4 +454,4 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: color.primary },
   tabLabel: { color: color.muted, fontFamily: font.medium, fontSize: 14, lineHeight: 20, letterSpacing: 0.1, textAlign: 'center' },
   tabLabelActive: { color: color.ink },
-});
+}));

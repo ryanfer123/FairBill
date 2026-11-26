@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -5,7 +6,7 @@ import Svg, { Path } from 'react-native-svg';
 import type { PickedDocument } from './document-picker';
 import { Illustration } from './illustrations';
 import { evidenceReveal, surfaceReveal } from './motion';
-import { ActionBar, Button, color, ui } from './ui';
+import { ActionBar, Button } from './ui';
 
 export type ScanStage = 'preparing' | 'reading' | 'processing';
 
@@ -17,14 +18,17 @@ const copy = {
 } as const;
 
 function ViewfinderCorners() {
+  const { color } = useFairBillTheme();
   return <Svg viewBox="0 0 256 256" width="100%" height="100%" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
     <Path d="M14 39V22Q14 14 22 14H39M217 14H234Q242 14 242 22V39M242 217V234Q242 242 234 242H217M39 242H22Q14 242 14 234V217"
-      fill="none" stroke={color.inversePrimary} strokeWidth={2} strokeLinecap="round" />
+      fill="none" stroke={color.scanCorners} strokeWidth={2} strokeLinecap="round" />
   </Svg>;
 }
 
 export function ScanPreview({ asset, stage, discarding, onDiscard }:
   { asset: PickedDocument; stage: ScanStage; discarding: boolean; onDiscard: () => void }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const [failed, setFailed] = useState(false);
   const status = discarding ? 'discarding' : stage;
   const { title, detail, icon } = copy[status];
@@ -51,10 +55,10 @@ export function ScanPreview({ asset, stage, discarding, onDiscard }:
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   content: { maxWidth: 500, paddingTop: 24 },
-  frame: { aspectRatio: 1.05, maxHeight: 330, backgroundColor: color.onPrimaryContainer, borderRadius: 22,
+  frame: { aspectRatio: 1.05, maxHeight: 330, backgroundColor: color.scanFrame, borderRadius: 22,
     overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   photo: { width: '91%', height: '91%' },
   status: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-});
+}));

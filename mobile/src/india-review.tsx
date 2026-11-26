@@ -1,9 +1,10 @@
+import { useFairBillTheme } from './theme';
 import { useState } from 'react';
 import { Linking, ScrollView, Text, View } from 'react-native';
 import { Checkbox, Chip } from 'react-native-paper';
 import { money, request, type Case, type Document, type Kind } from './api';
 import type { components } from './generated/fairbill-v1';
-import { Button, Card, Message, SectionHeader, Sheet, ui } from './ui';
+import { Button, Card, CurrencyText, Message, SectionHeader, Sheet } from './ui';
 
 type Review = 'tariff' | 'aid' | 'insurance';
 type Category = 'NC' | 'C' | 'B' | 'A' | 'D' | 'FN' | 'F' | 'BP';
@@ -13,6 +14,7 @@ const categories: Category[] = ['NC', 'C', 'B', 'A', 'D', 'FN'];
 
 function DocumentChoice({ choices, kind, value, setValue, busy }:
   { choices: Document[]; kind: Kind; value: string; setValue: (value: string) => void; busy: boolean }) {
+  const { ui } = useFairBillTheme();
   if (!choices.length) return <Text style={ui.small}>Add and confirm a {kind} document first.</Text>;
   if (choices.length === 1) return null;
   return <View style={ui.stack}>
@@ -23,6 +25,7 @@ function DocumentChoice({ choices, kind, value, setValue, busy }:
 }
 
 export function IndiaReview({ data, initial, onClose }: { data: Case; initial: Review; onClose: () => void }) {
+  const { ui } = useFairBillTheme();
   const [mode, setMode] = useState<Review>(initial);
   const [category, setCategory] = useState<Category>();
   const [uin, setUin] = useState<typeof policyVersions[number]>();
@@ -97,8 +100,8 @@ export function IndiaReview({ data, initial, onClose }: { data: Case; initial: R
           <SectionHeader>{finding.title}</SectionHeader>
           <Text style={ui.body}>{finding.detail}</Text>
           {finding.difference_paise != null && finding.billed_paise != null && finding.reference_paise != null && <>
-            <Text style={ui.body}>{`Billed ${money(finding.billed_paise)} · Published ${money(finding.reference_paise)}`}</Text>
-            <Text style={ui.label}>{`Difference ${money(finding.difference_paise)}`}</Text>
+            <CurrencyText style={ui.body}>{`Billed ${money(finding.billed_paise)} · Published ${money(finding.reference_paise)}`}</CurrencyText>
+            <CurrencyText style={ui.label}>{`Difference ${money(finding.difference_paise)}`}</CurrencyText>
           </>}
           {finding.record && <Text selectable style={ui.small}>{`Page ${finding.record.page}, line ${finding.record.line}\n${finding.record.quote}`}</Text>}
           <Text style={ui.small}>{finding.citation}</Text>

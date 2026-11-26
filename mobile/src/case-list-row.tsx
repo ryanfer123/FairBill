@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useMemo } from 'react';
 import { Menu } from 'react-native-paper';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -7,7 +8,6 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { AppIcon } from './icons';
 import { type CasePage } from './api';
 import { font } from './typography';
-import { color, material, ui } from './theme';
 
 type Props = {
   scrollGesture: ReturnType<typeof Gesture.Native>;
@@ -25,6 +25,8 @@ type Props = {
 };
 
 export function CaseListRow({ item, label, onRename, archived, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
+  const { color, ui, material } = useFairBillTheme();
+  const styles = useStyles();
   const offset = useSharedValue(0);
   const reduced = useReducedMotion();
   const translation = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }));
@@ -93,7 +95,7 @@ export function CaseListRow({ item, label, onRename, archived, disabled, onOpen,
   </View></GestureDetector>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color, material }) => StyleSheet.create({
   container: { overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: color.line },
   row: { alignItems: 'center', flexDirection: 'row', backgroundColor: color.card },
   open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, minHeight: 84 },
@@ -115,4 +117,4 @@ const styles = StyleSheet.create({
   archiveAction: { flex: 1, gap: 2, alignItems: 'flex-start', justifyContent: 'center', backgroundColor: color.primary, paddingStart: 12 },
   deleteAction: { flex: 1, gap: 2, alignItems: 'flex-end', justifyContent: 'center', backgroundColor: material.colors.error, paddingEnd: 12 },
   actionLabel: { color: color.onPrimary, fontFamily: font.semibold, fontSize: 12 },
-});
+}));

@@ -1,10 +1,12 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { useEffect, useState, type ReactNode } from 'react';
 import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button as PaperButton } from 'react-native-paper';
 import * as SecureStore from 'expo-secure-store';
 import { AppIcon, type IconName } from './icons';
-import { Button, Mark, Screen, color, ui } from './ui';
+import { Button, Mark, Screen } from './ui';
 import { font } from './typography';
+import { AppearanceChoices } from './appearance';
 
 const completedKey = 'fairbill_intro_completed_v1';
 const steps: { icon: IconName; title: string; detail: string }[] = [
@@ -14,6 +16,8 @@ const steps: { icon: IconName; title: string; detail: string }[] = [
 ];
 
 function BillArtwork() {
+  const { ui, color } = useFairBillTheme();
+  const s = useStyles();
   return <View style={s.art} accessible={false} importantForAccessibility="no-hide-descendants">
     <View style={s.orbit} />
     <View style={s.sheetBehind} />
@@ -30,6 +34,8 @@ function BillArtwork() {
 }
 
 export function FirstRun({ children }: { children: ReactNode }) {
+  const { ui, color } = useFairBillTheme();
+  const s = useStyles();
   const [page, setPage] = useState<'loading' | 'welcome' | 'guide' | 'done'>('loading');
   useEffect(() => {
     let active = true;
@@ -66,11 +72,12 @@ export function FirstRun({ children }: { children: ReactNode }) {
           <View style={ui.grow}><Text style={ui.label}>{step.title}</Text><Text style={ui.body}>{step.detail}</Text></View>
         </View>)}
     </View>
+    {welcome && <AppearanceChoices />}
     <Button label={welcome ? 'See how it works' : 'Get started'} icon="arrow-right" onPress={welcome ? () => setPage('guide') : finish} />
   </ScrollView></Screen>;
 }
 
-const s = StyleSheet.create({
+const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   page: { flexGrow: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 8, paddingBottom: 22, gap: 20 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' },
   brand: { color: color.primary, fontFamily: font.display, fontSize: 28 },
@@ -79,14 +86,14 @@ const s = StyleSheet.create({
   title: { fontFamily: font.display, color: color.ink, fontSize: 48, lineHeight: 49, letterSpacing: -1.2 },
   body: { ...ui.body, fontSize: 18, lineHeight: 26 },
   art: { backgroundColor: color.primaryContainer, borderRadius: 28, height: 218, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  orbit: { position: 'absolute', height: 320, width: 320, borderRadius: 160, borderWidth: 1, borderColor: '#B4D1C0' },
-  sheetBehind: { position: 'absolute', width: 152, height: 165, borderRadius: 3, backgroundColor: '#B3CDBA', transform: [{ rotate: '8deg' }, { translateX: 9 }] },
+  orbit: { position: 'absolute', height: 320, width: 320, borderRadius: 160, borderWidth: 1, borderColor: color.illustration.orbit },
+  sheetBehind: { position: 'absolute', width: 152, height: 165, borderRadius: 3, backgroundColor: color.illustration.sheet, transform: [{ rotate: '8deg' }, { translateX: 9 }] },
   receipt: { width: 158, padding: 16, gap: 10, backgroundColor: color.paper, transform: [{ rotate: '-7deg' }], borderRadius: 3 },
   receiptTitle: { fontFamily: font.display, color: color.primary, fontSize: 21 },
   rule: { backgroundColor: color.line, height: 1 },
-  line: { backgroundColor: '#ADBCAD', height: 4, borderRadius: 2 },
+  line: { backgroundColor: color.illustration.rule, height: 4, borderRadius: 2 },
   rupee: { color: color.primary, fontFamily: font.uiSans, fontSize: 19 },
   lens: { position: 'absolute', marginLeft: 132, marginTop: 94, borderRadius: 32, width: 64, height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: color.tertiaryContainer, borderColor: color.primary, borderWidth: 2 },
   step: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', borderTopWidth: 1, borderColor: color.line, paddingTop: 18 },
   icon: { backgroundColor: color.primaryContainer, borderRadius: 14, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-});
+}));

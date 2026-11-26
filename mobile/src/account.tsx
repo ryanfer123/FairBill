@@ -1,9 +1,11 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import * as SecureStore from 'expo-secure-store';
 import Animated from 'react-native-reanimated';
 import { Illustration } from './illustrations';
 import { AppIcon, type IconName } from './icons';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
+import { AppearanceChoices } from './appearance';
 import Constants from 'expo-constants';
 import { Chip } from 'react-native-paper';
 import { useEffect, useRef, useState } from 'react';
@@ -11,7 +13,7 @@ import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSh
 import { ConnectionStatus } from './connection';
 import { configureInvite, forgetCase, hostedBuild, request } from './api';
 import { updateProfile, accountUser, type PreferredEvidence, cloudBuild, confirmSignInLink, requestSignInCode, restoreAccount, signOutAccount, verifySignInCode } from './cloud-auth';
-import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet, color, ui } from './ui';
+import { Button, Card, Divider, IconButton, Input, Mark, Message, Screen, SectionHeader, Sheet } from './ui';
 
 const welcomeSteps = [
   { title: 'Welcome to FairBill', body: 'Check hospital bills against your records.', art: 'welcome' },
@@ -22,6 +24,7 @@ const welcomeKey = 'fairbill_welcome_seen';
 const privacyUrl: string | undefined = Constants.expoConfig?.extra?.fairbillPrivacyUrl;
 
 export function SignIn({ restoring }: { restoring: boolean }) {
+  const { ui } = useFairBillTheme();
   const [email, setEmail] = useState('');
   const [destination, setDestination] = useState('');
   const [code, setCode] = useState('');
@@ -141,11 +144,13 @@ export function SignIn({ restoring }: { restoring: boolean }) {
   </Screen>;
 }
 
-const panelTitles = { main: 'Settings', profile: 'Your profile', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
+const panelTitles = { main: 'Settings', profile: 'Your profile', appearance: 'Appearance', help: 'Help with a bill', about: 'About FairBill', status: 'Service status', delete: 'Delete your account', invite: 'Tester access' };
 
 function SettingRow({ label, icon, onPress, disabled, danger = false, external = false }:
   { label: string; icon: IconName; onPress: () => void; disabled: boolean; danger?: boolean; external?: boolean }) {
-  const tint = danger ? color.onErrorContainer : color.primary;
+  const { color, ui } = useFairBillTheme();
+  const settings = useSettings();
+  const tint = danger ? color.danger : color.primary;
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
     accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [settings.row, pressed && settings.pressed]}>
     <AppIcon name={icon} size={21} color={tint} />
@@ -155,6 +160,8 @@ function SettingRow({ label, icon, onPress, disabled, danger = false, external =
 }
 
 export function AccountSettings({ onClose, onArchive, onInvite, embedded = false, onScroll, clearance }: { onArchive?: () => void; onScroll?: ScrollViewProps['onScroll']; clearance?: number; onClose: () => void; onInvite?: () => void; embedded?: boolean }) {
+  const { ui, color } = useFairBillTheme();
+  const settings = useSettings();
   const [panel, setPanel] = useState<keyof typeof panelTitles>('main');
   const [confirmation, setConfirmation] = useState('');
   const [invite, setInvite] = useState('');
@@ -224,6 +231,9 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
           </View>
           <AppIcon name="chevron-right" size={18} color={color.primary} />
         </Pressable>}
+        <View style={settings.group}>
+          <SettingRow label="Appearance" icon="settings" disabled={busy} onPress={() => show('appearance')} />
+        </View>
         {onArchive && <View style={ui.stack}>
           <SectionHeader>Case library</SectionHeader>
           <View style={settings.group}>
@@ -249,6 +259,10 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
         </View>}
         {user && <View style={settings.danger}><SettingRow label="Delete account" icon="trash-2" danger disabled={busy} onPress={() => show('delete')} /></View>}
       </>}
+      {panel === 'appearance' && <Card>
+        <AppearanceChoices />
+        <Text style={ui.small}>System follows this device’s appearance setting.</Text>
+      </Card>}
       {panel === 'profile' && user && <>
         <Card>
           <SectionHeader>Personal details</SectionHeader>
@@ -312,7 +326,7 @@ export function AccountSettings({ onClose, onArchive, onInvite, embedded = false
   }}>{content}</Sheet>;
 }
 
-const settings = StyleSheet.create({
+const useSettings = themedStyles(({ color }) => StyleSheet.create({
   title: { color: color.ink, fontFamily: font.display, fontSize: 40, lineHeight: 44 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 20, backgroundColor: color.primaryContainer },
   identity: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primary },
@@ -324,4 +338,4 @@ const settings = StyleSheet.create({
   row: { minHeight: 54, paddingHorizontal: 16, paddingVertical: 12, gap: 14, alignItems: 'center', flexDirection: 'row' },
   pressed: { opacity: 0.62 },
   danger: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line },
-});
+}));

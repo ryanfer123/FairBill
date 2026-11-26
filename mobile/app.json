@@ -5,7 +5,7 @@
     "version": "0.1.0",
     "scheme": "fairbill",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "android": {
       "package": "dev.honeypotato.fairbill",
       "versionCode": 1,
@@ -24,6 +24,25 @@
     },
     "plugins": [
       "expo-router",
+      "expo-system-ui",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FBF7EF",
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/icon.png"
+          },
+          "image": "./assets/icon.png",
+          "imageWidth": 96
+        }
+      ],
       [
         "expo-build-properties",
         {

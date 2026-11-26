@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { AppIcon } from './icons';
 import Animated from 'react-native-reanimated';
 import { Illustration } from './illustrations';
@@ -7,7 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Case, Finding, History, KINDS, Source, money } from './api';
 import { Disclosure } from './disclosure';
 import { font } from './typography';
-import { Badge, Button, Card, Divider, EmptyState, SectionHeader, Sheet, color, ui } from './ui';
+import { Badge, Button, Card, CurrencyText, Divider, EmptyState, SectionHeader, Sheet } from './ui';
 
 const RELATION: Record<Source['relation'], string> = {
   supports: 'Supports the question', contradicts: 'Challenges the question',
@@ -53,6 +54,8 @@ function sourceLabel(source: Source) {
 }
 
 function SourceChips({ evidence, onPress }: { evidence: Source[]; onPress: (index: number) => void }) {
+  const { color, ui } = useFairBillTheme();
+  const styles = useStyles();
   if (!evidence.length) return null;
   return <View style={styles.chips}>
     {evidence.map((source, index) => <Pressable key={sourceKey(source)} accessibilityRole="button"
@@ -66,13 +69,15 @@ function SourceChips({ evidence, onPress }: { evidence: Source[]; onPress: (inde
 
 function LedgerLine({ entry, subtract = false, supportingText, onEvidence }:
   { entry: EvidenceView; subtract?: boolean; supportingText?: string; onEvidence: (entry: EvidenceView) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const amount = subtract && entry.amount !== null ? money(-entry.amount) : money(entry.amount);
   return <View style={styles.ledgerLine}>
     <View style={ui.between}>
       <Text style={[ui.label, ui.grow]}>{entry.title}</Text>
       <Text selectable style={[ui.money, styles.value]}>{amount}</Text>
     </View>
-    {!!supportingText && <Text style={ui.small}>{supportingText}</Text>}
+    {!!supportingText && <CurrencyText style={ui.small}>{supportingText}</CurrencyText>}
     {entry.amount !== null && entry.evidence.length > 0 && <Pressable accessibilityRole="button"
       accessibilityLabel={`View sources for ${entry.title}`} onPress={() => onEvidence(entry)} style={styles.ledgerSource}>
       <AppIcon name="file-text" size={14} color={color.primary} />
@@ -96,6 +101,8 @@ function invoiceSources(data: Case): Source[] {
 const conditionalTitle = 'Total if the questions are resolved';
 
 export function ReviewHeadline({ data, animate }: { data: Case; animate: boolean }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const amount = data.scenario?.adjustments;
   const active = data.findings.filter((finding) => finding.check !== 'settlement' && finding.status === 'active');
   const sources = unique(active.flatMap((finding) => finding.evidence)).length;
@@ -118,6 +125,7 @@ export function ReviewHeadline({ data, animate }: { data: Case; animate: boolean
 
 export function ScenarioCard({ data, stale, onEvidence }:
   { data: Case; stale: boolean; onEvidence: (entry: EvidenceView) => void }) {
+  const styles = useStyles();
   const scenario = data.scenario;
   if (!scenario) return null;
   const invoices = scenario.sources?.billed ?? (stale ? [] : invoiceSources(data));
@@ -172,6 +180,8 @@ function signedMoney(amount: number) {
 }
 
 export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (entry: EvidenceView) => void }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const item = data.history.at(-1);
   if (!item) return null;
   const { withdrawn, movement, secondOrder } = revisionChange(data, item);
@@ -194,6 +204,8 @@ export function ReviewChange({ data, onEvidence }: { data: Case; onEvidence: (en
 }
 
 export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (entry: EvidenceView) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const withdrawn = finding.status === 'withdrawn';
   const entry: EvidenceView = { ...finding, rule: RULES[finding.check], evidence: unique(finding.evidence) };
   return <View style={[styles.finding, withdrawn && styles.withdrawnFinding]}>
@@ -211,7 +223,7 @@ export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (
       <AppIcon name="arrow-up-right" size={17} color={color.primary} />
     </Pressable>
     {entry.rule && <Text style={ui.small}>{entry.rule}</Text>}
-    <Text style={ui.body}>{finding.explanation}</Text>
+    <CurrencyText style={ui.body}>{finding.explanation}</CurrencyText>
     <SourceChips evidence={entry.evidence} onPress={(selected) => onPress({ ...entry, selected })} />
   </View>;
 }
@@ -219,6 +231,8 @@ export function FindingCard({ finding, onPress }: { finding: Finding; onPress: (
 export function Evidence({ entry, canOpenSource, onSource, onClose }:
   { entry: EvidenceView; canOpenSource: (source: Source) => boolean;
     onSource: (source: Source) => void; onClose: () => void }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const [opened, setOpened] = useState<number | null>(entry.selected ?? 0);
   const order = entry.evidence.map((source, index) => ({ source, index }));
   const selected = entry.selected;
@@ -234,7 +248,7 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
         {entry.status === 'withdrawn' && <Badge tone="neutral">Finding withdrawn</Badge>}
         {entry.amount !== null && <Text style={[ui.money, styles.value]}>{money(entry.amount)}</Text>}
         {entry.rule && <Text style={ui.small}>Rule · {entry.rule}</Text>}
-        <Text style={ui.body}>{entry.explanation}</Text>
+        <CurrencyText style={ui.body}>{entry.explanation}</CurrencyText>
       </Card>
       </Animated.View>
       {order.length > 0 && <SectionHeader>Source records</SectionHeader>}
@@ -248,7 +262,7 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
         <Disclosure label={opened === index ? 'Hide source line' : 'View source line'} open={opened === index}
           onToggle={() => setOpened(opened === index ? null : index)}>
           <Animated.View entering={evidenceReveal}>
-            <Text selectable style={styles.excerpt}>{source.quote || 'No source excerpt is available for this row.'}</Text>
+            <CurrencyText selectable style={styles.excerpt}>{source.quote || 'No source excerpt is available for this row.'}</CurrencyText>
           </Animated.View>
           <Text selectable style={styles.hash}>Source fingerprint {source.sha256.slice(0, 12)}</Text>
           {canOpenSource(source) && <Button label="Open document at this line" icon="file-text" tone="ghost" onPress={() => onSource(source)} />}
@@ -260,6 +274,8 @@ export function Evidence({ entry, canOpenSource, onSource, onClose }:
 }
 
 export function RevisionComparison({ data, item }: { data: Case; item: History }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const { previous, movement } = revisionChange(data, item);
   const oldFindings = new Map(previous?.findings.map((finding) => [finding.id, finding]));
   const changed = item.findings.filter((finding) => {
@@ -299,6 +315,8 @@ export function revisionTitle(data: Case, item: History) {
 }
 
 export function Timeline({ data, onRevision }: { data: Case; onRevision: (revision: History) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   return <>
     <SectionHeader>Case revisions</SectionHeader>
     {!data.history.length && <EmptyState>Run an investigation to record the first revision.</EmptyState>}
@@ -331,7 +349,7 @@ export function Timeline({ data, onRevision }: { data: Case; onRevision: (revisi
   </>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   revisionRow: { flexDirection: 'row', gap: 10 },
   rail: { alignItems: 'center', width: 16, paddingTop: 22 },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: color.primary },
@@ -362,4 +380,4 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderRadius: 6, borderColor: color.line },
   chipLabel: { flexShrink: 1, color: color.primary },
-});
+}));

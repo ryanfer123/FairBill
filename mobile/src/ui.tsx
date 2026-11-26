@@ -1,28 +1,39 @@
+import { radius, themedStyles, useFairBillTheme } from './theme';
+import { StatusBar } from 'expo-status-bar';
 import { AppIcon, type IconName } from './icons';
 import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
-import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View, type TextProps } from 'react-native';
 import { Button as MaterialButton, Divider as MaterialDivider, IconButton as MaterialIconButton, ProgressBar, Surface, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Illustration } from './illustrations';
 import { useReducedMotion } from 'react-native-reanimated';
 
-import { color, radius, ui } from './theme';
 import { font } from './typography';
-export { color, ui } from './theme';
 
 export function Screen({ children }: { children: ReactNode }) {
+  const { ui } = useFairBillTheme();
   return <SafeAreaView style={ui.safe} edges={['top', 'bottom', 'left', 'right']}>{children}</SafeAreaView>;
 }
 
 export function Card({ children, tone = 'outline' }: { children: ReactNode; tone?: 'outline' | 'tonal' }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   return <Surface elevation={0} style={[ui.card, tone === 'tonal' && styles.tonal]}>{children}</Surface>;
 }
 
 export function Input({ style, ...props }: ComponentProps<typeof TextInput>) {
-  return <TextInput {...props} mode="outlined" style={[ui.input, style]} />;
+  const { ui, dark } = useFairBillTheme();
+  return <TextInput keyboardAppearance={dark ? 'dark' : 'light'} {...props} mode="outlined" style={[ui.input, style]} />;
+}
+
+export function CurrencyText({ children, ...props }: TextProps & { children: string }) {
+  return <Text {...props}>{children.split(/(₹)/).map((part, index) =>
+    part === '₹' ? <Text key={index} style={{ fontFamily: font.uiSans }}>{part}</Text> : part
+  )}</Text>;
 }
 
 export function ActionBar({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   return <Surface elevation={1} style={styles.actionBar}>
     <View style={styles.actionContent}>{children}</View>
   </Surface>;
@@ -30,6 +41,7 @@ export function ActionBar({ children }: { children: ReactNode }) {
 
 
 export function SectionHeader({ children }: { children: ReactNode }) {
+  const { ui } = useFairBillTheme();
   return <Text accessibilityRole="header" style={ui.heading}>{children}</Text>;
 }
 
@@ -38,10 +50,13 @@ export function Divider() {
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
+  const { ui } = useFairBillTheme();
   return <Card><Text style={ui.body}>{children}</Text></Card>;
 }
 
 export function LoadingState({ label }: { label: string }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const reduceMotion = useReducedMotion();
   return <View accessibilityLiveRegion="polite" accessibilityState={{ busy: true }} style={ui.stack}>
     <Text style={ui.label}>{label}</Text>
@@ -58,6 +73,8 @@ export function Mark({ size = 36 }: { size?: number }) {
 
 export function Button({ label, icon, onPress, busy = false, disabled = false, tone = 'primary' }:
   { label: string; icon?: Icon; onPress: () => void; busy?: boolean; disabled?: boolean; tone?: 'primary' | 'light' | 'ghost' | 'destructive' }) {
+  const { color } = useFairBillTheme();
+  const styles = useStyles();
   const mode = tone === 'ghost' ? 'outlined' : tone === 'primary' ? 'contained' : 'contained-tonal';
   return <MaterialButton mode={mode} accessibilityLabel={label}
     accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy}
@@ -71,12 +88,15 @@ export function Button({ label, icon, onPress, busy = false, disabled = false, t
 }
 
 export function IconButton({ label, icon, onPress }: { label: string; icon: Icon; onPress: () => void }) {
+  const styles = useStyles();
   return <MaterialIconButton mode="contained-tonal" accessibilityLabel={label} size={20} onPress={onPress}
     style={styles.iconButton}
     icon={({ size, color: foreground }) => <AppIcon name={icon} size={size} color={foreground} />} />;
 }
 
 export function Badge({ children, tone = 'green' }: { children: ReactNode; tone?: 'green' | 'amber' | 'neutral' }) {
+  const { color } = useFairBillTheme();
+  const styles = useStyles();
   const tint = tone === 'amber' ? color.tertiaryContainer : tone === 'green' ? color.secondaryContainer : color.surfaceContainer;
   return <View style={[styles.badge, { backgroundColor: tint }]}>
     <Text style={[styles.badgeText, { color: tone === 'amber' ? color.onTertiaryContainer : color.ink }]}>{children}</Text>
@@ -84,6 +104,8 @@ export function Badge({ children, tone = 'green' }: { children: ReactNode; tone?
 }
 
 export function Message({ text, onClose }: { text: string; onClose?: () => void }) {
+  const { color, ui } = useFairBillTheme();
+  const styles = useStyles();
   return (
     <View accessibilityRole="alert" style={styles.error}>
       <AppIcon name="alert-circle" size={18} color={color.onErrorContainer} />
@@ -97,6 +119,8 @@ export function Message({ text, onClose }: { text: string; onClose?: () => void 
 
 export function Sheet({ title, children, onClose, bottom = false, compact = false }:
   { title: string; children: ReactNode; onClose: () => void; bottom?: boolean; compact?: boolean }) {
+  const { ui, dark } = useFairBillTheme();
+  const styles = useStyles();
   const [reduceMotion, setReduceMotion] = useState(true);
   useEffect(() => {
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
@@ -104,7 +128,9 @@ export function Sheet({ title, children, onClose, bottom = false, compact = fals
     return () => subscription.remove();
   }, []);
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} visible transparent={bottom} onRequestClose={onClose}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} visible transparent={bottom} onRequestClose={onClose}
+      statusBarTranslucent={dark} navigationBarTranslucent={dark}>
+      {dark && <StatusBar style="light" />}
       <View style={bottom ? styles.backdrop : ui.grow}>
       <SafeAreaView style={bottom ? [styles.bottomSheet, compact && styles.compactSheet] : ui.safe} edges={bottom ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
         {bottom && <View style={styles.handle} importantForAccessibility="no" />}
@@ -119,7 +145,7 @@ export function Sheet({ title, children, onClose, bottom = false, compact = fals
   );
 }
 
-export const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   tonal: { backgroundColor: color.surfaceContainer, borderColor: 'transparent' },
   buttonContent: { minHeight: 48 },
   buttonText: { fontFamily: font.semibold, fontSize: 14, textAlign: 'center' },
@@ -134,8 +160,8 @@ export const styles = StyleSheet.create({
   error: { padding: 12, backgroundColor: color.errorContainer, flexDirection: 'row', gap: 8,
     borderRadius: 12, alignItems: 'center' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: color.backdrop },
-  bottomSheet: { height: '88%', backgroundColor: color.paper, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
+  bottomSheet: { height: '88%', backgroundColor: color.sheet, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
   compactSheet: { height: 'auto', maxHeight: '90%' },
   sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomColor: color.line,
     borderBottomWidth: 1, paddingTop: 6 },
-});
+}));

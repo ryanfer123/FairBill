@@ -1,8 +1,9 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { TouchableRipple } from 'react-native-paper';
 import type { CaptureMethod } from './document-picker';
 import { AppIcon, type IconName } from './icons';
-import { Button, Divider, color, ui } from './ui';
+import { Button, Divider } from './ui';
 
 const alternatives = [
   { method: 'file', label: 'Choose file from device', icon: 'upload' },
@@ -11,6 +12,8 @@ const alternatives = [
 
 export function CaptureOptions({ pending, disabled, onChoose }:
   { pending?: CaptureMethod; disabled: boolean; onChoose: (method: CaptureMethod) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   return <View style={styles.list}>
     <View style={styles.scan}>
       <Button label="Scan bill photo" icon="camera" busy={pending === 'camera'} disabled={disabled}
@@ -32,9 +35,9 @@ export function CaptureOptions({ pending, disabled, onChoose }:
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   list: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
   scan: { backgroundColor: color.surfaceContainer, gap: 8, padding: 14 },
   hint: { textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 9, minHeight: 56 },
-});
+}));

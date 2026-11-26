@@ -1,19 +1,20 @@
+import { useFairBillTheme } from './theme';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { color } from './theme';
 
 export type IllustrationName = 'receipt' | 'balance' | 'corrected' | 'evidence' | 'letter' | 'history' | 'settings'
   | 'cases' | 'confirm' | 'identity' | 'packet' | 'welcome' | 'signin' | 'scan';
 
-const tones: Record<IllustrationName, string> = {
-  receipt: color.secondaryContainer, balance: color.tertiaryContainer, corrected: color.secondaryContainer,
-  evidence: color.secondaryContainer, letter: color.tertiaryContainer, history: color.secondaryContainer,
-  settings: color.surfaceContainer, cases: color.secondaryContainer, confirm: color.tertiaryContainer,
-  identity: color.tertiaryContainer, packet: color.secondaryContainer, welcome: color.secondaryContainer,
-  signin: color.surfaceContainer, scan: color.secondaryContainer,
+const tones: Record<IllustrationName, 'secondaryContainer' | 'tertiaryContainer' | 'surfaceContainer'> = {
+  receipt: 'secondaryContainer', balance: 'tertiaryContainer', corrected: 'secondaryContainer',
+  evidence: 'secondaryContainer', letter: 'tertiaryContainer', history: 'secondaryContainer',
+  settings: 'surfaceContainer', cases: 'secondaryContainer', confirm: 'tertiaryContainer',
+  identity: 'tertiaryContainer', packet: 'secondaryContainer', welcome: 'secondaryContainer',
+  signin: 'surfaceContainer', scan: 'secondaryContainer',
 };
 
 function Receipt() {
+  const { color } = useFairBillTheme();
   return <>
     <Path d="M17 9h19l9 9v36l-5-3-5 3-5-3-5 3-5-3-5 3V12a3 3 0 0 1 2-3Z" fill={color.card} />
     <Path d="M36 9v10h9M21 23h11m-11 7h17m-17 7h10m-10 7h8" />
@@ -21,6 +22,7 @@ function Receipt() {
 }
 
 function Artwork({ name }: { name: IllustrationName }) {
+  const { color } = useFairBillTheme();
   switch (name) {
     case 'scan':
       return <>
@@ -73,10 +75,11 @@ function Artwork({ name }: { name: IllustrationName }) {
 }
 
 export function Illustration({ name, size = 52 }: { name: IllustrationName; size?: number }) {
+  const { color } = useFairBillTheme();
   return <View style={styles.art} accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none">
     <Svg viewBox="0 0 64 64" width={size} height={size} fill="none" stroke={color.primary}
       strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" accessible={false}>
-      <Circle cx={32} cy={32} r={28} fill={tones[name]} stroke="none" />
+      <Circle cx={32} cy={32} r={28} fill={color[tones[name]]} stroke="none" />
       <Artwork name={name} />
     </Svg>
   </View>;

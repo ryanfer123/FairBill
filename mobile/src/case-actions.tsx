@@ -1,14 +1,17 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { Illustration } from './illustrations';
 import { font } from './typography';
 import { AppIcon, type IconName } from './icons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Action, Case } from './api';
-import { Badge, Button, Divider, color, ui } from './ui';
+import { Badge, Button, Divider } from './ui';
 
 type Icon = IconName;
 
 function ActionRow({ title, label, detail, icon, busy, disabled, onPress }:
   { title: string; label: string; detail: string; icon: Icon; busy: boolean; disabled: boolean; onPress: () => void }) {
+  const { color, ui } = useFairBillTheme();
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={detail}
     accessibilityState={{ busy, disabled }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
@@ -30,6 +33,8 @@ function outreachStatus(data: Case, action: Action) {
 
 export function CaseActions({ data, busy, live, prepare, preview }:
   { data: Case; busy: string; live: boolean; prepare: (action: Action) => void; preview: () => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const letter = outreachStatus(data, 'letter');
   const call = outreachStatus(data, 'call');
   const letterSent = letter.receipt?.state === 'completed';
@@ -76,7 +81,7 @@ export function CaseActions({ data, busy, live, prepare, preview }:
   </>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
   preview: { backgroundColor: color.card, borderWidth: StyleSheet.hairlineWidth,
     borderColor: color.line, borderRadius: 12, padding: 14, marginBottom: 12, gap: 8 },
   paperCopy: { color: color.ink, fontFamily: font.editorial, fontSize: 19, lineHeight: 24 },
@@ -85,4 +90,4 @@ const styles = StyleSheet.create({
   row: { minHeight: 64, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 6 },
   icon: { backgroundColor: color.secondaryContainer, borderRadius: 12, padding: 10 },
   pressed: { opacity: 0.7 },
-});
+}));

@@ -1,3 +1,4 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { AppIcon } from './icons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,11 +13,13 @@ import { accountUser, cloudBuild } from './cloud-auth';
 import { deleteCase, request, type CasePage } from './api';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
-import { Button, Input, LoadingState, Message, Sheet, color, ui } from './ui';
+import { Button, Input, LoadingState, Message, Sheet } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
 export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBack }: { onStart: () => void; onDeleted: (id: string) => void; onBack?: () => void; onScroll: ScrollViewProps['onScroll']; clearance: number; onOpen: (id: string) => void }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   const scrollGesture = useMemo(() => Gesture.Native(), []);
   const [cases, setCases] = useState<CasePage['cases']>([]);
   const [after, setAfter] = useState<string | null>();
@@ -157,7 +160,7 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
         </View>
         {onBack && <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onBack}
           style={({ pressed }) => [styles.archiveBack, pressed && { opacity: 0.72 }]}>
-          <AppIcon name="arrow-left" size={23} color={color.paper} />
+          <AppIcon name="arrow-left" size={23} color={color.onCover} />
         </Pressable>}
       </View>
     </Animated.View>
@@ -213,10 +216,10 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
   </ScrollView></GestureDetector>;
 }
 
-const styles = StyleSheet.create({
-  cover: { padding: 20, borderRadius: 24, backgroundColor: color.primary, gap: 18 },
-  title: { color: color.paper, fontFamily: font.uiSans, fontSize: 40, lineHeight: 44 },
-  subtitle: { color: color.primaryContainer, fontFamily: font.regular, fontSize: 16, marginTop: 4 },
+const useStyles = themedStyles(({ color }) => StyleSheet.create({
+  cover: { padding: 20, borderRadius: 24, backgroundColor: color.cover, gap: 18 },
+  title: { color: color.onCover, fontFamily: font.uiSans, fontSize: 40, lineHeight: 44 },
+  subtitle: { color: color.coverMuted, fontFamily: font.regular, fontSize: 16, marginTop: 4 },
   filters: { flexDirection: 'row', borderBottomWidth: 1, borderColor: color.line },
   filter: { flex: 1, minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 5, paddingVertical: 6, borderBottomWidth: 3, borderColor: 'transparent' },
   selectedFilter: { borderColor: color.primary },
@@ -228,4 +231,4 @@ const styles = StyleSheet.create({
   archiveBack: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', padding: 22, gap: 10 },
   center: { textAlign: 'center' },
-});
+}));

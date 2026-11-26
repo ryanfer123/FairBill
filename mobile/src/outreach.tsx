@@ -1,15 +1,18 @@
+import { useFairBillTheme, themedStyles } from './theme';
 import { Illustration } from './illustrations';
 import { font } from './typography';
 import { AppIcon } from './icons';
 import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Action, Draft, Receipt } from './api';
-import { ActionBar, Badge, Button, Card, Divider, EmptyState, Input, Message, SectionHeader, Sheet, color, ui } from './ui';
+import { ActionBar, Badge, Button, Card, CurrencyText, Divider, EmptyState, Input, Message, SectionHeader, Sheet } from './ui';
 
 export type SimulationStep = 'start' | 'identity' | 'identity_failed' | 'finish';
 const speakerNames = { system: 'Call status', patient: 'Patient', advocate: 'Advocate', billing: 'Billing desk' };
 
 function Turn({ speaker, patient, children }: { speaker: string; patient?: boolean; children: ReactNode }) {
+  const { ui, color } = useFairBillTheme();
+  const styles = useStyles();
   return <View style={[styles.turn, patient && styles.patient]}>
     <View style={ui.row}>
       <AppIcon name={patient ? 'user' : 'message-circle'} size={15} color={color.primary} />
@@ -20,6 +23,8 @@ function Turn({ speaker, patient, children }: { speaker: string; patient?: boole
 }
 
 function Transcript({ draft, receipt }: { draft: Draft; receipt: Receipt }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const pending = receipt.state === 'awaiting_identity';
   const failed = receipt.outcome === 'identity_failed';
   return <View style={ui.stack}>
@@ -51,6 +56,8 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
   { action: Action; draft?: Draft; receipt?: Receipt; approved: boolean; busy: string; error: string; live?: boolean;
     onDismissError: () => void; onClose: () => void; onApprove: () => void;
     onSimulate: (step: SimulationStep) => void; onEdit?: (text: string) => Promise<void> }) {
+  const { ui } = useFairBillTheme();
+  const styles = useStyles();
   const call = action === 'call';
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
@@ -108,7 +115,7 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
           <Card>
             {editing ? <Input value={text} onChangeText={setText} label="Exact letter text"
               accessibilityLabel="Exact letter text" multiline maxLength={18000} style={styles.editor} />
-              : <Text selectable style={[ui.body, styles.exact, !call && styles.letter]}>{draft.text}</Text>}
+              : <CurrencyText selectable style={[ui.body, styles.exact, !call && styles.letter]}>{draft.text}</CurrencyText>}
             {onEdit && !receipt && !editing && <>
               <Divider />
               <Button label="Edit letter" icon="edit-2" tone="ghost" disabled={!!busy}
@@ -153,11 +160,11 @@ export function Outreach({ action, draft, receipt, approved, busy, error, live =
   </Sheet>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   turn: { padding: 15, borderRadius: 16, borderWidth: 1, borderColor: color.line, backgroundColor: color.card, gap: 6 },
   patient: { marginLeft: 22, borderColor: 'transparent', backgroundColor: color.secondaryContainer },
   identity: { ...ui.row, padding: 12, borderRadius: 16, backgroundColor: color.tertiaryContainer },
   letter: { fontFamily: font.editorial, fontSize: 20, lineHeight: 26 },
   exact: { color: color.ink },
   editor: { minHeight: 200 },
-});
+}));
