@@ -1,14 +1,15 @@
 import { AppIcon } from './icons';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
-import { TouchableRipple } from 'react-native-paper';
+import * as SecureStore from 'expo-secure-store';
+import { CaseListRow } from './case-list-row';
 import { CaseTray } from './case-tray';
-import { cloudBuild } from './cloud-auth';
+import { accountUser, cloudBuild } from './cloud-auth';
 import { deleteCase, request, type CasePage } from './api';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
-import { Button, LoadingState, Message, IconButton, color, ui } from './ui';
+import { Button, LoadingState, Message, Sheet, color, ui } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
@@ -19,53 +20,100 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
 
+  const [archive, setArchive] = useState<Set<string>>(new Set());
+  const [archiveView, setArchiveView] = useState(false);
+  const [options, setOptions] = useState<string>();
+  const [notice, setNotice] = useState('');
+  const acting = useRef(false);
+  const owner = cloudBuild ? accountUser()?.id : 'installation';
+  const archiveKey = useCallback((id: string) => {
+    if (!owner) throw new Error('Sign in to view archived cases.');
+    return `fairbill.archive.${owner}.${id}`;
+  }, [owner]);
+
   const load = useCallback(async (cursor?: string) => {
     setBusy(true);
     setError('');
     try {
       const page = await request<CasePage>(`/cases?limit=20${cursor ? `&after=${encodeURIComponent(cursor)}` : ''}`);
+      const states = await Promise.all(page.cases.map(async item =>
+        (await SecureStore.getItemAsync(archiveKey(item.id))) === '1' ? item.id : null));
+      setArchive(current => new Set([...(cursor ? current : []), ...states.filter((id): id is string => id !== null)]));
       setCases((items) => cursor ? [...items, ...page.cases] : page.cases);
       setAfter(page.next_after);
     } catch (cause) { setError((cause as Error).message); }
     finally { setBusy(false); }
-  }, []);
+  }, [archiveKey]);
 
   useEffect(() => { void load(); }, [load]);
 
+  async function toggleArchive(id: string) {
+    setOptions(undefined);
+    if (acting.current) return;
+    acting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const restore = archive.has(id);
+      if (restore) await SecureStore.deleteItemAsync(archiveKey(id));
+      else await SecureStore.setItemAsync(archiveKey(id), '1');
+      setArchive(current => {
+        const next = new Set(current);
+        if (restore) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setNotice(restore ? 'Case restored to your inbox.' : 'Case archived on this device.');
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setBusy(false); acting.current = false; }
+  }
+
   function confirmDelete(id: string) {
+    setOptions(undefined);
     Alert.alert(`Delete case ${id.slice(-6).toUpperCase()}?`, 'This permanently removes the bill, uploaded documents and review history.', [
       { text: 'Keep case', style: 'cancel' },
       { text: 'Delete case', style: 'destructive', onPress: async () => {
+        if (acting.current) return;
+        acting.current = true;
         setBusy(true);
         setError('');
         try {
           await deleteCase(id);
           setCases(items => items.filter(item => item.id !== id));
           onDeleted(id);
+          setNotice('Case deleted.');
+          if (archive.has(id)) await SecureStore.deleteItemAsync(archiveKey(id));
         } catch (cause) { setError((cause as Error).message); }
-        finally { setBusy(false); }
+        finally { setBusy(false); acting.current = false; }
       } },
     ]);
   }
 
-  const filtered = cases.filter((item) => filter === 'all'
+  const visible = cases.filter(item => archive.has(item.id) === archiveView);
+  const filtered = visible.filter((item) => filter === 'all'
     || (item.investigated_revision === item.revision) === (filter === 'complete'));
 
-  const inReview = cases.filter(item => item.investigated_revision !== item.revision).length;
+  const inReview = visible.filter(item => item.investigated_revision !== item.revision).length;
   return <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
     <Animated.View entering={enterShelf} style={styles.cover}>
       <View style={ui.between}>
         <View style={ui.grow}>
-          <Text accessibilityRole="header" style={styles.title}>Your cases</Text>
-          <Text style={styles.subtitle}>{cloudBuild ? 'Bill reviews in your account' : 'Bill reviews on this device'}</Text>
+          <Text accessibilityRole="header" style={styles.title}>{archiveView ? 'Archived cases' : 'Your cases'}</Text>
+          <Text style={styles.subtitle}>{archiveView ? 'Saved in the archive on this device' : 'Your hospital bill reviews'}</Text>
         </View>
-        <AppIcon name="folder" selected size={42} color={color.primaryContainer} />
+        <Pressable accessibilityRole="button" accessibilityLabel={archiveView ? 'Back to case inbox' : 'Open archived cases'}
+          onPress={() => { setArchiveView(!archiveView); setOptions(undefined); setFilter('all'); setNotice(''); }}
+          style={({ pressed }) => [styles.archiveButton, pressed && { opacity: 0.72 }]}>
+          <AppIcon name={archiveView ? 'folder' : 'archive'} size={21} color={color.primaryContainer} />
+          <Text style={styles.archiveLabel}>{archiveView ? 'Inbox' : 'Archive'}</Text>
+        </Pressable>
       </View>
     </Animated.View>
+    {!!notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
     <View style={styles.filters}>
       {([{ key: 'all', label: 'All' }, { key: 'open', label: 'In review' }, { key: 'complete', label: 'Reviewed' }] as const).map(tab => {
         const selected = filter === tab.key;
-        const count = tab.key === 'all' ? cases.length : tab.key === 'open' ? inReview : cases.length - inReview;
+        const count = tab.key === 'all' ? visible.length : tab.key === 'open' ? inReview : visible.length - inReview;
         return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected }}
           onPress={() => setFilter(tab.key)} style={[styles.filter, selected && styles.selectedFilter]}>
           <Text style={[styles.filterLabel, selected && styles.activeLabel]}>{tab.label}</Text>
@@ -75,39 +123,25 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted }: { 
     </View>
     {error ? <><Message text={error} /><Button label="Retry" icon="refresh-cw" onPress={() => void load(after || undefined)} /></> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
-      {filtered.map(item => {
-        const reviewed = item.investigated_revision === item.revision;
-        const reference = item.id.slice(-6).toUpperCase();
-        const title = item.sample ? 'Sample investigation' : 'Hospital bill';
-        const status = reviewed ? 'Reviewed' : 'In review';
-        return <View key={item.id} style={[styles.card, ui.row]}><TouchableRipple accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
-          disabled={busy} onPress={() => onOpen(item.id)} style={ui.grow}>
-          <View style={styles.file}>
-            <View style={[styles.spine, reviewed && styles.finishedSpine]} />
-            <View style={[styles.stamp, !reviewed && styles.openStamp]}>
-              <AppIcon name={reviewed ? 'shield' : 'receipt'} size={25} color={reviewed ? color.primary : color.question} />
-            </View>
-            <View style={ui.grow}>
-              <Text style={styles.reference}>CASE {reference}</Text>
-              <Text style={styles.fileTitle}>{title}</Text>
-              <Text style={[styles.status, reviewed && styles.finishedText]}>{status}</Text>
-            </View>
-            <AppIcon name="chevron-right" size={18} color={color.muted} />
-          </View>
-        </TouchableRipple>
-          {!busy && <IconButton label={`Delete case ${reference}`} icon="trash-2" onPress={() => confirmDelete(item.id)} />}
-        </View>;
-      })}
+      {filtered.map(item => <CaseListRow key={item.id} item={item} archived={archiveView} disabled={busy}
+        onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)} onArchive={() => void toggleArchive(item.id)}
+        onDelete={() => confirmDelete(item.id)} />)}
       {!busy && !error && !filtered.length && <View style={styles.empty}>
         <CaseTray />
-        <Text style={ui.heading}>{!cases.length ? 'No cases yet' : filter === 'complete' ? 'No reviewed cases here' : 'No cases in review here'}</Text>
-        <Text style={[ui.body, styles.center]}>{!cases.length ? 'Your saved hospital bills will appear here.'
-          : after ? 'Load more cases to check the next page.' : 'Change the filter to see your other bills.'}</Text>
-        {!cases.length && <Button label="Start a bill review" onPress={onStart} />}
+        <Text style={ui.heading}>{archiveView && filter === 'all' ? 'No archived cases here' : !visible.length && filter === 'all' ? 'No cases in your inbox' : filter === 'complete' ? 'No reviewed cases here' : 'No cases in review here'}</Text>
+        <Text style={[ui.body, styles.center]}>{after ? 'Load more cases to check the next page.' : archiveView && filter === 'all' ? 'Swipe a case right to archive it here.' : !visible.length ? 'New bill reviews will appear here.' : 'Change the filter to see your other bills.'}</Text>
+        {!archiveView && !visible.length && !after && <Button label="Start a bill review" onPress={onStart} />}
       </View>}
     </Animated.View>
     {busy && <LoadingState label="Loading cases" />}
     {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
+    {options && <Sheet title={`Case ${options.slice(-6).toUpperCase()}`} bottom onClose={() => setOptions(undefined)}>
+      <View style={ui.content}>
+        <Button label={archive.has(options) ? 'Restore to inbox' : 'Archive on this device'}
+          icon={archive.has(options) ? 'restore' : 'archive'} tone="light" onPress={() => void toggleArchive(options)} />
+        <Button label="Delete case" icon="trash-2" tone="destructive" onPress={() => confirmDelete(options)} />
+      </View>
+    </Sheet>}
   </ScrollView>;
 }
 
@@ -121,17 +155,10 @@ const styles = StyleSheet.create({
   filterLabel: { fontFamily: font.semibold, color: color.muted, fontSize: 15 },
   tally: { fontFamily: font.mono, fontSize: 12, color: color.muted },
   activeLabel: { color: color.primary },
-  stamp: { width: 45, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: color.primaryContainer },
-  openStamp: { backgroundColor: color.tertiaryContainer },
-  shelf: { gap: 10 },
-  card: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 17, overflow: 'hidden' },
-  file: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-  spine: { position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 2, backgroundColor: color.question },
-  finishedSpine: { backgroundColor: color.primary },
-  reference: { color: color.muted, fontFamily: font.mono, fontSize: 12, letterSpacing: 0.5 },
-  fileTitle: { color: color.ink, fontFamily: font.display, fontSize: 24, lineHeight: 29 },
-  status: { color: color.question, fontFamily: font.semibold, fontSize: 14 },
-  finishedText: { color: color.primary },
+  shelf: { overflow: 'hidden', backgroundColor: color.card, borderRadius: 18, borderColor: color.line, borderWidth: StyleSheet.hairlineWidth },
+  notice: { color: color.primary, fontFamily: font.medium },
+  archiveButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48, minWidth: 64, padding: 6, borderRadius: 16, borderWidth: 1, borderColor: color.inversePrimary },
+  archiveLabel: { color: color.primaryContainer, fontSize: 12, fontFamily: font.semibold },
   empty: { alignItems: 'center', padding: 22, gap: 10 },
   center: { textAlign: 'center' },
 });

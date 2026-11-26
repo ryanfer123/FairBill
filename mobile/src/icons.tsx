@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 type Glyph = ComponentProps<typeof Ionicons>['name'];
 
 const glyphs = {
+  archive: 'archive-outline', restore: 'arrow-undo-outline', more: 'ellipsis-horizontal',
   'alert-circle': 'alert-circle-outline', 'arrow-left': 'arrow-back', 'arrow-right': 'arrow-forward',
   'arrow-up-right': 'arrow-forward', camera: 'camera-outline', check: 'checkmark',
   'check-circle': 'checkmark-circle-outline', 'check-square': 'checkbox-outline',
