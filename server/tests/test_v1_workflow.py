@@ -346,6 +346,36 @@ def test_cancel_before_and_after_import(client, tmp_path):
         assert not db.execute("SELECT 1 FROM request_replays_v1 WHERE response LIKE '%TOTAL|T|Payable|18%'").fetchall()
 
 
+def test_pdf_upload_retry_keeps_the_same_pending_document_after_another_attachment(client, tmp_path):
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    import_id = "1" * 32
+    with pymupdf.open() as source:
+        page = source.new_page()
+        page.insert_text((48, 72), "CHARGE | cbc | Blood count | CBC | 2026-11-01 | 1 | 500.00 | 500.00")
+        blob = source.tobytes()
+
+    def upload():
+        return client.post(path + "/documents/file",
+                           data={"kind": "invoice", "revision": case["revision"]},
+                           files={"file": ("fictional-invoice.pdf", blob, "application/pdf")},
+                           headers={"Idempotency-Key": "import-" + import_id})
+
+    first = upload()
+    assert first.status_code == 200, first.text
+    assert first.json()["documents"][0]["id"] == import_id
+    with_order = operation(client, first.json(), "documents/text", kind="service_record",
+                           text="ORDER|order-1|CBC|2026-11-01|1")
+    assert len(with_order["documents"]) == 2
+    replay = upload()
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["documents"][0]["id"] == import_id
+    current = client.get(path).json()
+    assert current["revision"] == with_order["revision"]
+    assert sum(doc["id"] == import_id for doc in current["documents"]) == 1
+    assert len(list((tmp_path / "originals").rglob(import_id))) == 1
+
+
 def test_patient_pdf_and_new_lab_order_keep_separate_quantity_question(client):
     invoice = (
         "CHARGE | cbc1 | Blood count | CBC | 2026-11-01 | 1 | 500.00 | 500.00",

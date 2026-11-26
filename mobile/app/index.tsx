@@ -13,13 +13,14 @@ import { ActivityIndicator, TouchableRipple } from 'react-native-paper';
 import { documentForm, pickDocument, type PickedDocument, type CaptureMethod } from '../src/document-picker';
 import { ConnectionStatus } from '../src/connection';
 import { rememberDocumentPreview } from '../src/document-preview';
+import { importedDocument } from '../src/import-result';
 import { dockTiming, highlightReveal, surfaceReveal } from '../src/motion';
 import { AccountSettings } from '../src/account';
 import { FirstBillGuide, useFirstBillGuide } from '../src/first-run';
 import { GuestReview } from '../src/guest-review';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
-import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
+import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, newImportId, postCase, rememberCase } from '../src/api';
 import { Button, Card, Divider, Input, Message, SectionHeader, Sheet } from '../src/ui';
 
 const destinations = [
@@ -103,7 +104,7 @@ export default function Home() {
   const [recent, setRecent] = useState<Case | null>(null);
   const [busy, setBusy] = useState<CaptureMethod | 'paste' | 'sample' | null>(null);
   const [scanning, setScanning] = useState<PickedDocument | null>(null);
-  const [failedFile, setFailedFile] = useState<{ method: CaptureMethod; asset: PickedDocument; message: string }>();
+  const [failedFile, setFailedFile] = useState<{ method: CaptureMethod; asset: PickedDocument; message: string; importId: string }>();
   const [guest, setGuest] = useState(false);
   const [capture, setCapture] = useState<'upload' | 'paste' | null>(null);
   const [text, setText] = useState('');
@@ -119,6 +120,7 @@ export default function Home() {
     uploadControl.current?.abort();
     setDiscarding(true);
   }
+  const pasteAttempt = useRef<{ text: string; id: string } | undefined>(undefined);
   const blank = useRef<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState<'cases' | 'check' | 'settings'>('check');
@@ -175,7 +177,7 @@ export default function Home() {
   const open = (id: string, options?: { document?: string }) =>
     router.push({ pathname: '/case/[id]', params: { id, ...options } });
 
-  async function start(action: CaptureMethod | 'paste' | 'sample', selected?: PickedDocument) {
+  async function start(action: CaptureMethod | 'paste' | 'sample', selected?: PickedDocument, retryImportId?: string) {
     if (importing.current) return;
     importing.current = true;
     committedImport.current = false;
@@ -184,6 +186,10 @@ export default function Home() {
     setBusy(action);
     setError('');
     let asset = selected;
+    const pasted = text.trim();
+    const importId = retryImportId ?? (action === 'paste' && pasteAttempt.current?.text === pasted
+      ? pasteAttempt.current.id : newImportId());
+    let usesVersionedApi = false;
     try {
       if (action === 'sample') {
         if (cloudBuild) return;
@@ -195,8 +201,11 @@ export default function Home() {
       if (hostedBuild) return;
       if (action !== 'paste' && !asset) asset = await pickDocument(action);
       if (action !== 'paste' && !asset) return;
-      if (action === 'paste' && !text.trim()) return;
+      if (action === 'paste' && !pasted) return;
       if (asset) { setFailedFile(undefined); setScanStage('preparing'); setScanning(asset); }
+      usesVersionedApi = (await getBackend()).prefix === '/v1';
+      if (discarded.current) return;
+      if (action === 'paste') pasteAttempt.current = { text: pasted, id: importId };
       if (!blank.current) blank.current = await createCase(false);
       if (discarded.current) return;
       const { id, revision } = blank.current;
@@ -206,15 +215,16 @@ export default function Home() {
       uploadControl.current = new AbortController();
       const signal = uploadControl.current.signal;
       const result = form
-        ? await postCase(`/cases/${id}/documents/file`, form, undefined, signal)
-        : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text }, undefined, signal);
+        ? await postCase(`/cases/${id}/documents/file`, form, importId, signal)
+        : await postCase(`/cases/${id}/documents/text`, { kind: 'invoice', revision, text: pasted }, importId, signal);
       if (discarded.current) return;
       committedImport.current = true;
       blank.current = null;
       await rememberCase(result.id).catch(() => undefined);
       setText('');
       setCapture(null);
-      const imported = result.documents.at(-1);
+      pasteAttempt.current = undefined;
+      const imported = importedDocument(result.documents, 'invoice', importId, usesVersionedApi);
       if (asset && imported) rememberDocumentPreview(result.id, imported.id, asset);
       open(result.id, { document: imported?.id });
     } catch (cause) {
@@ -222,9 +232,11 @@ export default function Home() {
       if (action !== 'sample' && cause instanceof ApiError && cause.status === 409 && blank.current) {
         try {
           const current = await getCase(blank.current.id);
-          const uploaded = current.documents.find((document) => document.kind === 'invoice' && !document.confirmed);
+          const uploaded = usesVersionedApi ? importedDocument(current.documents, 'invoice', importId, true) : undefined;
           if (discarded.current) return;
           if (uploaded) {
+            pasteAttempt.current = undefined;
+            if (asset) rememberDocumentPreview(current.id, uploaded.id, asset);
             committedImport.current = true;
             blank.current = null;
             await rememberCase(current.id).catch(() => undefined);
@@ -236,10 +248,11 @@ export default function Home() {
         } catch { /* Show the original request error. */ }
       }
       const message = (cause as Error).message;
-      if (asset && action !== 'paste' && action !== 'sample') setFailedFile({ method: action, asset, message });
+      if (asset && action !== 'paste' && action !== 'sample') setFailedFile({ method: action, asset, message, importId });
       else setError(message);
     } finally {
       if (discarded.current) {
+        pasteAttempt.current = undefined;
         const current = blank.current;
         blank.current = null;
         setCapture(null);
@@ -373,7 +386,7 @@ export default function Home() {
         {scanning ? <ScanPreview asset={scanning} stage={scanStage} discarding={discarding} onDiscard={discardImport} />
           : failedFile ? <ScanPreview asset={failedFile.asset} stage={scanStage} discarding={false} onDiscard={discardImport}
             recovery={{ message: failedFile.message, replaceLabel: failedFile.method === 'camera' ? 'Retake photo' : 'Choose another file',
-              onRetry: () => void start(failedFile.method, failedFile.asset),
+              onRetry: () => void start(failedFile.method, failedFile.asset, failedFile.importId),
               onReplace: () => failedFile.method === 'camera' ? void start('camera') : chooseCapture('upload'),
               onPaste: () => chooseCapture('paste') }} />
           : <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

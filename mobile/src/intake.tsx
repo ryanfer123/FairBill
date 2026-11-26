@@ -303,7 +303,10 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
             <View style={ui.grow}>
               <Text style={ui.label}>{mediaType === 'application/pdf' ? 'Imported PDF'
                 : mediaType?.startsWith('image/') ? 'Captured or imported image' : 'Pasted document text'}</Text>
-              <Text style={ui.small}>{doc.confirmed ? 'Compare with the source below.' : 'Compare each line with the bill before confirming.'}</Text>
+              <Text style={ui.small}>{photo ? 'Compare each line with the original image.'
+                : mediaType === 'application/pdf' || mediaType?.startsWith('image/')
+                ? 'Keep your original bill handy. FairBill can show extracted text here, not the original file.'
+                : doc.confirmed ? 'Compare with the source below.' : 'Compare each line with the bill before confirming.'}</Text>
             </View>
           </View>
           {photo ? <>

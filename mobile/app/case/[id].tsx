@@ -9,6 +9,7 @@ import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-n
 import { TouchableRipple } from 'react-native-paper';
 import { EvidenceDocuments } from '../../src/evidence-documents';
 import { documentPreview, rememberDocumentPreview } from '../../src/document-preview';
+import { importedDocument } from '../../src/import-result';
 import type { ScanStage } from '../../src/scan-preview';
 import { Illustration } from '../../src/illustrations';
 import { CaseActions } from '../../src/case-actions';
@@ -161,7 +162,9 @@ export default function CaseScreen() {
     cancelRequested.current = false;
     setDiscarding(false);
     setBusy('import');
-    const importRevision = fileAttempt.current?.id === importId ? fileAttempt.current.revision : revision;
+    const previousAttempt = fileAttempt.current;
+    const retrying = previousAttempt?.id === importId;
+    const importRevision = retrying ? previousAttempt.revision : revision;
     if (typeof source !== 'string') fileAttempt.current = { id: importId, revision: importRevision };
     let submitted = false;
     try {
@@ -171,15 +174,22 @@ export default function CaseScreen() {
       submitted = true;
       uploadControl.current = new AbortController();
       const signal = uploadControl.current.signal;
-      const result = form
+      const uploaded = form
         ? await postCase(`/cases/${id}/documents/file`, form, importId, signal)
         : await postCase(`/cases/${id}/documents/text`, { kind, revision, text: source }, importId, signal);
+      // A replay can return the earlier snapshot, before changes on another device.
+      const result = retrying && versioned && !cancelRequested.current ? await getCase(id) : uploaded;
       if (!cancelRequested.current) {
         fileAttempt.current = undefined;
-        const imported = result.documents.at(-1);
-        if (imported && typeof source !== 'string') rememberDocumentPreview(result.id, imported.id, source);
+        const imported = importedDocument(result.documents, kind, importId, versioned);
         setData(result);
-        reviewNew(result);
+        if (!imported) {
+          setOverlay(undefined);
+          setError('The case changed during import. Check Evidence for the current documents.');
+          return;
+        }
+        if (typeof source !== 'string') rememberDocumentPreview(result.id, imported.id, source);
+        setOverlay({ type: 'review', id: imported.id });
       }
     } catch (cause) {
       if (!cancelRequested.current) {
