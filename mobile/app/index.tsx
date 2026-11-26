@@ -13,7 +13,7 @@ import { AccountSettings } from '../src/account';
 import { cloudBuild } from '../src/cloud-auth';
 import { font } from '../src/typography';
 import { ApiError, type Case, createCase, deleteCase, forgetCase, getCase, getBackend, hostedBuild, lastCase, money, postCase, rememberCase } from '../src/api';
-import { Button, Card, Divider, Input, Mark, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
+import { Button, Card, Divider, Input, Message, SectionHeader, Sheet, color, ui } from '../src/ui';
 
 const destinations = [
   { key: 'cases', title: 'Cases', icon: 'folder' },
@@ -235,17 +235,19 @@ export default function Home() {
   return (
     <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
       <View style={[ui.between, styles.appBar]}>
-        <View style={styles.signature} accessible accessibilityLabel="FairBill">
-          <Mark size={40} />
-          <Text style={styles.brand}>Fair<Text style={styles.brandAccent}>Bill</Text></Text>
+        <Text accessibilityRole="header" style={styles.brand}>Fair<Text style={styles.brandAccent}>Bill</Text></Text>
+        <View style={styles.headerActions}>
+          {!hostedBuild && <Pressable accessibilityRole="button" accessibilityLabel="Open bill scanner"
+            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => { setDestination('check'); void start('camera'); }}
+            style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
+            <AppIcon name="maximize" color={color.ink} size={26} />
+          </Pressable>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Open account settings"
+            disabled={!!busy} accessibilityState={{ disabled: !!busy }} onPress={() => setDestination('settings')}
+            style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
+            <AppIcon name="user" color={color.ink} size={25} />
+          </Pressable>
         </View>
-        {!hostedBuild && <Pressable accessibilityRole="button" accessibilityLabel="Open bill scanner"
-          disabled={!!busy} accessibilityState={{ disabled: !!busy }} hitSlop={4}
-          onPress={() => { setDestination('check'); void start('camera'); }}
-          style={({ pressed }) => [styles.headerAction, pressed && styles.headerPressed]}>
-          <AppIcon name="maximize" color={color.paper} size={19} />
-          <Text style={styles.headerActionText}>Scan</Text>
-        </Pressable>}
       </View>
       {destination === 'check' && <ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, styles.homeContent, { paddingBottom: clearance }]}>
         {error && !capture ? <Message text={error} onClose={() => setError('')} /> : null}
@@ -344,13 +346,13 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  appBar: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 5, backgroundColor: color.onPrimaryContainer },
-  signature: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: 8 },
-  brand: { flexShrink: 1, fontFamily: font.uiSans, fontSize: 34, letterSpacing: -1.2, color: color.paper },
-  brandAccent: { color: color.inversePrimary },
-  headerAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 44, gap: 7, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: color.primary },
-  headerActionText: { fontFamily: font.uiSans, fontSize: 15, color: color.paper },
-  headerPressed: { backgroundColor: color.primary },
+  appBar: { minHeight: 58, paddingStart: 18, paddingEnd: 8, paddingVertical: 4, backgroundColor: color.paper,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
+  brand: { flexShrink: 1, fontFamily: font.uiSans, fontSize: 32, letterSpacing: -1.4, color: color.ink },
+  brandAccent: { color: color.primary },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  headerAction: { alignItems: 'center', justifyContent: 'center', minWidth: 46, minHeight: 46, borderRadius: 23 },
+  headerPressed: { backgroundColor: color.surfaceContainer },
   homeContent: { gap: 20, paddingTop: 16 },
   scanPanel: { backgroundColor: color.primary, borderRadius: 26, padding: 22, gap: 16 },
   scanTop: { gap: 17, alignItems: 'flex-start' },
