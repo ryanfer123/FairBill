@@ -139,6 +139,8 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
   const styles = useStyles();
   const [rows, setRows] = useState(doc.rows);
   const [source, setSource] = useState(!doc.rows.length);
+  const [addLines, setAddLines] = useState(false);
+  const [readingNotes, setReadingNotes] = useState(false);
   const [openLine, setOpenLine] = useState<string | null>(initialRowId ?? null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [fields, setFields] = useState<EditFields | null>(null);
@@ -153,6 +155,9 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
   const photo = original?.type.startsWith('image/') && !previewUnavailable ? original : undefined;
   const hasSourceText = doc.pages.some(page => page.trim());
   const chargeCount = rows.filter(row => row.type === 'charge').length;
+  const title = doc.confirmed ? 'Document lines' : doc.kind === 'invoice' ? 'Check your charges' : 'Check the extracted lines';
+  const sourceLabel = mediaType === 'application/pdf' ? 'Imported PDF'
+    : mediaType?.startsWith('image/') ? 'Scanned or imported image' : 'Pasted text';
 
   function returnToRow(rowId: string) {
     Keyboard.dismiss();
@@ -282,48 +287,18 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
   return <Sheet title={doc.id === 'second-order' ? 'Second lab order' : KINDS[doc.kind]} onClose={close}>
     <KeyboardAvoidingView style={ui.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scroll} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        <Animated.View entering={evidenceReveal} style={styles.intro}>
-          <Illustration name={selectedRow ? 'evidence' : 'confirm'} size={48} />
-          <View style={styles.introText}>
-            <Text accessibilityRole="header" style={ui.title}>{doc.confirmed ? 'Document lines' : doc.kind === 'invoice' ? 'Review extracted charges' : 'Review extracted lines'}</Text>
-            <View style={styles.metadata}>
-              <Text style={ui.small}>{doc.kind === 'invoice' ? `${chargeCount} ${chargeCount === 1 ? 'charge' : 'charges'}` : `${rows.length} ${rows.length === 1 ? 'line' : 'lines'}`}</Text>
-              <Text accessibilityElementsHidden importantForAccessibility="no" style={ui.small}>·</Text>
-              <Text style={ui.small}>{doc.pages.length} {doc.pages.length === 1 ? 'source page' : 'source pages'}</Text>
-            </View>
+        <Animated.View entering={evidenceReveal} style={styles.introText}>
+          <View style={styles.metadata}>
+            <Text accessibilityRole="header" style={styles.reviewTitle}>{title}</Text>
             {(changed || editing || doc.confirmed) && <Badge tone={changed || editing ? 'amber' : 'green'}>
               {changed || editing ? 'Unsaved' : 'Confirmed'}
             </Badge>}
           </View>
+          <Text style={ui.small}>{!doc.confirmed && !readOnly
+            ? 'Compare with your bill. Tap the pencil to fix a line.'
+            : doc.kind === 'invoice' ? `${chargeCount} ${chargeCount === 1 ? 'charge' : 'charges'}`
+            : `${rows.length} ${rows.length === 1 ? 'line' : 'lines'}`}</Text>
         </Animated.View>
-        <Card>
-          <View style={styles.sourceSummary}>
-            {photo && <Image source={{ uri: photo.uri }} resizeMode="contain" style={styles.thumbnail}
-              accessibilityLabel="Captured bill thumbnail" onError={() => setPreviewUnavailable(true)} />}
-            <View style={ui.grow}>
-              <Text style={ui.label}>{mediaType === 'application/pdf' ? 'Imported PDF'
-                : mediaType?.startsWith('image/') ? 'Captured or imported image' : 'Pasted document text'}</Text>
-              <Text style={ui.small}>{photo ? 'Compare each line with the original image.'
-                : mediaType === 'application/pdf' || mediaType?.startsWith('image/')
-                ? 'Keep your original bill handy. FairBill can show extracted text here, not the original file.'
-                : doc.confirmed ? 'Compare with the source below.' : 'Compare each line with the bill before confirming.'}</Text>
-            </View>
-          </View>
-          {photo ? <>
-            <Button label={showOriginal ? 'Hide original image' : 'View original image'} tone="light" icon="image"
-              onPress={() => setShowOriginal(!showOriginal)} />
-            {showOriginal && <Image source={{ uri: photo.uri }} resizeMode="contain" style={styles.originalImage}
-              accessibilityLabel="Original bill image" onError={() => setPreviewUnavailable(true)} />}
-          </> : null}
-          {hasSourceText && <View>
-            <Disclosure label={source ? 'Hide extracted text' : 'Show extracted text'} open={source} onToggle={() => setSource(!source)}>
-              {doc.pages.map((page, index) => <View key={index} style={styles.original}>
-                <Text style={ui.kicker}>Page {index + 1}</Text>
-                <CurrencyText selectable style={styles.raw}>{page.trim() ? page.split(/\r?\n/).map((line, i) => `${i + 1}  ${line}`).join('\n') : 'No text found'}</CurrencyText>
-              </View>)}
-            </Disclosure>
-          </View>}
-        </Card>
         {selectedRow && <Animated.View entering={evidenceReveal} style={[ui.stack, styles.highlight]}>
           <Text style={ui.label}>Linked source · Page {selectedRow.page}, line {selectedRow.line}</Text>
           <CurrencyText selectable style={ui.body}>{doc.pages[selectedRow.page - 1]?.split(/\r?\n/)[selectedRow.line - 1] || 'No text found on this line.'}</CurrencyText>
@@ -334,7 +309,7 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
             const isOpen = openLine === row.id;
             const flagged = doc.notes.some((note) => note.startsWith(`Page ${row.page}, line ${row.line} `));
             const units = row.units === null ? '' : `${row.units} ${row.units === 1 ? 'unit' : 'units'}`;
-            const detail = [units && row.unit_price !== null ? `${units} × ${money(row.unit_price)}` : units,
+            const detail = [units && row.unit_price !== null && (row.units !== 1 || row.unit_price !== row.amount) ? `${units} × ${money(row.unit_price)}` : units,
               isTotal || row.type === 'charge' ? '' : ROW_LABEL[row.type], flagged ? 'Needs review' : '',
               row.received === false ? 'Service not received' : ''].filter(Boolean).join(' · ');
             return <View key={row.id} style={[index > 0 && styles.lineRule, isTotal && styles.totalStrip]}
@@ -385,16 +360,33 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
               void onReplace().catch((cause) => setError((cause as Error).message));
             }} />}
         </View>}
-        {doc.notes.length > 0 && <View style={styles.notes}>
-          <AppIcon name="alert-circle" size={17} color={color.question} />
-          <View style={[ui.grow, {gap: 4}]}>
-            {doc.notes.slice(0, source ? undefined : 1).map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
-            {!source && doc.notes.length > 1 && <Text style={ui.small}>Open extracted text for all {doc.notes.length} notes.</Text>}
-          </View>
-        </View>}
-          {editing && !editingExisting && <View style={ui.card}>{editor}</View>}
-          {!readOnly && ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
-            tone="ghost" disabled={busy || !!editing} onPress={() => add(type)} />)}
+        {editing && !editingExisting && <View style={ui.card}>{editor}</View>}
+        {!readOnly && !editing && <Disclosure label={addLines ? 'Hide add line options' : 'Add a missing line'}
+          open={addLines} onToggle={() => setAddLines(!addLines)}>
+          {ROWS[doc.kind].map((type) => <Button key={type} label={`Add ${ROW_LABEL[type].toLowerCase()}`} icon="plus"
+            tone="ghost" disabled={busy} onPress={() => add(type)} />)}
+        </Disclosure>}
+        <Card>
+          <Text style={ui.label}>{sourceLabel}</Text>
+          {photo && <>
+            <Button label={showOriginal ? 'Hide original image' : 'View original image'} tone="light" icon="image"
+              onPress={() => setShowOriginal(!showOriginal)} />
+            {showOriginal && <Image source={{ uri: photo.uri }} resizeMode="contain" style={styles.originalImage}
+              accessibilityLabel="Original bill image" onError={() => setPreviewUnavailable(true)} />}
+          </>}
+          {!photo && (mediaType === 'application/pdf' || mediaType?.startsWith('image/')) && hasSourceText &&
+            <Text style={ui.small}>Only extracted text is available here. Keep the original bill handy.</Text>}
+          {hasSourceText && <Disclosure label={source ? 'Hide extracted text' : 'Show extracted text'} open={source} onToggle={() => setSource(!source)}>
+            {doc.pages.map((page, index) => <View key={index} style={styles.original}>
+              <Text style={ui.kicker}>Page {index + 1}</Text>
+              <CurrencyText selectable style={styles.raw}>{page.trim() ? page.split(/\r?\n/).map((line, i) => `${i + 1}  ${line}`).join('\n') : 'No text found'}</CurrencyText>
+            </View>)}
+          </Disclosure>}
+        </Card>
+        {doc.notes.length > 0 && <Disclosure label={readingNotes ? 'Hide reading notes' : `Reading notes (${doc.notes.length})`}
+          open={readingNotes} onToggle={() => setReadingNotes(!readingNotes)}>
+          {doc.notes.map((note, index) => <Text key={index} style={ui.small}>{note}</Text>)}
+        </Disclosure>}
           {error && !editing ? <Message text={error} /> : null}
           {!readOnly && !doc.confirmed && <Button label="Discard unconfirmed import" icon="trash-2" tone="destructive"
             disabled={busy || !!editing} onPress={() => void discard()} />}
@@ -408,15 +400,13 @@ export function Review({ doc, busy, onClose, onConfirm, onDiscard, onReplace, or
 }
 
 const useStyles = themedStyles(({ color }) => StyleSheet.create({
-  intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  introText: { flex: 1, gap: 6 },
+  introText: { gap: 6 },
+  reviewTitle: { color: color.ink, fontFamily: font.uiSans, fontSize: 30, lineHeight: 36 },
   metadata: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
   ledger: { backgroundColor: color.card, borderWidth: 1, borderColor: color.line, borderRadius: 18, overflow: 'hidden' },
   lineRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: color.line },
   rowActions: { flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
   lineWarning: { paddingHorizontal: 16, paddingBottom: 8 },
-  sourceSummary: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  thumbnail: { width: 56, height: 56, borderRadius: 8, backgroundColor: color.surfaceContainer },
   originalImage: { width: '100%', height: 300, backgroundColor: color.surfaceContainer, borderRadius: 12 },
   ledgerLine: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 15, gap: 8, minHeight: 60 },
   lineSummary: { flexGrow: 1, flexBasis: 125, gap: 3 },
@@ -429,7 +419,6 @@ const useStyles = themedStyles(({ color }) => StyleSheet.create({
   quote: { borderLeftWidth: 2, borderLeftColor: color.primary, paddingLeft: 10, fontFamily: font.regular, color: color.ink, fontSize: 15, lineHeight: 21 },
   received: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
   pressed: { opacity: 0.7 },
-  notes: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2 },
   empty: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: color.line, paddingVertical: 17, gap: 6 },
   original: { gap: 5 },
   raw: { fontFamily: font.mono, fontSize: 13, lineHeight: 20, color: color.ink },
