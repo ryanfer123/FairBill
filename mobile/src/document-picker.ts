@@ -50,7 +50,7 @@ export async function documentForm(kind: Kind, revision: number, asset: PickedDo
   form.append('revision', String(revision));
   const file = new File(asset.uri);
   form.append('file', file);
-  if (deviceReader && ['image/jpeg', 'image/png'].includes(asset.type) && file.size <= 10 * 1024 * 1024) {
+  if (kind === 'invoice' && deviceReader && ['image/jpeg', 'image/png'].includes(asset.type) && file.size <= 10 * 1024 * 1024) {
     // Send the original in the same request even if the device cannot transcribe it.
     const text = await deviceReader.readImage(asset.uri).catch(() => null);
     if (text) form.append('device_ocr_text', text);
