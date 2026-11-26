@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ScanPreview, type ScanStage } from '../src/scan-preview';
 import { Illustration } from '../src/illustrations';
 import { CaseList } from '../src/cases';
@@ -29,7 +30,7 @@ const destinations = [
 type Destination = typeof destinations[number]['key'];
 
 function TabDock({ current, busy, compact, bottom, typing, onSelect }: { compact: boolean; bottom: number; current: Destination; busy: boolean; typing: boolean; onSelect: (tab: Destination) => void }) {
-  const { color } = useFairBillTheme();
+  const { color, dark } = useFairBillTheme();
   const styles = useStyles();
   const { width, fontScale } = useWindowDimensions();
   const narrow = compact && fontScale <= 1.3;
@@ -40,21 +41,36 @@ function TabDock({ current, busy, compact, bottom, typing, onSelect }: { compact
     start: withTiming(`${index * 100 / destinations.length}%` as `${number}%`, dockTiming),
   }));
   if (typing) return null;
-  return <Animated.View style={[styles.dock, { bottom }, size]}>
-    <View style={styles.tabTrack}>
-      <Animated.View pointerEvents="none" style={[styles.selection, slide]} />
-      {destinations.map(tab => {
-        const selected = tab.key === current;
-        const tint = selected ? color.primary : color.muted;
-        return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
-          accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
-          style={styles.tab}>
-          {({ pressed }) => <View style={[styles.tabContents, pressed && styles.tabPressed]}>
-            <AppIcon name={tab.icon} selected={selected} color={tint} size={22} />
-            {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
-          </View>}
-        </Pressable>;
-      })}
+  return <Animated.View style={[styles.dockPosition, { bottom }, size]}>
+    <View style={[styles.dockSurround, { bottom: -bottom }]} pointerEvents="none" accessible={false}
+      accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="dock-surround" cx="50%" cy="53%" rx="50%" ry="52%">
+            <Stop offset="0%" stopColor={color.card} stopOpacity={dark ? 0.68 : 0.96} />
+            <Stop offset="62%" stopColor={color.card} stopOpacity={dark ? 0.42 : 0.68} />
+            <Stop offset="100%" stopColor={color.card} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#dock-surround)" />
+      </Svg>
+    </View>
+    <View style={styles.dock}>
+      <View style={styles.tabTrack}>
+        <Animated.View pointerEvents="none" style={[styles.selection, slide]} />
+        {destinations.map(tab => {
+          const selected = tab.key === current;
+          const tint = selected ? color.primary : color.muted;
+          return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
+            accessibilityState={{ selected, disabled: busy }} disabled={busy} onPress={() => onSelect(tab.key)}
+            style={styles.tab}>
+            {({ pressed }) => <View style={[styles.tabContents, pressed && styles.tabPressed]}>
+              <AppIcon name={tab.icon} selected={selected} color={tint} size={22} />
+              {!narrow && <Text style={[styles.tabText, { color: tint }]}>{tab.title}</Text>}
+            </View>}
+          </Pressable>;
+        })}
+      </View>
     </View>
   </Animated.View>;
 }
@@ -430,8 +446,9 @@ const useStyles = themedStyles(({ color, ui }) => StyleSheet.create({
   caseAmount: { fontSize: 24, lineHeight: 30 },
   paste: { minHeight: 144 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  dock: { alignSelf: 'center', position: 'absolute', zIndex: 2,
-    padding: 5, backgroundColor: color.card, borderRadius: 34, elevation: 5,
+  dockPosition: { alignSelf: 'center', position: 'absolute', zIndex: 2, overflow: 'visible' },
+  dockSurround: { position: 'absolute', top: -38, left: -28, right: -28 },
+  dock: { padding: 5, backgroundColor: color.card, borderRadius: 34, elevation: 5,
     shadowColor: color.ink, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, shadowOpacity: 0.17 },
   tabTrack: { flexDirection: 'row', position: 'relative' },
   selection: { position: 'absolute', width: '33.333333%', top: 0, bottom: 0, borderRadius: 28, backgroundColor: color.primaryContainer },
