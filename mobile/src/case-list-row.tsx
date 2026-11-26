@@ -8,6 +8,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { AppIcon } from './icons';
 import { type CasePage } from './api';
 import { font } from './typography';
+import { isReviewed } from './case-library';
 
 type Props = {
   scrollGesture: ReturnType<typeof Gesture.Native>;
@@ -15,6 +16,7 @@ type Props = {
   onRename: () => void;
   item: CasePage['cases'][number];
   archived: boolean;
+  featured?: boolean;
   disabled: boolean;
   onOpen: () => void;
   onArchive: () => void;
@@ -24,7 +26,7 @@ type Props = {
   optionsVisible: boolean;
 };
 
-export function CaseListRow({ item, label, onRename, archived, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
+export function CaseListRow({ item, label, onRename, archived, featured = false, disabled, onOpen, onArchive, onDelete, onOptions, onDismissOptions, optionsVisible, scrollGesture }: Props) {
   const { color, ui, material } = useFairBillTheme();
   const styles = useStyles();
   const offset = useSharedValue(0);
@@ -50,8 +52,8 @@ export function CaseListRow({ item, label, onRename, archived, disabled, onOpen,
       'worklet';
       offset.value = reduced ? 0 : withTiming(0, { duration: 140 });
     }), [disabled, offset, reduced, scrollGesture, onArchive, onDelete, optionsVisible]);
-  const reviewed = item.investigated_revision === item.revision;
-  const status = reviewed ? 'Reviewed' : 'In review';
+  const reviewed = isReviewed(item);
+  const status = reviewed ? 'Review complete' : 'Needs review';
   const reference = item.id.slice(-6).toUpperCase();
   const title = label || (item.sample ? 'Sample investigation' : 'Hospital bill');
   const next = reviewed ? 'See findings' : 'Continue review';
@@ -62,19 +64,18 @@ export function CaseListRow({ item, label, onRename, archived, disabled, onOpen,
       <View style={styles.deleteAction}><AppIcon name="trash-2" color={color.onPrimary} size={22} />
         <Text style={styles.actionLabel}>Delete</Text></View>
     </View>
-    <Animated.View style={[styles.row, translation]}>
+    <Animated.View style={[styles.row, featured && styles.hero, translation]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, case ${reference}, ${status}`}
         accessibilityHint={next} disabled={disabled}
-        onPress={onOpen} onLongPress={onOptions} style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
+        onPress={onOpen} onLongPress={onOptions} style={({ pressed }) => [styles.open, featured && styles.heroOpen, pressed && styles.pressed]}>
         <View style={[styles.stamp, reviewed && styles.finished]}>
-          {reviewed ? <AppIcon name="shield" size={26} color={color.primary} /> :
-            <Text accessible={false} style={styles.rupee}>₹</Text>}
+          <AppIcon name={reviewed ? 'receipt' : 'file-text'} size={24} color={reviewed ? color.primary : color.question} />
         </View>
         <View style={ui.grow}>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={[styles.title, featured && styles.heroTitle]}>{title}</Text>
           <View style={styles.meta}><Text style={styles.reference}>#{reference}</Text>
             <View style={[styles.dot, reviewed && styles.finishedDot]} /><Text style={styles.status}>{status}</Text></View>
-          <Text style={styles.next}>{next}</Text>
+          <View style={styles.nextRow}><Text style={styles.next}>{next}</Text><AppIcon name="arrow-right" size={14} color={color.primary} /></View>
         </View>
       </Pressable>
       <Menu visible={optionsVisible} onDismiss={onDismissOptions} anchorPosition="bottom"
@@ -96,20 +97,23 @@ export function CaseListRow({ item, label, onRename, archived, disabled, onOpen,
 }
 
 const useStyles = themedStyles(({ color, material }) => StyleSheet.create({
-  container: { overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: color.line },
+  container: { overflow: 'hidden', borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: color.line },
   row: { alignItems: 'center', flexDirection: 'row', backgroundColor: color.card },
   open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, minHeight: 84 },
+  hero: { backgroundColor: color.secondaryContainer },
+  heroOpen: { minHeight: 111 },
+  heroTitle: { fontSize: 23 },
   pressed: { backgroundColor: color.surfaceContainer },
   menu: { borderRadius: 14, backgroundColor: color.card },
   destructive: { color: material.colors.error },
   more: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  rupee: { color: color.question, fontFamily: font.uiSans, fontSize: 25 },
   stamp: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: color.tertiaryContainer },
   finished: { backgroundColor: color.primaryContainer },
   title: { fontFamily: font.uiSans, fontSize: 19, color: color.ink },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 3 },
   reference: { fontFamily: font.mono, color: color.muted, fontSize: 12 },
-  next: { fontFamily: font.medium, color: color.primary, fontSize: 13, marginTop: 5 },
+  nextRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 5 },
+  next: { fontFamily: font.semibold, color: color.primary, fontSize: 14 },
   status: { fontFamily: font.medium, color: color.muted, fontSize: 13 },
   dot: { height: 5, width: 5, borderRadius: 3, backgroundColor: color.question, marginStart: 4 },
   finishedDot: { backgroundColor: color.primary },

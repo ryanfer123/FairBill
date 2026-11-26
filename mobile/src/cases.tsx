@@ -7,13 +7,14 @@ import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CaseListRow } from './case-list-row';
+import { caseLibrary, type CaseFilter } from './case-library';
 import { CaseTray } from './case-tray';
 import { createCasePageRequests, mergeCasePage, syncArchivePage, type CaseCursor } from './case-page-state';
 import { accountUser, cloudBuild } from './cloud-auth';
 import { deleteCase, request, type CasePage } from './api';
 import { font } from './typography';
 import { surfaceReveal } from './motion';
-import { Button, Input, LoadingState, Message, Sheet } from './ui';
+import { Button, Input, LoadingState, Message, SectionHeader, Sheet } from './ui';
 
 const enterShelf = FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 8 }] }).duration(210).reduceMotion(ReduceMotion.System);
 
@@ -27,7 +28,8 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
   const [error, setError] = useState('');
   const [failedCursor, setFailedCursor] = useState<CaseCursor>();
   const requests = useMemo(createCasePageRequests, []);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState<CaseFilter>('all');
+  const [full, setFull] = useState(false);
 
   const [archive, setArchive] = useState<Set<string>>(new Set());
   const archiveView = !!onBack;
@@ -146,33 +148,43 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
     finally { setBusy(false); acting.current = false; }
   }
 
-  const visible = cases.filter(item => archive.has(item.id) === archiveView);
-  const filtered = visible.filter((item) => filter === 'all'
-    || (item.investigated_revision === item.revision) === (filter === 'complete'));
+  const visible = cases.filter(item => archive.has(item.id) === archiveView && (!cloudBuild || !item.sample));
+  const library = caseLibrary(visible, filter, full, archiveView, after);
+  const hasMatches = !!library.featured || !!library.rows.length;
+  const inReview = library.completeInReview;
+  const renderCase = (item: CasePage['cases'][number], featured = false) => <CaseListRow key={item.id} item={item}
+    label={labels[item.id]} featured={featured} onRename={() => {
+      setOptions(undefined);
+      setError('');
+      setLabelDraft({ id: item.id, value: labels[item.id] ?? '' });
+    }} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
+    onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)}
+    optionsVisible={options === item.id} onDismissOptions={() => setOptions(undefined)} onArchive={() => void toggleArchive(item.id)}
+    onDelete={() => confirmDelete(item.id)} />;
 
-  const inReview = visible.filter(item => item.investigated_revision !== item.revision).length;
-  return <GestureDetector gesture={scrollGesture}><ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
-    <Animated.View entering={enterShelf} style={styles.cover}>
+  return <GestureDetector gesture={scrollGesture}><ScrollView style={ui.grow} onScroll={onScroll} scrollEventThrottle={16}
+    contentContainerStyle={[ui.content, { paddingBottom: clearance }]}>
+    <Animated.View entering={enterShelf} style={styles.header}>
       <View style={ui.between}>
         <View style={ui.grow}>
           <Text accessibilityRole="header" style={styles.title}>{archiveView ? 'Archived cases' : 'Your cases'}</Text>
-          <Text style={styles.subtitle}>{archiveView ? 'Saved in the archive on this device' : 'Your hospital bill reviews'}</Text>
+          {archiveView ? <Text style={ui.small}>Archived on this device</Text>
+            : !busy && !error && inReview != null && inReview > 0
+            ? <Text style={ui.small}>{inReview} {inReview === 1 ? 'case needs' : 'cases need'} review</Text> : null}
         </View>
         {onBack && <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onBack}
           style={({ pressed }) => [styles.archiveBack, pressed && { opacity: 0.72 }]}>
-          <AppIcon name="arrow-left" size={23} color={color.onCover} />
+          <AppIcon name="arrow-left" size={23} color={color.primary} />
         </Pressable>}
       </View>
     </Animated.View>
     {!!notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
-    <View style={styles.filters}>
+    <View style={styles.filters} accessibilityRole="tablist">
       {([{ key: 'all', label: 'All' }, { key: 'open', label: 'In review' }, { key: 'complete', label: 'Reviewed' }] as const).map(tab => {
         const selected = filter === tab.key;
-        const count = tab.key === 'all' ? visible.length : tab.key === 'open' ? inReview : visible.length - inReview;
         return <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected }}
-          onPress={() => setFilter(tab.key)} style={[styles.filter, selected && styles.selectedFilter]}>
+          onPress={() => { setOptions(undefined); setFilter(tab.key); }} style={[styles.filter, selected && styles.selectedFilter]}>
           <Text style={[styles.filterLabel, selected && styles.activeLabel]}>{tab.label}</Text>
-          {!busy && !error && !after && <Text style={[styles.tally, selected && styles.activeLabel]}>{count}</Text>}
         </Pressable>;
       })}
     </View>
@@ -180,21 +192,27 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
       {failedCursor !== undefined && <Button label="Retry" icon="refresh-cw" onPress={() => void load(failedCursor)} />}
     </> : null}
     <Animated.View key={filter} entering={surfaceReveal} style={styles.shelf}>
-      {filtered.map(item => <CaseListRow key={item.id} item={item} label={labels[item.id]} onRename={() => {
-          setOptions(undefined); setError(''); setLabelDraft({ id: item.id, value: labels[item.id] ?? '' });
-        }} scrollGesture={scrollGesture} archived={archiveView} disabled={busy}
-        onOpen={() => onOpen(item.id)} onOptions={() => setOptions(item.id)}
-        optionsVisible={options === item.id} onDismissOptions={() => setOptions(undefined)} onArchive={() => void toggleArchive(item.id)}
-        onDelete={() => confirmDelete(item.id)} />)}
-      {!busy && !error && !filtered.length && <View style={styles.empty}>
+      {library.featured && renderCase(library.featured, true)}
+      {library.rows.length > 0 && <>
+        {!archiveView && <SectionHeader>{full ? 'All cases' : 'Recent cases'}</SectionHeader>}
+        {library.rows.map(item => renderCase(item))}
+      </>}
+      {library.canShowAll && <Button label="View all cases" tone="light" icon="arrow-right" disabled={busy}
+        onPress={() => setFull(true)} />}
+      {full && !archiveView && hasMatches && <Button label="Show recent cases" tone="ghost" disabled={busy}
+        onPress={() => setFull(false)} />}
+      {!busy && !error && !hasMatches && <View style={styles.empty}>
         <CaseTray />
-        <Text style={ui.heading}>{archiveView && filter === 'all' ? 'No archived cases here' : !visible.length && filter === 'all' ? 'No cases in your inbox' : filter === 'complete' ? 'No reviewed cases here' : 'No cases in review here'}</Text>
-        <Text style={[ui.body, styles.center]}>{after ? 'Load more cases to check the next page.' : archiveView && filter === 'all' ? 'Swipe a case right to archive it here.' : !visible.length ? 'New bill reviews will appear here.' : 'Change the filter to see your other bills.'}</Text>
+        <Text style={[ui.heading, styles.center]}>{archiveView && filter === 'all' ? 'No archived cases here'
+          : filter === 'complete' ? 'No reviewed cases here' : filter === 'open' ? 'No cases in review here' : 'No cases yet'}</Text>
+        <Text style={[ui.body, styles.center]}>{after ? 'Load more cases to check the next page.'
+          : archiveView && filter === 'all' ? 'Use the options beside a case to archive it.'
+          : !visible.length ? 'Cases appear here after you start a bill review.' : 'Try another filter to see your other cases.'}</Text>
         {!archiveView && !visible.length && !after && <Button label="Start a bill review" onPress={onStart} />}
       </View>}
     </Animated.View>
     {busy && <LoadingState label="Loading cases" />}
-    {!busy && !error && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
+    {!busy && !error && library.canLoadMore && after && <Button label="Load more cases" tone="ghost" onPress={() => void load(after)} />}
     {labelDraft && <Sheet title="Edit case label" bottom compact onClose={() => { if (!busy) { setLabelDraft(undefined); setError(''); } }}>
       <View style={ui.content}>
         <Input label="Case label" accessibilityLabel="Case label" value={labelDraft.value} maxLength={64} editable={!busy}
@@ -217,18 +235,17 @@ export function CaseList({ onStart, onOpen, onScroll, clearance, onDeleted, onBa
 }
 
 const useStyles = themedStyles(({ color }) => StyleSheet.create({
-  cover: { padding: 20, borderRadius: 24, backgroundColor: color.cover, gap: 18 },
-  title: { color: color.onCover, fontFamily: font.uiSans, fontSize: 40, lineHeight: 44 },
-  subtitle: { color: color.coverMuted, fontFamily: font.regular, fontSize: 16, marginTop: 4 },
+  header: { gap: 4, paddingTop: 6 },
+  title: { color: color.ink, fontFamily: font.uiSans, fontSize: 36, lineHeight: 42 },
   filters: { flexDirection: 'row', borderBottomWidth: 1, borderColor: color.line },
   filter: { flex: 1, minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 5, paddingVertical: 6, borderBottomWidth: 3, borderColor: 'transparent' },
   selectedFilter: { borderColor: color.primary },
   filterLabel: { fontFamily: font.semibold, color: color.muted, fontSize: 15 },
-  tally: { fontFamily: font.mono, fontSize: 12, color: color.muted },
   activeLabel: { color: color.primary },
-  shelf: { overflow: 'hidden', backgroundColor: color.card, borderRadius: 18, borderColor: color.line, borderWidth: StyleSheet.hairlineWidth },
+  shelf: { gap: 12 },
   notice: { color: color.primary, fontFamily: font.medium },
   archiveBack: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
-  empty: { alignItems: 'center', padding: 22, gap: 10 },
+  empty: { alignItems: 'center', padding: 22, gap: 10, borderRadius: 18, borderColor: color.line,
+    borderWidth: StyleSheet.hairlineWidth, backgroundColor: color.card },
   center: { textAlign: 'center' },
 }));

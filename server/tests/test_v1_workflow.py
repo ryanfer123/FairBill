@@ -408,3 +408,17 @@ def test_patient_pdf_and_new_lab_order_keep_separate_quantity_question(client):
         assert "Quantity needs clarification" in text
         assert "₹1,100.00" in text
         assert not packet.embfile_names()
+
+
+def test_case_list_cursor_returns_each_case_once(client):
+    expected = {new_case(client, sample=False)["id"] for _ in range(22)}
+    first = client.get("/v1/cases", params={"limit": 20})
+    assert first.status_code == 200
+    page = first.json()
+    assert len(page["cases"]) == 20 and page["next_after"]
+    second = client.get("/v1/cases", params={"limit": 20, "after": page["next_after"]})
+    assert second.status_code == 200
+    end = second.json()
+    assert len(end["cases"]) == 2 and end["next_after"] is None
+    ids = [item["id"] for item in (*page["cases"], *end["cases"])]
+    assert len(ids) == len(set(ids)) == 22 and set(ids) == expected
