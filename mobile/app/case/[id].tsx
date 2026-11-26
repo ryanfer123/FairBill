@@ -26,7 +26,7 @@ import { ActionBar, Badge, Button, Card, CurrencyText, Divider, EmptyState, Icon
 
 type EvidenceOverlay = { type: 'evidence'; entry: EvidenceView; returnTo?: History };
 type Overlay = { type: 'intake'; kind?: Kind } | { type: 'review'; id: string; rowId?: string; returnTo?: EvidenceOverlay } | EvidenceOverlay
-  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
+  | { type: 'assistant' } | { type: 'assistance' } | { type: 'india-review' } | { type: 'india-aid' } | { type: 'revision'; revision: History } | { type: 'action'; action: Action } | { type: 'packet'; lines: string[]; revision: number };
 type Tab = 'Review' | 'Evidence' | 'Timeline' | 'Act';
 const caseID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
@@ -40,6 +40,7 @@ export default function CaseScreen() {
   const [data, setData] = useState<Case>();
   const [versioned, setVersioned] = useState(false);
   const [indiaReview, setIndiaReview] = useState(false);
+  const [policyLookup, setPolicyLookup] = useState(false);
   const [busy, setBusy] = useState('');
   const [packetNotice, setPacketNotice] = useState('');
   const working = useRef(false);
@@ -58,12 +59,12 @@ export default function CaseScreen() {
     setDirected(true);
     if (params.document && data.documents.some((doc) => doc.id === params.document && !doc.confirmed)) {
       setOverlay({ type: 'review', id: params.document });
-    } else if (params.section === 'aid' && versioned && data.investigated_revision === data.revision) {
+    } else if (params.section === 'aid' && versioned && (policyLookup || data.investigated_revision === data.revision)) {
       setOverlay({ type: 'assistance' });
     } else if (params.section === 'act' && data.investigated_revision === data.revision) {
       setTab('Act');
     }
-  }, [data, directed, params.document, params.section, versioned]);
+  }, [data, directed, params.document, params.section, policyLookup, versioned]);
 
   const refresh = useCallback(async () => {
     setError('');
@@ -72,6 +73,7 @@ export default function CaseScreen() {
       const [snapshot, backend] = await Promise.all([getCase(id), getBackend()]);
       setVersioned(backend.prefix === '/v1');
       setIndiaReview(backend.indiaReview === true);
+      setPolicyLookup(backend.policyLookup === true);
       setData(snapshot);
     } catch (cause) { setError((cause as Error).message); }
   }, [id]);
@@ -270,7 +272,6 @@ export default function CaseScreen() {
       case 'prepare': setOverlay(undefined); void prepare(item.action); break;
       case 'packet': setOverlay(undefined); void previewPacket(); break;
       case 'assistance': setOverlay({ type: 'assistance' }); break;
-      case 'india-review': setOverlay({ type: 'india-review' }); break;
     }
   };
   return <Screen>
@@ -334,14 +335,14 @@ export default function CaseScreen() {
             : 'Add a settlement statement to check deductions.'}</Text>}
           {live && indiaReview && <Button label="Review India price and policy sources" icon="search" tone="light" disabled={!!busy}
             onPress={() => setOverlay({ type: 'india-review' })} />}
-          {versioned && (!cloudBuild || !data.sample) && <Card tone="tonal">
-            <SectionHeader>Help with paying</SectionHeader>
-            <Text style={ui.body}>{live ? 'Find the published assistance process and prepare questions for your hospital.'
-              : 'Check the fictional assistance policy and see which clauses apply to the example.'}</Text>
-            <Button label={live ? 'View assistance resources' : 'Check assistance'} icon="heart" tone="light" disabled={!!busy}
-              onPress={() => setOverlay({ type: 'assistance' })} />
-          </Card>}
         </>}
+        {(ready || (live && policyLookup)) && versioned && (!cloudBuild || !data.sample) && <Card tone="tonal">
+          <SectionHeader>Help with paying</SectionHeader>
+          <Text style={ui.body}>{live ? 'Find the published assistance process and prepare questions for your hospital.'
+            : 'Check the fictional assistance policy and see which clauses apply to the example.'}</Text>
+          <Button label={live ? 'View assistance resources' : 'Check assistance'} icon="heart" tone="light" disabled={!!busy}
+            onPress={() => setOverlay({ type: 'assistance' })} />
+        </Card>}
       </>}
       {activeTab === 'Act' && canAct && <CaseActions data={data} busy={busy} live={live}
         prepare={(item) => void prepare(item)} preview={() => void previewPacket()} />}
@@ -358,7 +359,7 @@ export default function CaseScreen() {
     </ScrollView>
     {overlay?.type === 'assistant' && <CaseAssistant data={data} busy={!!busy} canAct={canAct}
       canAddEvidence={canAddEvidence} canReviewDocuments={!hostedBuild && !(cloudBuild && data.sample)}
-      supportsAssistance={versioned && (!cloudBuild || !data.sample)} supportsIndia={live && indiaReview}
+      supportsAssistance={versioned && (!cloudBuild || !data.sample)} supportsPolicyLookup={live && policyLookup}
       live={live} savedPlan={assistantPlan} onPlan={setAssistantPlan} onAction={takeAssistantAction} onClose={close} />}
     {canAddEvidence && overlay?.type === 'intake' && <Intake busy={!!busy} startKind={overlay.kind ?? (hasInvoice ? 'service_record' : 'invoice')} onClose={close}
       discarding={discarding} onDiscard={() => { cancelRequested.current = true; uploadControl.current?.abort(); setDiscarding(true); }}
@@ -385,8 +386,12 @@ export default function CaseScreen() {
       </ScrollView>
     </Sheet>}
     {live && overlay?.type === 'india-review' && <IndiaReview data={data} initial="tariff" onClose={close} />}
-    {overlay?.type === 'assistance' && (live ? (indiaReview ? <IndiaReview data={data} initial="aid" onClose={close} />
-      : <AssistanceSources onClose={close} />)
+    {live && overlay?.type === 'india-aid' && <IndiaReview data={data} initial="aid"
+      onClose={() => setOverlay({ type: 'assistance' })} />}
+    {overlay?.type === 'assistance' && (live ? (policyLookup
+      ? <AssistanceSources onClose={close} lookup={{ caseId: id, revision, onRefreshCase: refresh }}
+        onCategoryReview={indiaReview ? () => setOverlay({ type: 'india-aid' }) : undefined} />
+      : indiaReview ? <IndiaReview data={data} initial="aid" onClose={close} /> : <AssistanceSources onClose={close} />)
       : <Assistance caseId={id} revision={revision} onClose={close} />)}
     {action && <Outreach action={action} draft={draft} approved={approved} receipt={receipt} busy={busy} live={live}
       error={error} onDismissError={() => setError('')} onClose={close}

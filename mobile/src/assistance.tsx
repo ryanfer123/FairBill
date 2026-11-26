@@ -4,18 +4,25 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { hostedBuild, parseRupees, request, type AssistanceResult } from './api';
 import { accountUser } from './cloud-auth';
+import { HospitalPolicyLookup } from './hospital-policy-lookup';
 import { ActionBar, Badge, Button, Card, EmptyState, Input, Message, SectionHeader, Sheet } from './ui';
 
 const maharashtraScheme = 'https://nhm.maharashtra.gov.in/en/publication/mahatma-jyotirao-phule-jan-arogya-yojana/';
 
 const tataBooklet = 'https://tmc.gov.in/event/upload/12112025_5/TMH_Brochure_%20patient%20booklet.pdf';
 
-export function AssistanceSources({ onClose }: { onClose: () => void }) {
+export function AssistanceSources({ onClose, lookup, onCategoryReview }: {
+  onClose: () => void;
+  lookup?: { caseId: string; revision: number; onRefreshCase: () => void };
+  onCategoryReview?: () => void;
+}) {
   const { ui } = useFairBillTheme();
   const [error, setError] = useState('');
   const state = accountUser()?.user_metadata?.home_state;
   return <Sheet title="Help with paying" onClose={onClose}>
     <ScrollView contentContainerStyle={ui.content}>
+      {lookup && <HospitalPolicyLookup key={`${lookup.caseId}:${lookup.revision}`} {...lookup} />}
+      <SectionHeader>General guidance</SectionHeader>
       <Text style={ui.body}>Ask your hospital’s billing or medical social work office about financial assistance and what documents they need.</Text>
       {error ? <Message text={error} onClose={() => setError('')} /> : null}
       {typeof state === 'string' && state.trim().toLowerCase() === 'maharashtra' && <Card>
@@ -29,6 +36,7 @@ export function AssistanceSources({ onClose }: { onClose: () => void }) {
         <Text style={ui.body}>If your bill is from Tata Memorial, section 14.2 of its patient booklet describes the hospital’s patient categories and means assessment.</Text>
         <Button label="Open the hospital’s patient booklet" icon="external-link" tone="ghost"
           onPress={() => void Linking.openURL(tataBooklet).catch(() => setError('Could not open the patient booklet.'))} />
+        {onCategoryReview && <Button label="Review a Parel bill category" tone="ghost" onPress={onCategoryReview} />}
       </Card>
     </ScrollView>
   </Sheet>;

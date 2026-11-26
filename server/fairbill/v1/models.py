@@ -28,6 +28,10 @@ class Version(Input):
     revision: int = Field(strict=True, ge=1)
 
 
+class PolicyLookupInput(Version):
+    hospital: str = Field(max_length=48, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
 class Paste(Version):
     kind: Kind
     text: str = Field(min_length=1, max_length=20_000)

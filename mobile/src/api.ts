@@ -128,6 +128,7 @@ export interface Backend {
   profile: 'local' | 'fixtures' | 'hosted';
   mode?: 'Offline' | 'Gemini';
   indiaReview?: boolean;
+  policyLookup?: boolean;
 }
 
 async function createToken() {
@@ -171,9 +172,11 @@ async function discover(origin: string): Promise<Backend> {
       || (cloudBuild ? result.profile !== 'hosted' || result.demo !== null : result.demo !== 'synthetic' || (hostedBuild && result.profile !== 'fixtures'))) {
       throw new Error('FairBill server health check failed.');
     }
+    const features = response.headers.get('X-FairBill-Features')?.split(',').map((feature) => feature.trim()) ?? [];
     return {
       origin, prefix, profile: cloudBuild ? 'hosted' : result.profile === 'fixtures' ? 'fixtures' : 'local',
-      indiaReview: response.headers.get('X-FairBill-Features')?.split(',').map((feature) => feature.trim()).includes('india-review'),
+      indiaReview: features.includes('india-review'),
+      policyLookup: features.includes('policy-lookup'),
       mode: result.mode === 'Gemini' || result.mode === 'Offline' ? result.mode : undefined,
     };
   } catch {

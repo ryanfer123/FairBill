@@ -20,3 +20,18 @@ In a hosted case, open **Review India price and policy sources** after confirmin
 The policy review requires a confirmed invoice, issued policy and corresponding settlement advice. It matches the selected UIN to the policy text and points to clause 3.2 for room-related deductions. Assistance guidance follows the category shown on the Tata Memorial bill and directs the patient to the hospital. Reference differences are shown separately from the calculated scenario. The review does not issue eligibility decisions, calculate insurance reimbursement or persist new case data.
 
 The API tests use synthetic invoice, policy and settlement records, including a generated itemised PDF. They cover paise arithmetic, date limits, incorrect editions, wrong policy versions, stale revisions and case ownership. Synthetic results do not establish OCR accuracy or savings on patient documents.
+
+## Live hospital assistance pages
+
+The lookup supports two hospital locations that can be checked directly over HTTPS.
+
+| Hospital | Official source | Section |
+| --- | --- | --- |
+| AIIMS New Delhi, R.P. Centre | [Patient Welfare Services](https://aiims.edu/index.php/en/2023-07-19-08-55-03) | Exemption of Hospital Levy charges for BPL and Indigent patients |
+| MPMMCC, Varanasi | [Medical Social Services](https://mpmmcc.tmc.gov.in/departments/medical-social-works) | The services provided by the department include |
+
+In a case, open **Help with paying**, choose the hospital and campus, and tap **Check official page**. The assistant’s assistance goal opens the same screen. The lookup does not need an uploaded or confirmed bill. The Parel booklet and bill-category guidance remain available separately.
+
+FairBill checks the registered HTTPS page at the time of the request and shows an excerpt only when the reviewed wording and its surrounding context still match. The check timestamp records the read attempt. It does not establish an eligibility or coverage date. A changed page is marked stale and its old excerpt is withheld. A failed request or unsupported hospital is shown separately. The hospital determines eligibility.
+
+The authenticated API accepts only a case revision and a selected catalog ID. The public hospital request carries neither case data nor FairBill credentials. Hospital requests are limited to registered URLs and approved redirects with public, pinned destination addresses, TLS certificate checks, an eight-second deadline, and a 512 KiB uncompressed HTML limit. FairBill checks HTML text, skips explicitly hidden elements, and never executes scripts or fetches assets or page links. PDF and JavaScript-only sources remain outside live lookup.

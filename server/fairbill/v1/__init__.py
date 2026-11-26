@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .. import documents, resolution
+from .. import documents, policy_sources, resolution
 from ..assistance import screen_assistance
 from ..document_media import MAX_PAGE_CHARS
 from ..documents import MAX_BYTES, ROW_TYPES, Kind
@@ -132,7 +132,7 @@ def health(response: Response):
     if health_result["status"] != "ok":
         return JSONResponse(health_result, status_code=503)
     if current == "hosted":
-        response.headers["X-FairBill-Features"] = "india-review"
+        response.headers["X-FairBill-Features"] = "india-review, policy-lookup"
     return health_result
 
 
@@ -461,6 +461,24 @@ def assistance_case(case_id, data, owner):
     case = store.get(owner, case_id)
     check_revision(case, data.revision)
     return case
+
+
+@app.get("/assistance/policy-sources", response_model=list[policy_sources.PolicySource])
+def assistance_policy_sources(owner: Owner):
+    for_local()
+    return [entry.source for entry in policy_sources.SOURCES]
+
+
+@app.post("/cases/{case_id}/assistance/policy-lookup", response_model=policy_sources.PolicyLookup)
+async def assistance_policy_lookup(case_id: str, data: m.PolicyLookupInput, owner: Owner):
+    for_local()
+    case = await run_in_threadpool(assistance_case, case_id, data, owner)
+    if case["sample"]:
+        raise HTTPException(422, "Hospital policy lookup requires a non-sample case.")
+    # Only the explicitly selected public catalog entry reaches the network client.
+    result = await policy_sources.lookup(data.hospital, data.revision)
+    await run_in_threadpool(assistance_case, case_id, data, owner)
+    return result
 
 
 @app.post("/cases/{case_id}/assistance/sample", response_model=m.AssistanceResult)

@@ -9,7 +9,7 @@ export type AssistantAction =
   | { type: 'intake'; kind: Kind }
   | { type: 'document'; id: string }
   | { type: 'prepare'; action: Action }
-  | { type: 'evidence' | 'result' | 'investigate' | 'packet' | 'assistance' | 'india-review' };
+  | { type: 'evidence' | 'result' | 'investigate' | 'packet' | 'assistance' };
 
 export type SavedPlan = { request: string; revision: number; intent: Intent };
 
@@ -20,7 +20,7 @@ type Props = {
   canAddEvidence: boolean;
   canReviewDocuments: boolean;
   supportsAssistance: boolean;
-  supportsIndia: boolean;
+  supportsPolicyLookup: boolean;
   live: boolean;
   savedPlan?: SavedPlan;
   onPlan: (plan: SavedPlan) => void;
@@ -41,7 +41,7 @@ type Goal = Exclude<Intent, 'unknown'>;
 type Step = { label: string; action: AssistantAction };
 
 function makePlan(goal: Goal, props: Props): { steps: string[]; next?: Step; explanation?: string } {
-  const { data, canReviewDocuments, canAddEvidence, canAct, supportsAssistance, supportsIndia, live } = props;
+  const { data, canReviewDocuments, canAddEvidence, canAct, supportsAssistance, supportsPolicyLookup, live } = props;
   const invoice = data.documents.find((doc) => doc.kind === 'invoice');
   const pending = data.documents.find((doc) => !doc.confirmed);
   const reviewed = data.investigated_revision === data.revision;
@@ -51,10 +51,11 @@ function makePlan(goal: Goal, props: Props): { steps: string[]; next?: Step; exp
   const run = { label: 'Run bill checks', action: { type: 'investigate' } as const };
 
   if (goal === 'assistance') {
-    return { steps: ['Open available assistance resources', 'Check the published criteria'],
-      next: live && supportsIndia ? { label: 'View assistance resources', action: { type: 'india-review' } }
-        : supportsAssistance ? { label: 'Check financial assistance', action: { type: 'assistance' } } : undefined,
-      explanation: supportsAssistance || supportsIndia ? undefined : 'Assistance resources are unavailable for this case.' };
+    return { steps: supportsPolicyLookup ? ['Choose your hospital and campus', 'Read the official source']
+      : ['Open available assistance resources', 'Check the published guidance'],
+      next: supportsAssistance ? { label: live ? 'View assistance resources' : 'Check financial assistance',
+        action: { type: 'assistance' } } : undefined,
+      explanation: supportsAssistance ? undefined : 'Assistance resources are unavailable for this case.' };
   }
   if (goal === 'source' || goal === 'review') {
     const doc = pending ?? invoice ?? data.documents[0];
