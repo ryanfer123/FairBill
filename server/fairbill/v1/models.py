@@ -41,6 +41,7 @@ class UploadVersion(Version):
     kind: Kind
     sha256: Hash
     media_type: str | None = None
+    device_ocr_sha256: Hash | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class EditRow(Version):

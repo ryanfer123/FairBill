@@ -6,6 +6,7 @@ import pymupdf
 import pytest
 
 from fairbill import resolution
+from fairbill import documents
 from fairbill.documents import (
     ObservedRow,
     Row,
@@ -108,6 +109,33 @@ def test_ordinary_invoice_tolerates_ocr_qty_letter_confusion_only_in_header():
     assert len(document["rows"]) == 3
 
 
+def test_ordinary_invoice_maps_explicit_reordered_columns_and_later_page_total():
+    first = "\n".join((
+        "Service Date\tItem Description\tService Code\tLine Total (INR)\tUnits\tPrice Per Unit (Rs.)\tOrder ID",
+        "2026-11-01\tTotal protein test\tTP\t1,200.00\t2\t600.00\tOP-1",
+        "2026-11-01\tBad group number\tB\t1,20.00\t1\t120.00\tOP-2",
+    ))
+    second = "Currency: INR\nGrand Total: 1,200.00"
+    document = make_document("bill", "invoice", f"{first}\f{second}".encode(), pasted=True, versioned=True)
+    charge, total = document["rows"]
+    assert (charge["description"], charge["code"], charge["service_date"], charge["reference"]) == (
+        "Total protein test", "TP", "2026-11-01", "OP-1",
+    )
+    assert (charge["units"], charge["unit_price"], charge["amount"]) == (2, 60000, 120000)
+    assert (total["page"], total["line"], total["amount"]) == (2, 2, 120000)
+    assert document["extracted_lines"][2]["needs_manual_entry"]
+
+
+def test_ordinary_invoice_accepts_aligned_columns_but_rejects_conflicting_currency():
+    text = "Item Description    Qty    Rate (INR)    Amount (INR)\nBlood count    2    120.00    240.00"
+    document = make_document("bill", "invoice", text.encode(), pasted=True, versioned=True)
+    assert [row["amount"] for row in document["rows"]] == [24000]
+    conflicting = f"Currency: USD\n{text}"
+    document = make_document("bill", "invoice", conflicting.encode(), pasted=True, versioned=True)
+    assert not document["rows"]
+    assert "ambiguous currency" in document["notes"][0]
+
+
 @pytest.mark.skipif(not shutil.which("tesseract"), reason="Tesseract is needed for local OCR")
 def test_ordinary_itemised_invoice_from_real_ocr():
     with pymupdf.open() as pdf:
@@ -119,6 +147,33 @@ def test_ordinary_itemised_invoice_from_real_ocr():
         ("charge", 50000), ("charge", 24000), ("invoice_total", 74000),
     ]
     assert all(line["source"] == "ocr" and line["bbox"] for line in document["extracted_lines"])
+
+
+def test_device_ocr_validates_original_and_keeps_observations_unconfirmed(monkeypatch):
+    png = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 20, 20), False).tobytes("png")
+
+    def unexpected_ocr(_):
+        pytest.fail("A complete device reading should not need hosted OCR.")
+
+    monkeypatch.setattr(documents, "extract_image_lines", unexpected_ocr)
+    document = make_document("bill", "invoice", png, versioned=True, trusted=True, device_ocr_text=ITEMISED_BILL)
+    assert document["sha256"] == hashlib.sha256(png).hexdigest()
+    assert not document["confirmed"] and not document["bundled"]
+    assert all(record["source"] == "device_ocr" and record["bbox"] is None for record in document["extracted_lines"])
+    assert "Compare each row with the original" in document["notes"][0]
+    with pytest.raises(ValueError, match="The image could not be read"):
+        make_document("bill", "invoice", png[:25], versioned=True, device_ocr_text=ITEMISED_BILL)
+
+
+@pytest.mark.parametrize("hint", ["Mangled text", ITEMISED_BILL.rsplit("\n", 1)[0]])
+def test_incomplete_device_recognition_falls_back_to_hosted_ocr(monkeypatch, hint):
+    png = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 20, 20), False).tobytes("png")
+    monkeypatch.setattr(documents, "extract_image_lines", lambda _: [
+        {"raw_text": line, "source": "ocr", "bbox": None, "confidence": None} for line in ITEMISED_BILL.splitlines()
+    ])
+    document = make_document("bill", "invoice", png, versioned=True, device_ocr_text=hint)
+    assert [row["amount"] for row in document["rows"]] == [50000, 24000, 74000]
+    assert document["extracted_lines"][0]["source"] == "ocr"
 
 
 def test_rejects_invalid_media_encryption_and_oversized_dimensions():

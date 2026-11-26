@@ -20,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import documents, resolution
 from ..assistance import screen_assistance
+from ..document_media import MAX_PAGE_CHARS
 from ..documents import MAX_BYTES, ROW_TYPES, Kind
 from ..investigation import event, now
 from ..india_pilot import PilotInput, PilotReview, review_case
@@ -193,7 +194,7 @@ def sample_order(case_id: str, data: m.Version, owner: Owner, key: Key = None):
     return mutate(owner, case_id, key, "sample_order", data, apply)
 
 
-def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, media_type=None, token=None):
+def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, media_type=None, token=None, device_ocr_text=None):
     from ..api import attach
 
     created = None
@@ -208,6 +209,7 @@ def import_document(case_id, owner, key, data, kind, blob, *, pasted=False, medi
         try:
             created = documents.make_document(
                 doc_id, kind, blob, versioned=True, pasted=pasted, media_type=media_type,
+                device_ocr_text=device_ocr_text,
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -237,7 +239,8 @@ def paste(case_id: str, data: m.Paste, owner: Owner, authorization: Bearer, key:
 
 @app.post("/cases/{case_id}/documents/file", response_model=m.Case)
 async def upload(case_id: str, owner: Owner, authorization: Bearer, revision: Annotated[int, Form(ge=1)],
-                 kind: Annotated[Kind, Form()], file: Annotated[UploadFile, File()], key: Key = None):
+                 kind: Annotated[Kind, Form()], file: Annotated[UploadFile, File()], key: Key = None,
+                 device_ocr_text: Annotated[str | None, Form(max_length=MAX_PAGE_CHARS)] = None):
     try:
         for_local()
         blob = await file.read(MAX_BYTES + 1)
@@ -245,11 +248,12 @@ async def upload(case_id: str, owner: Owner, authorization: Bearer, revision: An
         await file.close()
     if len(blob) > MAX_BYTES:
         raise HTTPException(413, "Choose a document up to 10 MB.")
+    hint_hash = hashlib.sha256(device_ocr_text.encode()).hexdigest() if device_ocr_text else None
     data = m.UploadVersion(revision=revision, kind=kind, sha256=hashlib.sha256(blob).hexdigest(),
-                           media_type=file.content_type)
+                           media_type=file.content_type, device_ocr_sha256=hint_hash)
     return await run_in_threadpool(partial(
         import_document, case_id, owner, key, data, kind, blob, media_type=file.content_type,
-        token=authorization.credentials,
+        token=authorization.credentials, device_ocr_text=device_ocr_text,
     ))
 
 

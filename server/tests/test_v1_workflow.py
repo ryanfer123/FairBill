@@ -6,6 +6,7 @@ import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 
@@ -187,6 +188,34 @@ def test_v1_document_observations_and_original_storage(client, tmp_path):
     case = operation(client, case, "investigate")
     assert any(finding["check"] == "line_arithmetic" for finding in case["findings"])
     assert all(finding["kind"] == "billing_question" and finding["evidence"] for finding in case["findings"])
+
+
+def test_device_ocr_upload_preserves_original_and_requires_patient_confirmation(client, tmp_path):
+    case = new_case(client, sample=False)
+    path = f"/v1/cases/{case['id']}"
+    image = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 20, 20), False).tobytes("png")
+    text = "Currency: INR\nDescription Qty Rate Amount\nConsultation 1 500.00 500.00\nTotal 500.00"
+    fields = {"revision": case["revision"], "kind": "invoice", "device_ocr_text": text}
+    files = {"file": ("bill.png", image, "image/png")}
+    headers = {"Idempotency-Key": "device-ocr-upload"}
+    upload = client.post(path + "/documents/file", data=fields, files=files, headers=headers)
+    assert upload.status_code == 200, upload.text
+    case = upload.json()
+    document = case["documents"][0]
+    assert document["extracted_lines"][0]["source"] == "device_ocr"
+    assert not document["confirmed"]
+    assert (next((tmp_path / "originals").glob(f"*/*/{document['id']}"))).read_bytes() == image
+    replay = client.post(path + "/documents/file", data=fields, files=files, headers=headers)
+    assert replay.status_code == 200 and replay.json() == case
+    changed = client.post(path + "/documents/file", data={**fields, "device_ocr_text": text.replace("500", "200")},
+                          files=files, headers=headers)
+    assert changed.status_code == 409
+    denied = client.post(path + "/investigate", json={"revision": case["revision"]})
+    assert denied.status_code == 422
+    confirmed = operation(client, case, f"documents/{document['id']}/confirm")
+    investigated = operation(client, confirmed, "investigate")
+    assert investigated["scenario"]["billed"] == 50000
+    assert investigated["scenario"]["sources"]["billed"][0]["basis"] == "patient_confirmed"
 
 
 def test_assistance_and_redacted_packet(client):

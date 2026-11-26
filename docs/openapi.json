@@ -264,6 +264,18 @@
       },
       "Body_upload_cases__case_id__documents_file_post": {
         "properties": {
+          "device_ocr_text": {
+            "anyOf": [
+              {
+                "maxLength": 16000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Ocr Text"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "title": "File",

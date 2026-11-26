@@ -177,6 +177,23 @@ def _bounded(lines: list[dict]) -> list[dict]:
     return lines
 
 
+def validated_image(data: bytes, mime: str):
+    width, height = image_size(data, mime)
+    if min(width, height) < 1 or max(width, height) > 10_000 or width * height > MAX_PIXELS:
+        raise ValueError("Image dimensions are too large. Resize the photo and try again.")
+    try:
+        return pymupdf.Pixmap(data)
+    except (RuntimeError, pymupdf.FileDataError, pymupdf.mupdf.FzErrorBase) as exc:
+        raise ValueError("The image could not be read.") from exc
+
+
+def extract_image_lines(pixmap) -> list[dict]:
+    try:
+        return _bounded(_ocr_lines(pixmap, pymupdf.Matrix(1, 1)))
+    except (RuntimeError, pymupdf.FileDataError, pymupdf.mupdf.FzErrorBase) as exc:
+        raise ValueError("The image could not be read.") from exc
+
+
 def extract_versioned(data: bytes, mime: str, max_pages: int) -> list[list[dict]]:
     if mime == "application/pdf":
         try:
@@ -201,11 +218,4 @@ def extract_versioned(data: bytes, mime: str, max_pages: int) -> list[list[dict]
                 return pages
         except (RuntimeError, pymupdf.FileDataError) as exc:
             raise ValueError("The PDF could not be read.") from exc
-    width, height = image_size(data, mime)
-    if min(width, height) < 1 or max(width, height) > 10_000 or width * height > MAX_PIXELS:
-        raise ValueError("Image dimensions are too large. Resize the photo and try again.")
-    try:
-        pixmap = pymupdf.Pixmap(data)
-        return [_bounded(_ocr_lines(pixmap, pymupdf.Matrix(1, 1)))]
-    except (RuntimeError, pymupdf.FileDataError) as exc:
-        raise ValueError("The image could not be read.") from exc
+    return [extract_image_lines(validated_image(data, mime))]

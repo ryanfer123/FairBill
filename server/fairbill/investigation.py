@@ -71,11 +71,13 @@ def eligible_for_model(case: dict) -> bool:
 
 def ref(pair: tuple[dict, dict], relation: str) -> dict:
     doc, row = pair
+    extracted = doc.get("extracted_lines", [])
+    device_observation = bool(extracted and extracted[0]["source"] == "device_ocr")
     return {
         "document_id": doc["id"], "document_kind": doc["kind"], "sha256": doc["sha256"],
         "row_id": row["id"], "page": row["page"], "line": row["line"],
         "quote": excerpt(doc, row), "relation": relation,
-        "basis": "patient_confirmed" if row["id"] in doc.get("edited_rows", []) else "document",
+        "basis": "patient_confirmed" if device_observation or row["id"] in doc.get("edited_rows", []) else "document",
     }
 
 
